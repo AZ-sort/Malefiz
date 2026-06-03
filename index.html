@@ -89,6 +89,18 @@
   }
   .cell.bplace:hover{background:rgba(200,200,220,.18)!important;transform:scale(1.12);z-index:6;}
 
+
+  /* Ghost barricade preview on hover */
+  .barr-ghost{
+    width:72%;height:26%;
+    background:var(--bar);
+    border-radius:4px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .15s;
+  }
+  .cell.bplace:hover .barr-ghost{opacity:0.55;}
+
   /* Barricade */
   .barr{
     width:72%;height:26%;background:var(--bar);
@@ -1440,6 +1452,10 @@ function renderBoard() {
         if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17) {
           div.classList.add('bplace','clickable');
           div.onclick = () => placeBarricade(er, ec);
+          // Ghost barricade preview on hover
+          const ghost = document.createElement('div');
+          ghost.className = 'barr-ghost';
+          div.appendChild(ghost);
         }
       }
     }
