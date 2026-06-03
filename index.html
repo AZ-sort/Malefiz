@@ -173,7 +173,7 @@
   .home-pawn.sel{box-shadow:0 0 0 3px rgba(124,106,255,.55);transform:scale(1.22);}
 
   /* ── Sidebar ── */
-  .sidebar{display:flex;flex-direction:column;gap:10px;width:224px;flex-shrink:0;}
+  .sidebar{display:flex;flex-direction:column;gap:10px;width:224px;flex-shrink:0;overflow:hidden;}
   .panel{
     background:var(--surface);border:1px solid var(--border);
     border-radius:var(--radius);padding:14px;
@@ -666,7 +666,7 @@
       <div style="margin-top:8px"><button class="btn bg" onclick="resetGame()" style="font-size:.72rem">New Game</button></div>
     </div>
 
-    <div class="panel"><h3>Log</h3><div class="glog" id="glog"></div></div>
+    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;"><h3>Log</h3><div class="glog" id="glog" style="flex:1;min-height:0;"></div></div>
   </div>
 </div></div></div>
 
@@ -1123,32 +1123,45 @@ function animatePawnAlongPath(pawn, path, onDone) {
 
 
 // ── Viewport scaler ────────────────────────────────────────────
+// scaleToFit — only runs on load and resize, NEVER during gameplay
+// Measures the natural size once and caches it to avoid reflow thrashing
+let _cachedScale = 1;
+let _scaleTimer = null;
+
 function scaleToFit() {
   const inner = document.getElementById('scaler-inner');
   const scaler = document.getElementById('scaler');
   if (!inner || !scaler) return;
+  if (animating) return; // never rescale during animation
 
-  // Reset scale to measure natural size
-  inner.style.transform = 'scale(1)';
+  // Temporarily remove transform to get natural dimensions
+  const prev = inner.style.transform;
+  inner.style.transform = 'none';
 
   const availH = scaler.offsetHeight;
   const availW = scaler.offsetWidth;
   const naturalH = inner.offsetHeight;
   const naturalW = inner.offsetWidth;
 
-  if (naturalH === 0 || naturalW === 0) return;
+  if (naturalH === 0 || naturalW === 0) {
+    inner.style.transform = prev;
+    return;
+  }
 
-  const scaleH = availH / naturalH;
-  const scaleW = availW / naturalW;
-  const scale = Math.min(scaleH, scaleW, 1); // never scale UP, only down
-
+  const scale = Math.min(availH / naturalH, availW / naturalW, 1);
+  _cachedScale = scale;
   inner.style.transform = `scale(${scale})`;
   inner.style.transformOrigin = 'top center';
 }
 
-window.addEventListener('resize', scaleToFit);
-// Run after fonts/layout settle
-window.addEventListener('load', () => setTimeout(scaleToFit, 100));
+// Debounced resize handler — waits 150ms after resize stops
+window.addEventListener('resize', () => {
+  clearTimeout(_scaleTimer);
+  _scaleTimer = setTimeout(scaleToFit, 150);
+});
+
+// Run once after everything has rendered
+window.addEventListener('load', () => setTimeout(scaleToFit, 200));
 
 
 // ================================================================
@@ -1780,7 +1793,7 @@ function bestBarricade() {
 // ================================================================
 // RENDER
 // ================================================================
-function renderAll() { renderBoard(); renderSidebar(); setTimeout(scaleToFit, 0); }
+function renderAll() { renderBoard(); renderSidebar(); }
 
 function renderBoard() {
   const container = document.getElementById('board');
