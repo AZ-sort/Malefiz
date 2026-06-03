@@ -520,6 +520,17 @@
       <div class="theme-grid" id="settings-theme-grid"></div>
     </div>
     <div class="settings-section">
+      <div class="settings-section-label">🔊 Sound</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+        <span style="font-size:.75rem;color:var(--muted);font-family:'DM Mono',monospace;">Sound effects</span>
+        <label class="toggle">
+          <input type="checkbox" id="sound-toggle" checked onchange="soundEnabled=this.checked">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
+    </div>
+    <div class="settings-section">
       <div class="settings-section-label">🎮 Game</div>
       <button class="btn bg" onclick="closeSettings();resetGame();" style="font-size:.78rem;">New Game</button>
     </div>
@@ -1096,7 +1107,7 @@ function animatePawnAlongPath(pawn, path, onDone) {
     pawn.er = path[i].er;
     pawn.ec = path[i].ec;
     placeFloatElAt(pawn, path[i].er, path[i].ec);
-    // Re-render board state (barricades, other pawns stay in place)
+    soundMove();
     renderBoard();
     i++;
     setTimeout(step, STEP_MS);
@@ -1139,6 +1150,238 @@ window.addEventListener('resize', scaleToFit);
 // Run after fonts/layout settle
 window.addEventListener('load', () => setTimeout(scaleToFit, 100));
 
+
+// ================================================================
+// SOUND ENGINE — Web Audio API synthesized sounds
+// Chess-style wooden thock for moves, heavier impact for captures
+// ================================================================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+let soundEnabled = true;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  // Resume if suspended (browser autoplay policy)
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playSound(fn) {
+  if (!soundEnabled) return;
+  try { fn(getAudioCtx()); } catch(e) {}
+}
+
+// ── Chess-style wooden piece move (soft thock) ───────────────────
+// Two-layer: a short noise burst (wood) + a low thud
+function soundMove() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+
+    // Layer 1: noise burst (wood grain)
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 1800;
+    noiseFilter.Q.value = 1.2;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.18, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(t);
+    noise.stop(t + 0.08);
+
+    // Layer 2: low thud (body of the piece)
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.06);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.28, t);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.1);
+  });
+}
+
+// ── Chess-style capture (heavier thock with more impact) ─────────
+function soundCapture() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+
+    // Heavier noise burst
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 1200;
+    noiseFilter.Q.value = 0.9;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.35, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(t);
+    noise.stop(t + 0.12);
+
+    // Deeper, longer thud
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.45, t);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.15);
+
+    // Extra high click for attack feel
+    const click = ctx.createOscillator();
+    click.type = 'square';
+    click.frequency.setValueAtTime(600, t);
+    click.frequency.exponentialRampToValueAtTime(100, t + 0.03);
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(0.12, t);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    click.connect(clickGain);
+    clickGain.connect(ctx.destination);
+    click.start(t);
+    click.stop(t + 0.04);
+  });
+}
+
+// ── Dice roll — Colonist.io style ───────────────────────────────
+// Bright, plastic, fast clatter — like shaking dice in a cup
+// then a crisp landing click
+function soundDice() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+
+    // Phase 1: rapid bright rattling (dice shaking in cup)
+    // Many quick high-pitched clicks, densely packed then slowing
+    const clickTimes = [0, 0.026, 0.058, 0.1, 0.154, 0.223, 0.311, 0.423, 0.567, 0.752];
+    clickTimes.forEach((offset, i) => {
+      const isLast = i === clickTimes.length - 1;
+      const bufLen = Math.floor(ctx.sampleRate * 0.022);
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      // Sharp attack, quick decay
+      for (let j = 0; j < bufLen; j++) {
+        data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufLen * 0.25));
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+
+      // Bandpass: high for clatter (2000-4000hz), lower for final landing
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.value = isLast ? 1200 : 2800 + Math.random() * 1200;
+      filt.Q.value = 1.5;
+
+      const vol = isLast ? 0.55 : 0.12 + (i / clickTimes.length) * 0.08;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol, t + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + offset + (isLast ? 0.07 : 0.025));
+
+      src.connect(filt);
+      filt.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(t + offset);
+      src.stop(t + offset + 0.08);
+
+      // Final landing: add a short mid-freq thud for the landing click
+      if (isLast) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, t + offset);
+        osc.frequency.exponentialRampToValueAtTime(180, t + offset + 0.04);
+        const og = ctx.createGain();
+        og.gain.setValueAtTime(0.22, t + offset);
+        og.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.06);
+        osc.connect(og);
+        og.connect(ctx.destination);
+        osc.start(t + offset);
+        osc.stop(t + offset + 0.07);
+      }
+    });
+  });
+}
+
+// ── Barricade captured (wooden thud) ────────────────────────────
+function soundBarricadeCapture() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.06));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 800;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    src.connect(filt);
+    filt.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(t);
+    src.stop(t + 0.16);
+  });
+}
+
+// ── Barricade placed (wooden knock) ─────────────────────────────
+function soundBarricadePlace() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, t);
+    osc.frequency.exponentialRampToValueAtTime(100, t + 0.05);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.1);
+  });
+}
+
+// ── Win fanfare (short ascending arpeggio) ───────────────────────
+function soundWin() {
+  playSound(ctx => {
+    const notes = [523, 659, 784, 1047]; // C E G C
+    notes.forEach((freq, i) => {
+      const t = ctx.currentTime + i * 0.13;
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.25, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.28);
+    });
+  });
+}
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 
@@ -1154,6 +1397,7 @@ function rollDice() {
   if (phase!=='roll'||gameOver||isCPU(currentPlayer)||animating) return;
   diceVal = Math.floor(Math.random()*6)+1;
   animDice(diceVal);
+  soundDice();
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn';
   renderAll();
@@ -1207,6 +1451,7 @@ function moveTo(er, ec) {
 
     if (capturedPawn) {
       // Animate captured pawn flying back to its home area
+      soundCapture();
       animateCapturedPawn(capturedPawn, capturedPlayer, () => {
         capturedPawn.onBoard = false; capturedPawn.er = -1; capturedPawn.ec = -1;
         glog(`${pnm(currentPlayer)} captured ${pnm(capturedPlayer)}'s pawn!`, true);
@@ -1248,11 +1493,12 @@ function animateCapturedPawn(pawn, player, onDone) {
 function finishMove(er, ec, bar, movingPawn) {
 
   // Win check
-  if (er===4 && ec===9) { gameOver=true; renderAll(); setTimeout(()=>showWin(currentPlayer),300); return; }
+  if (er===4 && ec===9) { gameOver=true; renderAll(); setTimeout(()=>{soundWin();showWin(currentPlayer);},300); return; }
 
   // Barricade captured
   if (bar) {
     barricades = barricades.filter(b=>!(b.er===er&&b.ec===ec));
+    soundBarricadeCapture();
     phase = 'place-barricade';
     glog(`${pnm(currentPlayer)} removed a barricade — place it anywhere`, true);
     renderAll();
@@ -1278,6 +1524,7 @@ function placeBarricade(er, ec) {
   // Cannot place on row 17 (bottom path row) or below
   if (er >= 17) return; // row 17 is bottom path row
   barricades.push({er, ec});
+  soundBarricadePlace();
   glog(`${pnm(currentPlayer)} placed barricade`);
   nextTurn(); renderAll();
 }
@@ -1302,6 +1549,7 @@ function doCPU() {
   if (gameOver) return;
   diceVal = Math.floor(Math.random()*6)+1;
   animDice(diceVal);
+  soundDice();
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn'; renderAll();
   setTimeout(() => {
@@ -1904,7 +2152,7 @@ try {
 document.addEventListener('DOMContentLoaded', buildThemeGrid);
 
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
-function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'flex':'none'; }
+function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
 function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
 function resetGame() { document.getElementById('win').classList.remove('show'); document.getElementById('setup').style.display='flex'; }
