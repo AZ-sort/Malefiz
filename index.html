@@ -1316,15 +1316,110 @@ function doCPU() {
   }, 430);
 }
 
-function scoreTarget(er, ec) {
+// ================================================================
+// SMART CPU AI
+// Scoring considers: distance to goal, barricade removal,
+// enemy captures, blocking own path, pawn deployment priority
+// ================================================================
+
+// How many steps does it take to reach the goal from (er,ec)?
+// Uses BFS ignoring barricades (best-case path length)
+function distToGoal(er, ec) {
+  const GOAL_ER = 4, GOAL_EC = 9;
+  if (er === GOAL_ER && ec === GOAL_EC) return 0;
+  const visited = new Set();
+  const queue = [[er, ec, 0]];
+  visited.add(`${er},${ec}`);
+  while (queue.length) {
+    const [r, c, d] = queue.shift();
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr = r+dr, nc = c+dc;
+      if (nr===GOAL_ER && nc===GOAL_EC) return d+1;
+      const k = `${nr},${nc}`;
+      if (!visited.has(k) && isWalkable(nr,nc)) {
+        visited.add(k);
+        queue.push([nr, nc, d+1]);
+      }
+    }
+  }
+  return 999;
+}
+
+// Count barricades blocking the most direct path from (er,ec) to goal
+function barricadesOnPath(er, ec) {
+  const GOAL_ER = 4, GOAL_EC = 9;
+  const visited = new Set();
+  // BFS tracking barricades encountered
+  const queue = [[er, ec, 0]];
+  visited.add(`${er},${ec}`);
+  while (queue.length) {
+    const [r, c, bars] = queue.shift();
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr = r+dr, nc = c+dc;
+      if (!isWalkable(nr,nc)) continue;
+      const k = `${nr},${nc}`;
+      if (visited.has(k)) continue;
+      visited.add(k);
+      const newBars = bars + (barAt(nr,nc) ? 1 : 0);
+      if (nr===GOAL_ER && nc===GOAL_EC) return newBars;
+      queue.push([nr, nc, newBars]);
+    }
+  }
+  return 0;
+}
+
+// Score a move target cell
+function scoreTarget(er, ec, movingPawn) {
   let s = 0;
-  // Lower excel row = closer to goal = better
-  const distToGoal = Math.abs(er-4) + Math.abs(ec-9);
-  s += (30 - distToGoal) * 3;
-  if (barAt(er,ec)) s += 6;
-  const occ = pawnAt(er,ec);
-  if (occ&&occ.player!==currentPlayer) s += 10 + (18-occ.pawn.er)*2;
-  if (er===4&&ec===9) s += 999;
+
+  // ── Win immediately ──────────────────────────────────────────
+  if (er===4 && ec===9) return 10000;
+
+  // ── Distance to goal (primary driver) ───────────────────────
+  // How far is this cell from the goal?
+  const dist = distToGoal(er, ec);
+  s += (40 - dist) * 5;
+
+  // ── Bonus for being the most advanced pawn ───────────────────
+  // Prefer advancing the pawn that's already closest to goal
+  const myPawns = (pawns[currentPlayer]||[]).filter(p=>p.onBoard);
+  const bestDist = myPawns.length
+    ? Math.min(...myPawns.map(p => p === movingPawn ? dist : distToGoal(p.er, p.ec)))
+    : dist;
+  if (dist === bestDist) s += 10; // reward keeping the lead pawn moving
+
+  // ── Removing a barricade that's blocking our path ────────────
+  if (barAt(er, ec)) {
+    // How many barricades are currently on our best path?
+    const barsNow = barricadesOnPath(movingPawn.er, movingPawn.ec);
+    const barsAfter = barricadesOnPath(er, ec);
+    // Removing a barricade that's in our way is very valuable
+    if (barsNow > 0) s += 20;
+    else s += 8; // removing any barricade is still good (we get to place it)
+  }
+
+  // ── Capturing an enemy pawn ──────────────────────────────────
+  const occ = pawnAt(er, ec);
+  if (occ && occ.player !== currentPlayer) {
+    const enemyDist = distToGoal(occ.pawn.er, occ.pawn.ec);
+    // More valuable to capture pawns that are close to the goal
+    s += 25 + Math.max(0, 30 - enemyDist) * 2;
+  }
+
+  // ── Avoid going backwards ────────────────────────────────────
+  // Penalise cells that are further from goal than current position
+  if (movingPawn.onBoard) {
+    const currentDist = distToGoal(movingPawn.er, movingPawn.ec);
+    if (dist > currentDist) s -= (dist - currentDist) * 3;
+  }
+
+  // ── Deploy reserve pawns only when worth it ──────────────────
+  if (!movingPawn.onBoard) {
+    // Only deploy if we don't have enough pawns in play
+    const onBoard = (pawns[currentPlayer]||[]).filter(p=>p.onBoard).length;
+    if (onBoard >= 3) s -= 15; // already have enough in play
+  }
+
   return s;
 }
 
@@ -1334,38 +1429,105 @@ function bestMove() {
     let reach;
     if (!pw.onBoard) reach = getReachableFromEntry(currentPlayer, diceVal);
     else reach = getReachable(pw, diceVal);
-    for (const t of reach) cands.push({pawn:pw, reach, target:t, score:scoreTarget(t.er,t.ec)});
+    for (const t of reach) {
+      cands.push({pawn:pw, reach, target:t, score:scoreTarget(t.er, t.ec, pw)});
+    }
   }
   if (!cands.length) return null;
-  cands.sort((a,b)=>b.score-a.score);
-  if (cpuDiff==='easy') { const pool=cands.slice(Math.floor(cands.length*.5)); return pool[Math.floor(Math.random()*pool.length)]; }
-  if (cpuDiff==='medium') { const pool=cands.slice(0,Math.max(1,Math.floor(cands.length*.4))); return pool[Math.floor(Math.random()*pool.length)]; }
+  cands.sort((a,b) => b.score - a.score);
+
+  if (cpuDiff === 'easy') {
+    // Easy: picks randomly from the worst 50% of moves
+    const pool = cands.slice(Math.floor(cands.length * 0.5));
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  if (cpuDiff === 'medium') {
+    // Medium: picks randomly from top 30% of moves
+    const pool = cands.slice(0, Math.max(1, Math.floor(cands.length * 0.3)));
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  // Hard: always picks the best move
   return cands[0];
 }
 
 function bestBarricade() {
-  let target=null, best=999;
-  for (let p=1;p<=numPlayers;p++) {
-    if (p===currentPlayer) continue;
-    for (const pw of (pawns[p]||[])) {
-      if (pw.onBoard && pw.er < best) { best=pw.er; target=pw; }
+  // Find CPU's most advanced pawn (our lead pawn to protect)
+  const myPawns = (pawns[currentPlayer]||[]).filter(pw=>pw.onBoard);
+  let leadPawn = null;
+  if (myPawns.length) {
+    myPawns.sort((a,b) => distToGoal(a.er,a.ec) - distToGoal(b.er,b.ec));
+    leadPawn = myPawns[0];
+  }
+  const leadDist = leadPawn ? distToGoal(leadPawn.er, leadPawn.ec) : 999;
+
+  // Find all enemy players' most advanced pawns
+  const threats = [];
+  for (let p=1; p<=numPlayers; p++) {
+    if (p === currentPlayer) continue;
+    const onBoard = (pawns[p]||[]).filter(pw=>pw.onBoard);
+    if (onBoard.length) {
+      onBoard.sort((a,b) => distToGoal(a.er,a.ec) - distToGoal(b.er,b.ec));
+      threats.push(onBoard[0]);
     }
   }
+
   let cands = [];
-  Object.values(CELL_MAP).forEach(({er,ec,type}) => {
-    if (type==='goal') return;
-    if (er>=17) return; // not on bottom rows
-    if (barAt(er,ec)||pawnAt(er,ec)) return;
-    let score=0;
-    if (target&&er>target.er&&er<=target.er+6) score+=10+Math.max(0,7-Math.abs(ec-target.ec));
-    cands.push({er,ec,score});
+  Object.values(CELL_MAP).forEach(({er, ec, type}) => {
+    if (type === 'goal') return;
+    if (er >= 17) return;
+    if (barAt(er,ec) || pawnAt(er,ec)) return;
+
+    let score = 0;
+    const hereToGoal = distToGoal(er, ec);
+    const neighbors = [[-1,0],[1,0],[0,-1],[0,1]]
+      .filter(([dr,dc]) => isWalkable(er+dr, ec+dc)).length;
+    const isNarrow = neighbors <= 2;
+
+    // Strategy 1: Place BEHIND our lead pawn to block chasers
+    // Best placement: between enemy and our lead pawn
+    if (leadPawn) {
+      for (const threat of threats) {
+        const threatDist = distToGoal(threat.er, threat.ec);
+        // Cell is closer to goal than threat, but further than our lead
+        if (hereToGoal > leadDist && hereToGoal < threatDist) {
+          const gap = threatDist - hereToGoal;
+          score += 30 + gap * 3;
+          if (isNarrow) score += 20;
+        }
+      }
+    }
+
+    // Strategy 2: Block enemies who are ahead of us
+    for (const threat of threats) {
+      const threatDist = distToGoal(threat.er, threat.ec);
+      if (hereToGoal < threatDist) {
+        const blocking = threatDist - hereToGoal;
+        score += 18 + blocking * 2;
+        if (isNarrow) score += 15;
+        score += Math.max(0, 25 - threatDist);
+      }
+    }
+
+    // Avoid placing near the start — too easy to route around
+    if (er >= 15) score -= 25;
+
+    // Slight preference for cells near the goal area
+    if (hereToGoal <= 8) score += 10;
+
+    cands.push({er, ec, score});
   });
+
   if (!cands.length) return null;
-  cands.sort((a,b)=>b.score-a.score);
-  if (cpuDiff==='easy') return cands[Math.floor(Math.random()*cands.length)];
-  if (cpuDiff==='medium') { const pool=cands.slice(0,Math.max(1,Math.floor(cands.length*.3))); return pool[Math.floor(Math.random()*pool.length)]; }
+  cands.sort((a,b) => b.score - a.score);
+
+  if (cpuDiff === 'easy') return cands[Math.floor(Math.random() * cands.length)];
+  if (cpuDiff === 'medium') {
+    const pool = cands.slice(0, Math.max(1, Math.floor(cands.length * 0.25)));
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
   return cands[0];
 }
+
 
 // ================================================================
 // RENDER
