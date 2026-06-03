@@ -32,7 +32,19 @@
   .main{
     display:flex;gap:16px;padding:16px;
     align-items:flex-start;width:100%;max-width:1180px;
-    flex:1;overflow:auto;min-height:0;
+    flex:1;min-height:0;
+  }
+
+
+  /* ── Viewport scaler ── */
+  #scaler{
+    display:flex;width:100%;justify-content:center;
+    flex:1;min-height:0;align-items:flex-start;
+    overflow:hidden;
+  }
+  #scaler-inner{
+    transform-origin:top center;
+    display:flex;
   }
 
   /* ── Board ── */
@@ -601,7 +613,7 @@
   </div>
 </header>
 
-<div class="main">
+<div id="scaler"><div id="scaler-inner"><div class="main">
   <div id="board-wrap">
     <div id="board">
       <div id="pawn-layer"></div>
@@ -633,7 +645,7 @@
 
     <div class="panel"><h3>Log</h3><div class="glog" id="glog"></div></div>
   </div>
-</div>
+</div></div></div>
 
 <script>
 // ================================================================
@@ -1086,6 +1098,35 @@ function animatePawnAlongPath(pawn, path, onDone) {
 // ACTIONS
 // ================================================================
 
+
+// ── Viewport scaler ────────────────────────────────────────────
+function scaleToFit() {
+  const inner = document.getElementById('scaler-inner');
+  const scaler = document.getElementById('scaler');
+  if (!inner || !scaler) return;
+
+  // Reset scale to measure natural size
+  inner.style.transform = 'scale(1)';
+
+  const availH = scaler.offsetHeight;
+  const availW = scaler.offsetWidth;
+  const naturalH = inner.offsetHeight;
+  const naturalW = inner.offsetWidth;
+
+  if (naturalH === 0 || naturalW === 0) return;
+
+  const scaleH = availH / naturalH;
+  const scaleW = availW / naturalW;
+  const scale = Math.min(scaleH, scaleW, 1); // never scale UP, only down
+
+  inner.style.transform = `scale(${scale})`;
+  inner.style.transformOrigin = 'top center';
+}
+
+window.addEventListener('resize', scaleToFit);
+// Run after fonts/layout settle
+window.addEventListener('load', () => setTimeout(scaleToFit, 100));
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 
@@ -1317,7 +1358,7 @@ function bestBarricade() {
 // ================================================================
 // RENDER
 // ================================================================
-function renderAll() { renderBoard(); renderSidebar(); }
+function renderAll() { renderBoard(); renderSidebar(); setTimeout(scaleToFit, 0); }
 
 function renderBoard() {
   const container = document.getElementById('board');
