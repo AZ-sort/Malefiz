@@ -465,6 +465,10 @@
 
   /* ── MOBILE RESPONSIVE ── */
   @media (max-width: 700px) {
+    /* Reorder panels on mobile: dice first */
+    #dice-panel { order: -1; }
+    #players-panel { order: 0; }
+
     /* On mobile: body scrolls, layout stacks vertically */
     body {
       height: auto !important;
@@ -536,7 +540,7 @@
     }
 
     /* Dice panel takes full width on mobile for bigger touch targets */
-    .sidebar .panel:nth-child(1) {
+    #dice-panel {
       width: calc(100vw - 16px) !important;
       flex: none !important;
     }
@@ -772,7 +776,8 @@
     </div>
   </div>
   <div class="sidebar">
-    <div class="panel">
+    <div class="panel" id="players-panel"><h3>Players</h3><div id="plist"></div></div>
+    <div class="panel" id="dice-panel">
       <h3>Dice</h3>
       <div class="toggle-row">
         <span class="toggle-label">Auto-roll</span>
@@ -788,7 +793,6 @@
         <button class="btn bp" id="rbtn" onclick="rollDice()">Roll Dice</button>
       </div>
     </div>
-    <div class="panel"><h3>Players</h3><div id="plist"></div></div>
     <div class="panel">
       <h3>Action</h3>
       <div class="phbox" id="phbox"><small>PHASE</small>Waiting...</div>
