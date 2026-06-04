@@ -591,6 +591,115 @@
     .main { padding: 6px; gap: 6px; }
   }
 
+
+  /* ── Powerups ── */
+  .powerup-cell {
+    position: absolute;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    z-index: 4;
+    cursor: default;
+    pointer-events: none;
+  }
+
+
+  /* Inventory area below home bases */
+  .inventory-area {
+    position: absolute;
+    display: flex; gap: 6px;
+    align-items: center;
+  }
+  .inv-slot {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    border: 2px dashed rgba(255,255,255,.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+    cursor: default;
+    transition: transform .12s, box-shadow .15s;
+    background: rgba(255,255,255,.04);
+  }
+  .inv-slot.has-powerup {
+    border-style: solid;
+    cursor: pointer;
+  }
+  .inv-slot.has-powerup:hover { transform: scale(1.12); }
+  .inv-slot.glow-p1 { animation: glow-p1 1.6s ease-in-out infinite; }
+  .inv-slot.glow-p2 { animation: glow-p2 1.6s ease-in-out infinite; }
+  .inv-slot.glow-p3 { animation: glow-p3 1.6s ease-in-out infinite; }
+  .inv-slot.glow-p4 { animation: glow-p4 1.6s ease-in-out infinite; }
+
+  /* Powerup activation UI */
+  #powerup-modal {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(10,10,18,.75); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center;
+  }
+  #powerup-modal.show { display: flex; }
+  .pu-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; width: 340px;
+    display: flex; flex-direction: column; gap: 16px;
+    animation: pop .28s cubic-bezier(.34,1.56,.64,1);
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .pu-box h2 { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .pu-box p  { font-size: .82rem; color: var(--muted); line-height: 1.6; }
+  .pu-actions { display: flex; gap: 8px; }
+
+  /* Skip/Possession target selector */
+  #target-modal {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(10,10,18,.75); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center;
+  }
+  #target-modal.show { display: flex; }
+  .target-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; width: 320px;
+    display: flex; flex-direction: column; gap: 14px;
+    animation: pop .28s cubic-bezier(.34,1.56,.64,1);
+  }
+  .target-box h2 { font-size: 1rem; font-weight: 700; }
+  .target-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 8px;
+    border: 1.5px solid var(--border); background: var(--surface2);
+    cursor: pointer; transition: all .13s; font-family: 'Sora', sans-serif;
+    font-size: .82rem; font-weight: 600; color: var(--text);
+  }
+  .target-btn:hover { border-color: var(--accent); background: rgba(124,106,255,.12); }
+
+
+  /* Powerup turn dots */
+  .pu-dots {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+    pointer-events: none;
+  }
+  .pu-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    box-shadow: 0 0 3px rgba(255,255,255,0.6);
+  }
+  .pu-dot.gone {
+    background: rgba(255,255,255,0.15);
+    box-shadow: none;
+  }
+
+
+  .glow-overlay { background: transparent; }
+  .glow-overlay.glow-p1 { animation: glow-p1 1.6s ease-in-out infinite; }
+  .glow-overlay.glow-p2 { animation: glow-p2 1.6s ease-in-out infinite; }
+  .glow-overlay.glow-p3 { animation: glow-p3 1.6s ease-in-out infinite; }
+  .glow-overlay.glow-p4 { animation: glow-p4 1.6s ease-in-out infinite; }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -632,6 +741,13 @@
         <div class="rb on" id="de" onclick="setDiff('easy')">Easy</div>
         <div class="rb" id="dm" onclick="setDiff('medium')">Medium</div>
         <div class="rb" id="dh2" onclick="setDiff('hard')">Hard</div>
+      </div>
+    </div>
+    <div>
+      <div class="slbl">Game Mode</div>
+      <div class="rbs">
+        <div class="rb on" id="pu-off" onclick="setPowerups(false)">Classic</div>
+        <div class="rb" id="pu-on" onclick="setPowerups(true)">⚡ Powerups</div>
       </div>
     </div>
     <button class="btn bp" onclick="startGame()">Start Game →</button>
@@ -749,6 +865,28 @@
     </div>
 
     <button class="btn bp" onclick="closeHTP()" style="margin-top:4px;">Got it!</button>
+  </div>
+</div>
+
+
+<!-- POWERUP ACTIVATION MODAL -->
+<div id="powerup-modal">
+  <div class="pu-box">
+    <h2 id="pu-title">🎲 Double Roll</h2>
+    <p id="pu-desc">Roll two dice and move the higher number.</p>
+    <div class="pu-actions">
+      <button class="btn bp" onclick="confirmPowerup()" style="flex:1">Use It!</button>
+      <button class="btn bg" onclick="closePowerupModal()" style="flex:1">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- TARGET SELECTOR MODAL -->
+<div id="target-modal">
+  <div class="target-box">
+    <h2 id="target-title">Choose a target</h2>
+    <div id="target-list"></div>
+    <button class="btn bg" onclick="closeTargetModal()" style="margin-top:4px;font-size:.76rem;">Cancel</button>
   </div>
 </div>
 
@@ -971,7 +1109,7 @@ const BOARD_H = 15 * ST + SZ; // rows 4-18 = 15 rows
 // ================================================================
 // GAME STATE
 // ================================================================
-let numPlayers = 2, cpuMode = 'none', cpuDiff = 'easy';
+let numPlayers = 2, cpuMode = 'none', cpuDiff = 'easy', powerupsEnabled = false;
 // pawns[p] = array of {id, player, er, ec, onBoard}
 // onBoard=false → pawn is in reserve at home, not on the grid
 let pawns = {}, barricades = [], currentPlayer = 1;
@@ -981,6 +1119,7 @@ const PCOLS = {1:'var(--p1)',2:'var(--p2)',3:'var(--p3)',4:'var(--p4)'};
 const PNMS  = {1:'Player 1',2:'Player 2',3:'Player 3',4:'Player 4'};
 
 function barAt(er,ec) { return barricades.find(b=>b.er===er&&b.ec===ec)||null; }
+function puAt(er,ec) { return boardPowerups.find(p=>p.er===er&&p.ec===ec)||null; }
 
 function pawnAt(er, ec) {
   for (let p=1; p<=numPlayers; p++) {
@@ -999,6 +1138,7 @@ function initGame() {
   }
   barricades = BARRICADE_INIT_CELLS.map(([er,ec]) => ({er,ec}));
   currentPlayer=1; diceVal=null; phase='roll'; selPawn=null; reachable=[]; gameOver=false;
+  initPowerups();
 }
 
 // ================================================================
@@ -1241,7 +1381,8 @@ function animatePawnAlongPath(pawn, path, onDone) {
     pawn.ec = path[i].ec;
     placeFloatElAt(pawn, path[i].er, path[i].ec);
     soundMove();
-    renderBoard();
+    // Don't call renderBoard() mid-animation — it resets all CSS animations
+    // causing glow and powerup flicker. Only update what changed (float pawn position).
     i++;
     setTimeout(step, STEP_MS);
   }
@@ -1494,6 +1635,44 @@ function soundDice() {
   });
 }
 
+
+// ── Powerup collect (cha-ching!) ────────────────────────────────
+function soundPowerup() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    // Two ascending coin tones = cha-ching
+    const notes = [880, 1320];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + i * 0.09);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.15, t + i * 0.09 + 0.06);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t + i * 0.09);
+      gain.gain.linearRampToValueAtTime(0.3, t + i * 0.09 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.09 + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t + i * 0.09);
+      osc.stop(t + i * 0.09 + 0.2);
+    });
+    // Shimmer noise
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.04));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'highpass';
+    filt.frequency.value = 4000;
+    const gain2 = ctx.createGain();
+    gain2.gain.setValueAtTime(0.12, t);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    src.connect(filt); filt.connect(gain2); gain2.connect(ctx.destination);
+    src.start(t); src.stop(t + 0.13);
+  });
+}
+
 // ── Barricade captured (wooden thud) ────────────────────────────
 function soundBarricadeCapture() {
   playSound(ctx => {
@@ -1556,6 +1735,233 @@ function soundWin() {
   });
 }
 
+
+// ================================================================
+// POWERUP SYSTEM
+// 3 powerups: Double Roll 🎲, Skip Turn ⏭️, Possession 👻
+// Spawn every 4 turns, max 4 on board, expire after 3 turns
+// Players hold max 2, must use before rolling
+// ================================================================
+
+const POWERUP_TYPES = {
+  'double': { icon: '🎲', name: 'Double Roll',  desc: 'Roll the dice — your result is doubled this turn!' },
+  'skip':   { icon: '⏭️', name: 'Skip Turn',    desc: 'Choose an opponent — they lose their next turn.' },
+  'possess':{ icon: '👻', name: 'Possession',   desc: 'Move one of an opponent\'s pawns with your dice roll instead of your own.' },
+};
+
+// Board powerups: [{er, ec, type, turnsLeft}]
+let boardPowerups = [];
+// Player inventories: {1: [{type, id}], 2: [...], ...}
+let playerPowerups = {};
+// Skip tracking: {player: turnsToSkip}
+let skipTurns = {};
+// Possession state
+let possessionActive = false;
+let possessionTargetPlayer = null;
+// Turn counter for spawning
+let turnCount = 0;
+let nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
+// Active powerup being confirmed
+let pendingPowerup = null;
+
+function initPowerups() {
+  boardPowerups = [];
+  playerPowerups = {};
+  skipTurns = {};
+  possessionActive = false;
+  possessionTargetPlayer = null;
+  turnCount = 0;
+  nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
+  pendingPowerup = null;
+  for (let p = 1; p <= numPlayers; p++) playerPowerups[p] = [];
+}
+
+// Try to spawn a powerup (called at end of each turn)
+function trySpawnPowerup() {
+  if (!powerupsEnabled) return;
+  turnCount++;
+
+  // Tick down existing powerups (despawn after 6-12 individual turns, set on spawn)
+  boardPowerups = boardPowerups.filter(p => {
+    p.age = (p.age || 0) + 1;
+    if (p.age >= (p.maxAge || 9)) {
+      glog(`⌛ A ${POWERUP_TYPES[p.type].name} powerup disappeared`);
+      return false;
+    }
+    return true;
+  });
+
+  // Spawn check: every 3-5 turns
+  if (turnCount < nextSpawnAt) return;
+  if (boardPowerups.length >= 4) return; // max 4 on board
+
+  // Pick a random empty path cell with min 9 Manhattan distance from other powerups
+  const MIN_DIST = 9;
+  const candidates = Object.values(CELL_MAP).filter(({er, ec, type}) => {
+    if (type === 'goal') return false;
+    if (er >= 14) return false; // not on bottom rows
+    if (barAt(er, ec)) return false;
+    if (pawnAt(er, ec)) return false;
+    if (boardPowerups.find(p => p.er === er && p.ec === ec)) return false;
+    // Must be at least MIN_DIST Manhattan distance from all existing powerups
+    for (const p of boardPowerups) {
+      if (Math.abs(p.er - er) + Math.abs(p.ec - ec) < MIN_DIST) return false;
+    }
+    return true;
+  });
+
+  if (!candidates.length) return;
+  // Shuffle to avoid always picking from same insertion-order position
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  const cell = candidates[0];
+  const types = Object.keys(POWERUP_TYPES);
+  const type = types[Math.floor(Math.random() * types.length)];
+  boardPowerups.push({ er: cell.er, ec: cell.ec, type, maxAge: Math.floor(Math.random()*11)+30 }); // 30-40 turns
+  nextSpawnAt = turnCount + Math.floor(Math.random()*3) + 4; // next in 4-6 turns
+  glog(`✨ A ${POWERUP_TYPES[type].name} powerup appeared on the board!`, true);
+}
+
+// tickPowerups — powerups now stay forever, this is kept as no-op
+function tickPowerups() {}
+
+// Check if player landed on a powerup
+function checkPowerupCollection(er, ec) {
+  if (!powerupsEnabled) return;
+  const idx = boardPowerups.findIndex(p => p.er === er && p.ec === ec);
+  if (idx === -1) return;
+  const inv = playerPowerups[currentPlayer] || [];
+  if (inv.length >= 2) {
+    glog(`${pnm(currentPlayer)} already has 2 powerups — couldn't collect!`);
+    return;
+  }
+  const pu = boardPowerups.splice(idx, 1)[0];
+  playerPowerups[currentPlayer] = [...inv, {type: pu.type, id: Date.now()}];
+  soundPowerup();
+  glog(`${pnm(currentPlayer)} collected ${POWERUP_TYPES[pu.type].icon} ${POWERUP_TYPES[pu.type].name}!`, true);
+}
+
+// ── Powerup activation ──────────────────────────────────────────
+
+function clickPowerup(player, puId) {
+  if (player !== currentPlayer) return;
+  if (phase !== 'roll' || gameOver || animating) return;
+  const pu = (playerPowerups[player] || []).find(p => p.id === puId);
+  if (!pu) return;
+  pendingPowerup = pu;
+  const def = POWERUP_TYPES[pu.type];
+  document.getElementById('pu-title').textContent = def.icon + ' ' + def.name;
+  document.getElementById('pu-desc').textContent = def.desc;
+  document.getElementById('powerup-modal').classList.add('show');
+}
+
+function closePowerupModal() {
+  document.getElementById('powerup-modal').classList.remove('show');
+  pendingPowerup = null;
+}
+
+function confirmPowerup() {
+  document.getElementById('powerup-modal').classList.remove('show');
+  if (!pendingPowerup) return;
+  const pu = pendingPowerup;
+  pendingPowerup = null;
+
+  if (pu.type === 'double') {
+    // Remove immediately — no target needed, can't be cancelled
+    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
+    activateDoubleRoll();
+  } else if (pu.type === 'skip') {
+    // Remove immediately — target modal cancel just wastes it (skip has no cancel harm)
+    // Actually keep same pattern: remove on target confirm only
+    pendingPowerup = pu; // keep pending until target chosen
+    showTargetModal('skip');
+  } else if (pu.type === 'possess') {
+    // Keep in inventory until target is actually chosen
+    pendingPowerup = pu; // keep pending until target chosen
+    showTargetModal('possess');
+  }
+}
+
+// ── Double Roll ─────────────────────────────────────────────────
+let doubleRollActive = false;
+
+function activateDoubleRoll() {
+  doubleRollActive = true;
+  glog(`${pnm(currentPlayer)} activated 🎲 Double Roll!`, true);
+  renderAll();
+}
+
+// Hook into rollDice — roll normally then double the result
+function applyDoubleRoll() {
+  if (!doubleRollActive) return false;
+  doubleRollActive = false;
+  const r = Math.floor(Math.random() * 6) + 1;
+  diceVal = r * 2;
+  animDice(diceVal);
+  soundDice();
+  glog(`${pnm(currentPlayer)} rolled ${r} × 2 = ${diceVal}! 🎲`, true);
+  phase = 'pick-pawn';
+  // Reset snapshot so updateGlowOverlay actually rebuilds the board
+  glowTurnSnapshot = '';
+  renderAll();
+  return true;
+}
+
+// ── Skip Turn ───────────────────────────────────────────────────
+function showTargetModal(type) {
+  const title = type === 'skip' ? '⏭️ Skip whose turn?' : '👻 Possess whose pawn?';
+  document.getElementById('target-title').textContent = title;
+  const list = document.getElementById('target-list');
+  list.innerHTML = '';
+  for (let p = 1; p <= numPlayers; p++) {
+    if (p === currentPlayer) continue;
+    const btn = document.createElement('div');
+    btn.className = 'target-btn';
+    btn.innerHTML = `<div style="width:12px;height:12px;border-radius:50%;background:${PCOLS[p]};flex-shrink:0;"></div> ${pnm(p)}`;
+    btn.onclick = () => {
+      closeTargetModal();
+      // Now remove from inventory since target was confirmed
+      if (pendingPowerup) {
+        playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(pw => pw.id !== pendingPowerup.id);
+        pendingPowerup = null;
+      }
+      if (type === 'skip') applySkip(p);
+      else if (type === 'possess') applyPossession(p);
+    };
+    list.appendChild(btn);
+  }
+  document.getElementById('target-modal').classList.add('show');
+}
+
+function closeTargetModal() {
+  document.getElementById('target-modal').classList.remove('show');
+  // If cancelled, powerup stays in inventory (pendingPowerup not consumed)
+  pendingPowerup = null;
+  renderAll();
+}
+
+function applySkip(targetPlayer) {
+  skipTurns[targetPlayer] = (skipTurns[targetPlayer] || 0) + 1;
+  glog(`${pnm(currentPlayer)} used ⏭️ Skip Turn on ${pnm(targetPlayer)}!`, true);
+  renderAll();
+}
+
+// ── Possession ──────────────────────────────────────────────────
+function applyPossession(targetPlayer) {
+  possessionActive = true;
+  possessionTargetPlayer = targetPlayer;
+  glog(`${pnm(currentPlayer)} activated 👻 Possession on ${pnm(targetPlayer)}!`, true);
+  renderAll();
+}
+
+// In possession mode: roll dice then pick and move TARGET player's pawn
+function endPossession() {
+  possessionActive = false;
+  possessionTargetPlayer = null;
+}
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 
@@ -1569,16 +1975,25 @@ function toggleAutoRoll() {
 
 function rollDice() {
   if (phase!=='roll'||gameOver||isCPU(currentPlayer)||animating) return;
+  // Double roll powerup check
+  if (applyDoubleRoll()) return;
   diceVal = Math.floor(Math.random()*6)+1;
   animDice(diceVal);
   soundDice();
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn';
+  // In possession mode, we pick the target player's pawn instead
+  if (possessionActive) {
+    glog(`👻 ${pnm(currentPlayer)} controls ${pnm(possessionTargetPlayer)}'s pawn this turn!`, true);
+  }
   renderAll();
 }
 
 function pickPawn(pawn) {
-  if (gameOver||pawn.player!==currentPlayer||animating) return;
+  if (gameOver||animating) return;
+  // In possession mode: can only pick target player's pawns
+  const allowedPlayer = possessionActive ? possessionTargetPlayer : currentPlayer;
+  if (pawn.player !== allowedPlayer) return;
   // If already in move phase with a different pawn selected, auto-switch
   if (phase==='move' && selPawn !== pawn) {
     selPawn = null; reachable = []; phase = 'pick-pawn';
@@ -1586,7 +2001,9 @@ function pickPawn(pawn) {
   if (phase!=='pick-pawn') return;
   let reach;
   if (!pawn.onBoard) {
-    reach = getReachableFromEntry(currentPlayer, diceVal);
+    // For possession: use target player's entry, not current player's
+    const entryPlayer = possessionActive ? possessionTargetPlayer : currentPlayer;
+    reach = getReachableFromEntry(entryPlayer, diceVal);
   } else {
     reach = getReachable(pawn, diceVal);
   }
@@ -1665,6 +2082,10 @@ function animateCapturedPawn(pawn, player, onDone) {
 }
 
 function finishMove(er, ec, bar, movingPawn) {
+  // Check powerup collection
+  checkPowerupCollection(er, ec);
+  // End possession after move
+  if (possessionActive) endPossession();
 
   // Win check
   if (er===4 && ec===9) { gameOver=true; renderAll(); setTimeout(()=>{soundWin();showWin(currentPlayer);},300); return; }
@@ -1704,13 +2125,49 @@ function placeBarricade(er, ec) {
 }
 
 function nextTurn() {
+  if (gameOver) return;
   phase='roll'; diceVal=null; selPawn=null; reachable=[];
+  possessionActive = false; possessionTargetPlayer = null;
+  doubleRollActive = false;
   document.getElementById('dface').textContent='⚀';
+  // Spawn/tick powerups (only on real turn transitions, not skip chains)
+  trySpawnPowerup();
   currentPlayer = (currentPlayer % numPlayers) + 1;
-  if (isCPU(currentPlayer) && !gameOver) {
+  renderAll();
+
+  // Handle skip — advance again but don't double-count powerup ticks
+  if (!gameOver && skipTurns[currentPlayer] > 0) {
+    skipTurns[currentPlayer]--;
+    glog(`${pnm(currentPlayer)}'s turn was skipped! ⏭️`, true);
+    renderAll();
+    // Advance to next player after a short pause, without re-running powerup logic
+    setTimeout(() => {
+      if (gameOver) return;
+      currentPlayer = (currentPlayer % numPlayers) + 1;
+      renderAll();
+      // Check if THAT player is also skipped
+      if (!gameOver && skipTurns[currentPlayer] > 0) {
+        skipTurns[currentPlayer]--;
+        glog(`${pnm(currentPlayer)}'s turn was also skipped! ⏭️`, true);
+        currentPlayer = (currentPlayer % numPlayers) + 1;
+        renderAll();
+      }
+      startPlayerTurn();
+    }, 800);
+    return;
+  }
+
+  startPlayerTurn();
+}
+
+function startPlayerTurn() {
+  if (gameOver) return;
+  if (isCPU(currentPlayer)) {
     setTimeout(doCPU, 700);
-  } else if (autoRoll && !gameOver) {
-    setTimeout(rollDice, 500);
+  } else if (autoRoll) {
+    // Only auto-roll if player has no powerups to consider using first
+    const hasPowerups = (playerPowerups[currentPlayer] || []).length > 0;
+    if (!hasPowerups) setTimeout(rollDice, 500);
   }
 }
 
@@ -1954,11 +2411,41 @@ function bestBarricade() {
 // ================================================================
 // RENDER
 // ================================================================
-function renderAll() { renderBoard(); renderSidebar(); if(window.innerWidth>700) setTimeout(scaleToFit,0); }
+
+// ── Persistent glow overlay ─────────────────────────────────────
+// Instead of adding glow classes to pawns (which get destroyed on re-render),
+// we maintain a separate overlay that only updates when turns change.
+let glowTurnSnapshot = -1;
+
+function updateGlowOverlay() {
+  // Only rebuild if turn changed or phase changed — not on every render
+  const snapshot = `${currentPlayer}-${phase}-${animating}`;
+  if (snapshot === glowTurnSnapshot) return;
+  glowTurnSnapshot = snapshot;
+
+  // Remove old glow overlays
+  document.querySelectorAll('.glow-overlay').forEach(el => el.remove());
+  if (animating) return; // no glows during animation
+
+  // Add glow to all current player's pawns via overlay divs
+  if (phase === 'roll' || phase === 'pick-pawn') {
+    // Board pawns
+    for (const pw of (pawns[currentPlayer] || [])) {
+      if (!pw.onBoard) continue;
+      const overlay = document.createElement('div');
+      overlay.className = `glow-overlay glow-p${currentPlayer}`;
+      overlay.style.cssText = `position:absolute;border-radius:50%;pointer-events:none;z-index:3;` +
+        `width:${SZ}px;height:${SZ}px;left:${cellX(pw.ec)}px;top:${cellY(pw.er)}px;`;
+      document.getElementById('board').appendChild(overlay);
+    }
+  }
+}
+
+function renderAll() { renderBoard(); renderSidebar(); updateGlowOverlay(); if(window.innerWidth>700) setTimeout(scaleToFit,0); }
 
 function renderBoard() {
   const container = document.getElementById('board');
-  const homeAreaH = ST * 2 + 16;
+  const homeAreaH = ST * 2 + 80; // extra space for inventory slots
   container.style.width = BOARD_W + 'px';
   container.style.height = (BOARD_H + homeAreaH) + 'px';
   container.style.position = 'relative';
@@ -1997,6 +2484,17 @@ function renderBoard() {
       b.className = 'barr'; div.appendChild(b);
     }
 
+    // Powerup inside cell
+    const pu = puAt(er, ec);
+    if (pu && !bar) {
+      const def = POWERUP_TYPES[pu.type];
+      const puIcon = document.createElement('div');
+      puIcon.style.cssText = `font-size:${SZ*0.5}px;line-height:1;pointer-events:none;`;
+      puIcon.textContent = def.icon;
+      div.appendChild(puIcon);
+
+    }
+
     const occ = pawnAt(er, ec);
     if (occ) {
       // Don't render static pawn if it's currently being animated as a float
@@ -2018,7 +2516,8 @@ function renderBoard() {
 
     // Interactions (human only)
     if (!gameOver && human) {
-      if ((phase==='pick-pawn'||phase==='move') && occ && occ.player===currentPlayer) {
+      const clickablePlayer = (possessionActive && phase==='pick-pawn') ? possessionTargetPlayer : currentPlayer;
+      if ((phase==='pick-pawn'||phase==='move') && occ && occ.player===clickablePlayer) {
         div.classList.add('clickable');
         div.onclick = () => pickPawn(occ.pawn);
       }
@@ -2046,6 +2545,12 @@ function renderBoard() {
 
     container.appendChild(div);
   });
+
+  // ---- BOARD POWERUPS ----
+  // Powerups are rendered INSIDE their cell divs (like barricades)
+  // This is handled in the main cell loop below — we just need
+  // the boardPowerups data available when cells are rendered.
+  // (rendering happens in the cell loop via puAt())
 
   // ---- HOME AREAS ----
   // Render 4 home areas below the board, centered on their entry columns
@@ -2078,7 +2583,8 @@ function renderBoard() {
       pd.style.width = homePawnSize + 'px';
       pd.style.height = homePawnSize + 'px';
 
-      if (!gameOver && human && (phase==='pick-pawn'||phase==='move') && p===currentPlayer) {
+      const homePawnPlayer = (possessionActive && phase==='pick-pawn') ? possessionTargetPlayer : currentPlayer;
+      if (!gameOver && human && (phase==='pick-pawn'||phase==='move') && p===homePawnPlayer) {
         pd.classList.add('clickable');
         pd.onclick = () => pickPawn(pw);
       }
@@ -2086,7 +2592,7 @@ function renderBoard() {
         pd.classList.add('sel');
         pd.onclick = () => { selPawn=null; reachable=[]; phase='pick-pawn'; renderAll(); };
       }
-      // Glow home pawns on roll phase
+      // Glow home pawns
       if ((phase==='roll' || phase==='pick-pawn') && p===currentPlayer && !animating && !gameOver) {
         pd.classList.add(`glow-p${p}`);
       }
@@ -2100,8 +2606,38 @@ function renderBoard() {
     lbl.textContent = labels[p];
     homeDiv.style.position = 'absolute';
     homeDiv.appendChild(lbl);
-
     container.appendChild(homeDiv);
+
+    // ---- INVENTORY SLOTS below home area (powerups mode only) ----
+    if (powerupsEnabled) {
+    const invY = homeY + boxH + 22;
+    const inv = playerPowerups[p] || [];
+    const invDiv = document.createElement('div');
+    invDiv.className = 'inventory-area';
+    invDiv.style.left = boxX + 'px';
+    invDiv.style.top = invY + 'px';
+    invDiv.style.width = boxW + 'px';
+    invDiv.style.justifyContent = 'center';
+
+    for (let s = 0; s < 2; s++) {
+      const slot = document.createElement('div');
+      const pu = inv[s];
+      slot.className = 'inv-slot' + (pu ? ' has-powerup' : '');
+      if (pu) {
+        slot.textContent = POWERUP_TYPES[pu.type].icon;
+        slot.title = POWERUP_TYPES[pu.type].name;
+        // Glow on owner's turn during roll phase
+        if (p === currentPlayer && phase === 'roll' && !gameOver && !animating) {
+          slot.classList.add(`glow-p${p}`);
+        }
+        if (!gameOver && !animating && p === currentPlayer && phase === 'roll') {
+          slot.onclick = () => clickPowerup(p, pu.id);
+        }
+      }
+      invDiv.appendChild(slot);
+    }
+    container.appendChild(invDiv);
+    } // end powerupsEnabled
   }
 
   // Draw entry connectors (small lines from home to entry cell)
@@ -2129,7 +2665,7 @@ function renderSidebar() {
   const cpu = isCPU(currentPlayer);
   const msgs = {
     'roll': `${pnm(currentPlayer)} — Roll the dice`,
-    'pick-pawn': `Rolled ${diceVal} — Pick a pawn`,
+    'pick-pawn': diceVal > 6 ? `🎲 DOUBLE ROLL: ${diceVal} steps — Pick a pawn!` : `Rolled ${diceVal} — Pick a pawn`,
     'move': `Move exactly ${diceVal} steps`,
     'place-barricade': 'Place barricade anywhere on board',
   };
@@ -2325,6 +2861,11 @@ try {
 // Build theme grid when DOM is ready
 document.addEventListener('DOMContentLoaded', buildThemeGrid);
 
+function setPowerups(on) {
+  powerupsEnabled = on;
+  document.getElementById('pu-on').classList.toggle('on', on === true);
+  document.getElementById('pu-off').classList.toggle('on', on === false);
+}
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
 function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
