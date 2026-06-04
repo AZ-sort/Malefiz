@@ -466,90 +466,93 @@
   /* ── MOBILE RESPONSIVE ── */
   @media (max-width: 700px) {
 
-    /* Stack layout vertically */
+    /* Body scrollable on mobile so sidebar below board is reachable */
+    body { height: auto; overflow: auto; }
+
+    /* Scaler: don't restrict height on mobile */
+    #scaler { 
+      flex: none;
+      width: 100%;
+      overflow: visible;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    /* scaler-inner stacks board then sidebar vertically */
+    #scaler-inner {
+      flex-direction: column;
+      align-items: center;
+      width: 100vw;
+    }
+
+    /* Main stacks vertically, full width */
     .main {
       flex-direction: column;
       align-items: center;
-      padding: 10px;
+      padding: 8px;
       gap: 10px;
+      width: 100%;
+      max-width: 100%;
     }
 
-    /* Sidebar goes below board, full width, horizontal wrap */
+    /* Board wrap: scale to fit screen using CSS transform */
+    #board-wrap {
+      padding: 8px;
+      border-radius: 10px;
+      transform-origin: top left;
+      /* JS will set the actual scale via scaleToFit() */
+    }
+
+    /* Sidebar: full width, horizontal row of panels */
     .sidebar {
-      width: 100% !important;
+      width: calc(100vw - 16px) !important;
+      max-width: 100%;
       flex-direction: row !important;
       flex-wrap: wrap;
       gap: 8px;
     }
 
-    /* Panels shrink and share space */
     .sidebar .panel {
       flex: 1;
-      min-width: 140px;
-      padding: 10px 12px;
+      min-width: 130px;
+      padding: 10px;
     }
 
-    /* Hide log on mobile — saves space */
-    .sidebar .panel:last-child {
-      display: none;
-    }
+    /* Hide log and theme panels on mobile */
+    .sidebar .panel:nth-last-child(-n+2) { display: none; }
 
-    /* Dice area horizontal */
+    /* Dice row */
     .dice-a {
       flex-direction: row;
       align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 8px;
+      flex-wrap: nowrap;
     }
-
-    /* Smaller dice */
-    #dface {
-      width: 52px !important;
-      height: 52px !important;
-      font-size: 1.8rem !important;
-      border-radius: 10px !important;
-    }
-
-    /* Smaller roll button */
-    #rollbtn { font-size: .72rem; padding: 7px; }
+    #dface { width: 48px !important; height: 48px !important; font-size: 1.7rem !important; border-radius: 9px !important; }
+    #rollbtn { font-size: .7rem; padding: 7px 5px; }
+    .toggle-row { margin-bottom: 6px; }
+    .dh { font-size: .62rem; }
 
     /* Player rows compact */
-    .prow { padding: 5px 8px; margin-bottom: 3px; }
-    .pnm { font-size: .75rem; }
-    .pbdg { font-size: .55rem; padding: 1px 4px; }
+    .prow { padding: 5px 7px; margin-bottom: 3px; }
+    .pnm { font-size: .73rem; }
+    .pbdg { font-size: .54rem; padding: 1px 4px; }
+    .phbox { font-size: .67rem; padding: 7px 9px; min-height: 38px; }
 
-    /* Phase box smaller */
-    .phbox { font-size: .68rem; padding: 7px 10px; min-height: 40px; }
-
-    /* Header compact */
-    header { padding: 10px 14px; }
-    .logo { font-size: .9rem; }
+    /* Header */
+    header { padding: 9px 12px; }
+    .logo { font-size: .88rem; }
     .header-sub { display: none; }
     .settings-btn { width: 30px; height: 30px; font-size: .9rem; }
 
-    /* Scaler: allow full width */
-    #scaler { align-items: flex-start; }
-
-    /* Board wrap: no extra padding */
-    #board-wrap { padding: 8px; border-radius: 10px; }
-
-    /* Setup screen */
-    .sbox { width: 92vw; padding: 24px 20px; gap: 16px; }
-    .sbox h1 { font-size: 1.6rem; }
-
-    /* Settings/HTP modals */
-    .settings-box, .htp-box { width: 92vw; padding: 22px 18px; }
-
-    /* Toggle row compact */
-    .toggle-row { margin-bottom: 6px; }
-
-    /* Auto-roll hint text */
-    .dh { font-size: .65rem; }
+    /* Modals */
+    .sbox { width: 92vw; padding: 22px 18px; gap: 15px; }
+    .sbox h1 { font-size: 1.55rem; }
+    .settings-box, .htp-box { width: 92vw; padding: 20px 16px; }
   }
 
-  /* Very small screens */
   @media (max-width: 380px) {
-    .sidebar .panel { min-width: 120px; }
+    .sidebar .panel { min-width: 110px; }
     .main { padding: 6px; gap: 6px; }
   }
 
@@ -1224,34 +1227,51 @@ let _cachedScale = 1;
 let _scaleTimer = null;
 
 function scaleToFit() {
-  const inner = document.getElementById('scaler-inner');
-  const scaler = document.getElementById('scaler');
-  if (!inner || !scaler) return;
   if (animating) return;
-
   const isMobile = window.innerWidth <= 700;
 
-  // Temporarily remove transform to measure natural size
-  inner.style.transform = 'none';
-
   if (isMobile) {
-    // On mobile: scale the board-wrap to fit the screen width
     const boardWrap = document.getElementById('board-wrap');
-    if (!boardWrap) return;
-    const availW = window.innerWidth - 20; // 10px padding each side
+    const inner = document.getElementById('scaler-inner');
+    if (!boardWrap || !inner) return;
+
+    // Reset transforms
+    boardWrap.style.transform = 'none';
+    inner.style.transform = 'none';
+
+    // Measure natural board width (includes padding)
     const naturalW = boardWrap.offsetWidth;
+    const naturalH = boardWrap.offsetHeight;
     if (naturalW === 0) return;
+
+    const availW = window.innerWidth - 16; // 8px each side
     const scale = Math.min(availW / naturalW, 1);
     _cachedScale = scale;
-    inner.style.transform = `scale(${scale})`;
-    inner.style.transformOrigin = 'top center';
+
+    boardWrap.style.transform = `scale(${scale})`;
+    boardWrap.style.transformOrigin = 'top left';
+
+    // Shrink the wrapper's occupied height so sidebar sits right below
+    const scaledH = naturalH * scale;
+    boardWrap.style.height = naturalH + 'px'; // keep natural for measurement
+    boardWrap.style.marginBottom = (scaledH - naturalH) + 'px'; // negative margin to close gap
   } else {
-    // Desktop: fit entire layout (board + sidebar) in viewport
+    // Desktop: scale the whole inner layout
+    const inner = document.getElementById('scaler-inner');
+    const scaler = document.getElementById('scaler');
+    if (!inner || !scaler) return;
+
+    // Reset board-wrap scale if switching from mobile
+    const boardWrap = document.getElementById('board-wrap');
+    if (boardWrap) { boardWrap.style.transform = 'none'; boardWrap.style.marginBottom = '0'; }
+
+    inner.style.transform = 'none';
     const availH = scaler.offsetHeight;
     const availW = scaler.offsetWidth;
     const naturalH = inner.offsetHeight;
     const naturalW = inner.offsetWidth;
     if (naturalH === 0 || naturalW === 0) return;
+
     const scale = Math.min(availH / naturalH, availW / naturalW, 1);
     _cachedScale = scale;
     inner.style.transform = `scale(${scale})`;
@@ -1898,7 +1918,7 @@ function bestBarricade() {
 // ================================================================
 // RENDER
 // ================================================================
-function renderAll() { renderBoard(); renderSidebar(); }
+function renderAll() { renderBoard(); renderSidebar(); if(window.innerWidth<=700) setTimeout(scaleToFit,0); }
 
 function renderBoard() {
   const container = document.getElementById('board');
@@ -2272,7 +2292,7 @@ document.addEventListener('DOMContentLoaded', buildThemeGrid);
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
 function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
-function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
+function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
 function resetGame() { document.getElementById('win').classList.remove('show'); document.getElementById('setup').style.display='flex'; }
 </script>
 </body>
