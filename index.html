@@ -1216,6 +1216,8 @@ function getReachableWithPaths(startEr, startEc, steps, player) {
     if (rem === 0) {
       const occ = pawnAt(er, ec);
       if (occ && occ.player === player) return;
+      // Cannot land on temp barricades at all
+      if (tempBarricades.find(tb => tb.er === er && tb.ec === ec)) return;
       const key = `${er},${ec}`;
       if (!reachMap[key]) reachMap[key] = path.slice();
       return;
@@ -1277,6 +1279,8 @@ function getReachableFromEntry(player, steps) {
     if (rem === 0) {
       const o = pawnAt(er, ec);
       if (o && o.player === player) return; // can't land on own pawn
+      // Cannot land on temp barricades
+      if (tempBarricades.find(tb => tb.er === er && tb.ec === ec)) return;
       const key = `${er},${ec}`;
       if (!reachMap[key]) reachMap[key] = path.slice();
       return;
@@ -1797,7 +1801,7 @@ const POWERUP_TYPES = {
   'possess':  { icon: '👻', name: 'Possession',     desc: 'Move one of an opponent\'s pawns with your dice roll instead of your own.' },
   'tempbar':  { icon: '🚧', name: 'Temp Barricade', desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 turns.' },
   'shield':   { icon: '🛡️', name: 'Shield',         desc: 'Your pawns cannot be captured for 3 turns.' },
-  'trap':     { icon: '🪤', name: 'Trap',           desc: 'Place a hidden trap on any path cell. The next pawn to land on it goes home!' },
+  'trap':     { icon: '💣', name: 'Mine',           desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
   'bulldoze': { icon: '🚜', name: 'Bulldozer',      desc: 'Pick up any permanent barricade and move it anywhere on the board.' },
 };
 
@@ -2076,6 +2080,7 @@ function placeTempBarricade(er, ec) {
   const cell = getCell(er, ec);
   if (!cell || cell.type === 'goal') return;
   if (barAt(er,ec) || pawnAt(er,ec)) return;
+  if (traps.find(t => t.er === er && t.ec === ec)) return; // can't place on a mine
   if (er >= 17) return;
   barricades.push({er, ec});
   tempBarricades.push({er, ec, turnsLeft: 3 * numPlayers}); // 3 turns per player
@@ -2099,7 +2104,7 @@ function activateShield() {
 function activateTrap() {
   phase = 'place-trap';
   soundTrapPlace();
-  glog(`${pnm(currentPlayer)} activated 🪤 Trap — place it on any path cell!`, true);
+  glog(`${pnm(currentPlayer)} activated 💣 Mine — place it on any path cell!`, true);
   renderAll();
 }
 
@@ -2119,7 +2124,7 @@ function placeTrap(er, ec) {
   trapFlash(er, ec);
 
   soundBarricadePlace();
-  glog(`🪤 A trap was placed somewhere on the board...`);
+  glog(`💣 A mine was placed somewhere on the board...`);
   phase = 'roll';
   renderAll();
 }
@@ -2145,7 +2150,7 @@ function checkTrap(er, ec, pawn) {
   pawn.onBoard = false; pawn.er = -1; pawn.ec = -1;
   soundCapture();
   soundTrapTrigger();
-  glog(`💥 ${pnm(pawn.player)} triggered a trap and went back to home base!`, true);
+  glog(`💥 ${pnm(pawn.player)} hit a mine and went back to home base!`, true);
   renderAll();
   return true;
 }
@@ -2190,48 +2195,54 @@ function bulldozePlace(er, ec) {
 }
 
 
-// ── Trap placed (sneaky quiet click) ────────────────────────────
+// ── Mine placed (soft metallic click) ───────────────────────────
 function soundTrapPlace() {
   playSound(ctx => {
     const t = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(800, t);
-    osc.frequency.exponentialRampToValueAtTime(400, t + 0.06);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.15, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.1);
-  });
-}
-
-// ── Trap triggered (snap!) ───────────────────────────────────────
-function soundTrapTrigger() {
-  playSound(ctx => {
-    const t = ctx.currentTime;
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+    // Subtle metallic tick
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.02));
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.015));
     const src = ctx.createBufferSource();
     src.buffer = buf;
     const filt = ctx.createBiquadFilter();
-    filt.type = 'bandpass'; filt.frequency.value = 1500; filt.Q.value = 0.8;
+    filt.type = 'bandpass'; filt.frequency.value = 2200; filt.Q.value = 2;
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.6, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
     src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-    src.start(t); src.stop(t + 0.11);
-    // Low thud
+    src.start(t); src.stop(t + 0.07);
+  });
+}
+
+// ── Mine triggered (small explosion) ────────────────────────────
+function soundTrapTrigger() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    // Low boom
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(200, t);
-    osc.frequency.exponentialRampToValueAtTime(60, t + 0.08);
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.25);
     const og = ctx.createGain();
-    og.gain.setValueAtTime(0.4, t);
-    og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    og.gain.setValueAtTime(0.35, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
     osc.connect(og); og.connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.11);
+    osc.start(t); osc.stop(t + 0.32);
+    // Explosion noise burst
+    const bufLen = Math.floor(ctx.sampleRate * 0.25);
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random()*2-1) * Math.exp(-i/(bufLen*0.3));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 900;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+    src.start(t); src.stop(t + 0.3);
   });
 }
 
@@ -2469,6 +2480,7 @@ function placeBarricade(er, ec) {
   if (!cell) return;
   if (cell.type === 'goal') return;
   if (barAt(er,ec)||pawnAt(er,ec)) return;
+  if (traps.find(t => t.er === er && t.ec === ec)) return; // can't place on a mine
   // Cannot place on row 17 (bottom path row) or below
   if (er >= 17) return; // row 17 is bottom path row
   barricades.push({er, ec});
@@ -2898,7 +2910,7 @@ function renderBoard() {
       }
       if (phase==='place-barricade') {
         const ct = getCell(er,ec);
-        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17) {
+        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17 && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
           div.onclick = () => placeBarricade(er, ec);
           const ghost = document.createElement('div');
@@ -2908,7 +2920,7 @@ function renderBoard() {
       }
       if (phase==='place-temp-barricade') {
         const ct = getCell(er,ec);
-        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17) {
+        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17 && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
           div.onclick = () => placeTempBarricade(er, ec);
           const ghost = document.createElement('div');
@@ -3078,7 +3090,7 @@ function renderSidebar() {
     'move': `Move exactly ${diceVal} steps`,
     'place-barricade': 'Place barricade anywhere on board',
     'place-temp-barricade': '🚧 Place your temp barricade — it lasts 3 turns',
-    'place-trap': '🪤 Click any path cell to place your trap',
+    'place-trap': '💣 Click any path cell to place your mine',
     'bulldoze-pick': '🚜 Click a barricade to pick it up',
     'bulldoze-place': '🚜 Now click where to place it',
   };
