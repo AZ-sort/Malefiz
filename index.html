@@ -535,15 +535,37 @@
       gap: 8px !important;
     }
 
-    #dface {
-      width: 50px !important;
-      height: 50px !important;
-      font-size: 1.75rem !important;
+    /* Dice panel takes full width on mobile for bigger touch targets */
+    .sidebar .panel:nth-child(1) {
+      width: calc(100vw - 16px) !important;
+      flex: none !important;
     }
 
-    #rollbtn { font-size: .72rem !important; padding: 8px 6px !important; }
-    .toggle-row { margin-bottom: 6px !important; }
-    .dh { font-size: .65rem !important; }
+    .dice-a {
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 12px !important;
+    }
+
+    #dface {
+      width: 72px !important;
+      height: 72px !important;
+      font-size: 3.8rem !important;
+      line-height: 1 !important;
+      border-radius: 14px !important;
+      flex-shrink: 0 !important;
+      padding: 0 !important;
+    }
+
+    #rollbtn {
+      font-size: .95rem !important;
+      padding: 14px !important;
+      flex: 1 !important;
+    }
+
+    .toggle-row { margin-bottom: 8px !important; }
+    .dh { font-size: .75rem !important; color: var(--text) !important; font-weight: 600 !important; }
 
     .prow { padding: 5px 8px !important; margin-bottom: 3px !important; }
     .pnm { font-size: .75rem !important; }
@@ -750,7 +772,6 @@
     </div>
   </div>
   <div class="sidebar">
-    <div class="panel"><h3>Players</h3><div id="plist"></div></div>
     <div class="panel">
       <h3>Dice</h3>
       <div class="toggle-row">
@@ -767,6 +788,7 @@
         <button class="btn bp" id="rbtn" onclick="rollDice()">Roll Dice</button>
       </div>
     </div>
+    <div class="panel"><h3>Players</h3><div id="plist"></div></div>
     <div class="panel">
       <h3>Action</h3>
       <div class="phbox" id="phbox"><small>PHASE</small>Waiting...</div>
