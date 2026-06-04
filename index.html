@@ -700,6 +700,54 @@
   .glow-overlay.glow-p3 { animation: glow-p3 1.6s ease-in-out infinite; }
   .glow-overlay.glow-p4 { animation: glow-p4 1.6s ease-in-out infinite; }
 
+
+  /* Temp barricade — orange */
+  .barr-temp {
+    width: 72%; height: 26%;
+    background: #ff8c00;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(255,140,0,.5);
+    pointer-events: none;
+  }
+  /* Turn dots for temp barricade warning */
+  .temp-bar-dots {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+    pointer-events: none;
+  }
+  .temp-bar-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #ff8c00;
+    box-shadow: 0 0 3px rgba(255,140,0,.8);
+  }
+
+
+  @keyframes glow-shield-p1 {
+    0%,100% { box-shadow: 0 0 6px 2px rgba(232,69,69,.2), 0 0 0 3px rgba(255,255,255,.4); }
+    50%      { box-shadow: 0 0 14px 5px rgba(232,69,69,.4), 0 0 0 3px rgba(255,255,255,.7); }
+  }
+  @keyframes glow-shield-p2 {
+    0%,100% { box-shadow: 0 0 6px 2px rgba(60,196,90,.2), 0 0 0 3px rgba(255,255,255,.4); }
+    50%      { box-shadow: 0 0 14px 5px rgba(60,196,90,.4), 0 0 0 3px rgba(255,255,255,.7); }
+  }
+  @keyframes glow-shield-p3 {
+    0%,100% { box-shadow: 0 0 6px 2px rgba(255,201,60,.2), 0 0 0 3px rgba(255,255,255,.4); }
+    50%      { box-shadow: 0 0 14px 5px rgba(255,201,60,.4), 0 0 0 3px rgba(255,255,255,.7); }
+  }
+  @keyframes glow-shield-p4 {
+    0%,100% { box-shadow: 0 0 6px 2px rgba(74,144,217,.2), 0 0 0 3px rgba(255,255,255,.4); }
+    50%      { box-shadow: 0 0 14px 5px rgba(74,144,217,.4), 0 0 0 3px rgba(255,255,255,.7); }
+  }
+  .glow-overlay.shield-p1 { animation: glow-shield-p1 1.6s ease-in-out infinite; }
+  .glow-overlay.shield-p2 { animation: glow-shield-p2 1.6s ease-in-out infinite; }
+  .glow-overlay.shield-p3 { animation: glow-shield-p3 1.6s ease-in-out infinite; }
+  .glow-overlay.shield-p4 { animation: glow-shield-p4 1.6s ease-in-out infinite; }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -1744,9 +1792,13 @@ function soundWin() {
 // ================================================================
 
 const POWERUP_TYPES = {
-  'double': { icon: '🎲', name: 'Double Roll',  desc: 'Roll the dice — your result is doubled this turn!' },
-  'skip':   { icon: '⏭️', name: 'Skip Turn',    desc: 'Choose an opponent — they lose their next turn.' },
-  'possess':{ icon: '👻', name: 'Possession',   desc: 'Move one of an opponent\'s pawns with your dice roll instead of your own.' },
+  'double':   { icon: '🎲', name: 'Double Roll',    desc: 'Roll the dice — your result is doubled this turn!' },
+  'skip':     { icon: '⏭️', name: 'Skip Turn',      desc: 'Choose an opponent — they lose their next turn.' },
+  'possess':  { icon: '👻', name: 'Possession',     desc: 'Move one of an opponent\'s pawns with your dice roll instead of your own.' },
+  'tempbar':  { icon: '🚧', name: 'Temp Barricade', desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 turns.' },
+  'shield':   { icon: '🛡️', name: 'Shield',         desc: 'Your pawns cannot be captured for 3 turns.' },
+  'trap':     { icon: '🪤', name: 'Trap',           desc: 'Place a hidden trap on any path cell. The next pawn to land on it goes home!' },
+  'bulldoze': { icon: '🚜', name: 'Bulldozer',      desc: 'Pick up any permanent barricade and move it anywhere on the board.' },
 };
 
 // Board powerups: [{er, ec, type, turnsLeft}]
@@ -1758,6 +1810,14 @@ let skipTurns = {};
 // Possession state
 let possessionActive = false;
 let possessionTargetPlayer = null;
+// Shield tracking: {player: turnsRemaining}
+let shieldTurns = {};
+// Temp barricades: [{er, ec, turnsLeft}]
+let tempBarricades = [];
+// Traps: [{er, ec, owner}] — invisible after flash
+let traps = [];
+// Bulldoze state
+let bulldozePickedBarricade = null;
 // Turn counter for spawning
 let turnCount = 0;
 let nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
@@ -1770,7 +1830,12 @@ function initPowerups() {
   skipTurns = {};
   possessionActive = false;
   possessionTargetPlayer = null;
+  shieldTurns = {};
+  tempBarricades = [];
+  traps = [];
+  bulldozePickedBarricade = null;
   turnCount = 0;
+  doubleRollActive = false;
   nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
   pendingPowerup = null;
   for (let p = 1; p <= numPlayers; p++) playerPowerups[p] = [];
@@ -1784,14 +1849,34 @@ function trySpawnPowerup() {
   // Tick down existing powerups (despawn after 6-12 individual turns, set on spawn)
   boardPowerups = boardPowerups.filter(p => {
     p.age = (p.age || 0) + 1;
-    if (p.age >= (p.maxAge || 9)) {
+    if (p.age >= (p.maxAge || 30)) {
       glog(`⌛ A ${POWERUP_TYPES[p.type].name} powerup disappeared`);
       return false;
     }
     return true;
   });
 
-  // Spawn check: every 3-5 turns
+  // Tick temp barricades
+  tempBarricades = tempBarricades.filter(tb => {
+    tb.turnsLeft--;
+    if (tb.turnsLeft <= 0) {
+      barricades = barricades.filter(b => !(b.er === tb.er && b.ec === tb.ec));
+      glog(`🚧 A temp barricade disappeared!`);
+      return false;
+    }
+    return true;
+  });
+
+  // Tick shields
+  Object.keys(shieldTurns).forEach(p => {
+    shieldTurns[p]--;
+    if (shieldTurns[p] <= 0) {
+      delete shieldTurns[p];
+      glog(`🛡️ ${pnm(parseInt(p))}'s shield wore off`);
+    }
+  });
+
+  // Spawn check: every 4-6 turns
   if (turnCount < nextSpawnAt) return;
   if (boardPowerups.length >= 4) return; // max 4 on board
 
@@ -1869,17 +1954,25 @@ function confirmPowerup() {
   pendingPowerup = null;
 
   if (pu.type === 'double') {
-    // Remove immediately — no target needed, can't be cancelled
     playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
     activateDoubleRoll();
+  } else if (pu.type === 'shield') {
+    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
+    activateShield();
+  } else if (pu.type === 'tempbar') {
+    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
+    activateTempBarricade();
+  } else if (pu.type === 'trap') {
+    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
+    activateTrap();
+  } else if (pu.type === 'bulldoze') {
+    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
+    activateBulldoze();
   } else if (pu.type === 'skip') {
-    // Remove immediately — target modal cancel just wastes it (skip has no cancel harm)
-    // Actually keep same pattern: remove on target confirm only
-    pendingPowerup = pu; // keep pending until target chosen
+    pendingPowerup = pu;
     showTargetModal('skip');
   } else if (pu.type === 'possess') {
-    // Keep in inventory until target is actually chosen
-    pendingPowerup = pu; // keep pending until target chosen
+    pendingPowerup = pu;
     showTargetModal('possess');
   }
 }
@@ -1911,24 +2004,29 @@ function applyDoubleRoll() {
 
 // ── Skip Turn ───────────────────────────────────────────────────
 function showTargetModal(type) {
-  const title = type === 'skip' ? '⏭️ Skip whose turn?' : '👻 Possess whose pawn?';
+  const title = type === 'skip' ? '⏭️ Skip whose turn?' :
+                type === 'possess' ? '👻 Possess whose pawn?' : 'Choose target';
   document.getElementById('target-title').textContent = title;
   const list = document.getElementById('target-list');
   list.innerHTML = '';
+  // Capture these at show-time to avoid closure issues
+  const activatingPlayer = currentPlayer;
+  const puToRemove = pendingPowerup;
   for (let p = 1; p <= numPlayers; p++) {
-    if (p === currentPlayer) continue;
+    if (p === activatingPlayer) continue;
+    const targetP = p;
     const btn = document.createElement('div');
     btn.className = 'target-btn';
-    btn.innerHTML = `<div style="width:12px;height:12px;border-radius:50%;background:${PCOLS[p]};flex-shrink:0;"></div> ${pnm(p)}`;
+    btn.innerHTML = `<div style="width:12px;height:12px;border-radius:50%;background:${PCOLS[targetP]};flex-shrink:0;"></div> ${pnm(targetP)}`;
     btn.onclick = () => {
-      closeTargetModal();
-      // Now remove from inventory since target was confirmed
-      if (pendingPowerup) {
-        playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(pw => pw.id !== pendingPowerup.id);
-        pendingPowerup = null;
+      // Remove from inventory using captured references
+      if (puToRemove) {
+        playerPowerups[activatingPlayer] = (playerPowerups[activatingPlayer] || []).filter(pw => pw.id !== puToRemove.id);
       }
-      if (type === 'skip') applySkip(p);
-      else if (type === 'possess') applyPossession(p);
+      pendingPowerup = null;
+      document.getElementById('target-modal').classList.remove('show');
+      if (type === 'skip') applySkip(targetP);
+      else if (type === 'possess') applyPossession(targetP);
     };
     list.appendChild(btn);
   }
@@ -1944,6 +2042,7 @@ function closeTargetModal() {
 
 function applySkip(targetPlayer) {
   skipTurns[targetPlayer] = (skipTurns[targetPlayer] || 0) + 1;
+  soundSkip();
   glog(`${pnm(currentPlayer)} used ⏭️ Skip Turn on ${pnm(targetPlayer)}!`, true);
   renderAll();
 }
@@ -1952,6 +2051,7 @@ function applySkip(targetPlayer) {
 function applyPossession(targetPlayer) {
   possessionActive = true;
   possessionTargetPlayer = targetPlayer;
+  soundPossession();
   glog(`${pnm(currentPlayer)} activated 👻 Possession on ${pnm(targetPlayer)}!`, true);
   renderAll();
 }
@@ -1960,6 +2060,251 @@ function applyPossession(targetPlayer) {
 function endPossession() {
   possessionActive = false;
   possessionTargetPlayer = null;
+}
+
+// ── Temp Barricade ──────────────────────────────────────────────
+function activateTempBarricade() {
+  // Enter place-barricade phase — same as normal barricade capture
+  // but we track it as a temp barricade
+  phase = 'place-temp-barricade';
+  glog(`${pnm(currentPlayer)} activated 🚧 Temp Barricade — place it anywhere!`, true);
+  renderAll();
+}
+
+function placeTempBarricade(er, ec) {
+  if (phase !== 'place-temp-barricade' || gameOver) return;
+  const cell = getCell(er, ec);
+  if (!cell || cell.type === 'goal') return;
+  if (barAt(er,ec) || pawnAt(er,ec)) return;
+  if (er >= 17) return;
+  barricades.push({er, ec});
+  tempBarricades.push({er, ec, turnsLeft: 3 * numPlayers}); // 3 turns per player
+  soundBarricadePlace();
+  glog(`${pnm(currentPlayer)} placed a temp barricade 🚧`);
+  phase = 'roll'; // don't end turn — they still need to roll
+  renderAll();
+}
+
+// ── Shield ──────────────────────────────────────────────────────
+function activateShield() {
+  shieldTurns[currentPlayer] = 3 * numPlayers; // 3 turns per player = 3 full rounds
+  soundShield();
+  glog(`${pnm(currentPlayer)} activated 🛡️ Shield — protected for 3 turns!`, true);
+  renderAll();
+}
+
+
+
+// ── Trap ────────────────────────────────────────────────────────
+function activateTrap() {
+  phase = 'place-trap';
+  soundTrapPlace();
+  glog(`${pnm(currentPlayer)} activated 🪤 Trap — place it on any path cell!`, true);
+  renderAll();
+}
+
+function placeTrap(er, ec) {
+  if (phase !== 'place-trap' || gameOver) return;
+  const cell = getCell(er, ec);
+  if (!cell || cell.type === 'goal') return;
+  if (barAt(er,ec) || pawnAt(er,ec)) return;
+  if (er >= 17) return;
+  if (traps.find(t => t.er === er && t.ec === ec)) return;
+
+  traps.push({ er, ec, owner: currentPlayer });
+
+  // Flash the trap visually for 600ms then hide it
+  const trapEls = document.querySelectorAll(`[data-trap="${er},${ec}"]`);
+  // We'll handle the flash in renderBoard with a data attribute + timeout
+  trapFlash(er, ec);
+
+  soundBarricadePlace();
+  glog(`🪤 A trap was placed somewhere on the board...`);
+  phase = 'roll';
+  renderAll();
+}
+
+// Flash a trap cell briefly then re-render to hide it
+let trapFlashing = new Set();
+function trapFlash(er, ec) {
+  const key = `${er},${ec}`;
+  trapFlashing.add(key);
+  renderAll();
+  setTimeout(() => {
+    trapFlashing.delete(key);
+    renderAll();
+  }, 600);
+}
+
+// Check if a pawn landed on a trap
+function checkTrap(er, ec, pawn) {
+  const idx = traps.findIndex(t => t.er === er && t.ec === ec);
+  if (idx === -1) return false;
+  traps.splice(idx, 1);
+  // Send pawn home
+  pawn.onBoard = false; pawn.er = -1; pawn.ec = -1;
+  soundCapture();
+  soundTrapTrigger();
+  glog(`💥 ${pnm(pawn.player)} triggered a trap and went back to home base!`, true);
+  renderAll();
+  return true;
+}
+
+// ── Bulldozer ────────────────────────────────────────────────────
+function activateBulldoze() {
+  phase = 'bulldoze-pick';
+  soundBulldoze();
+  glog(`${pnm(currentPlayer)} activated 🚜 Bulldozer — pick a barricade to move!`, true);
+  renderAll();
+}
+
+function bulldozePick(er, ec) {
+  if (phase !== 'bulldoze-pick' || gameOver) return;
+  // Only permanent barricades (not temp ones)
+  if (!barAt(er,ec)) return;
+  if (tempBarricades.find(tb => tb.er === er && tb.ec === ec)) {
+    glog('Cannot bulldoze a temp barricade!');
+    return;
+  }
+  bulldozePickedBarricade = { er, ec };
+  phase = 'bulldoze-place';
+  glog(`🚜 Now place it somewhere new!`, true);
+  renderAll();
+}
+
+function bulldozePlace(er, ec) {
+  if (phase !== 'bulldoze-place' || !bulldozePickedBarricade || gameOver) return;
+  const cell = getCell(er, ec);
+  if (!cell || cell.type === 'goal') return;
+  if (barAt(er,ec) || pawnAt(er,ec)) return;
+  if (er >= 17) return;
+  // Remove from old position
+  barricades = barricades.filter(b => !(b.er === bulldozePickedBarricade.er && b.ec === bulldozePickedBarricade.ec));
+  // Place at new position
+  barricades.push({ er, ec });
+  soundBarricadePlace();
+  glog(`🚜 ${pnm(currentPlayer)} moved a barricade!`);
+  bulldozePickedBarricade = null;
+  phase = 'roll';
+  renderAll();
+}
+
+
+// ── Trap placed (sneaky quiet click) ────────────────────────────
+function soundTrapPlace() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, t);
+    osc.frequency.exponentialRampToValueAtTime(400, t + 0.06);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.1);
+  });
+}
+
+// ── Trap triggered (snap!) ───────────────────────────────────────
+function soundTrapTrigger() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.02));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 1500; filt.Q.value = 0.8;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.6, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+    src.start(t); src.stop(t + 0.11);
+    // Low thud
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, t);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.08);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.4, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    osc.connect(og); og.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.11);
+  });
+}
+
+// ── Shield activated (shimmer) ───────────────────────────────────
+function soundShield() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    [600, 900, 1200].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t + i*0.07);
+      gain.gain.linearRampToValueAtTime(0.18, t + i*0.07 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.07 + 0.2);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t + i*0.07); osc.stop(t + i*0.07 + 0.22);
+    });
+  });
+}
+
+// ── Bulldozer (scrape) ───────────────────────────────────────────
+function soundBulldoze() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * (1 - i/data.length) * 0.8;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 600;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+    src.start(t); src.stop(t + 0.21);
+  });
+}
+
+// ── Skip turn (whoosh) ───────────────────────────────────────────
+function soundSkip() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, t);
+    osc.frequency.exponentialRampToValueAtTime(100, t + 0.2);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.23);
+  });
+}
+
+// ── Possession (eerie) ───────────────────────────────────────────
+function soundPossession() {
+  playSound(ctx => {
+    const t = ctx.currentTime;
+    [220, 277, 330].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.linearRampToValueAtTime(freq * 0.85, t + 0.4);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t + i*0.04);
+      gain.gain.linearRampToValueAtTime(0.12, t + i*0.04 + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t + i*0.04); osc.stop(t + 0.5);
+    });
+  });
 }
 
 // ── Auto-roll ──────────────────────────────────────────────────
@@ -2042,12 +2387,18 @@ function moveTo(er, ec) {
 
     if (capturedPawn) {
       // Animate captured pawn flying back to its home area
-      soundCapture();
-      animateCapturedPawn(capturedPawn, capturedPlayer, () => {
-        capturedPawn.onBoard = false; capturedPawn.er = -1; capturedPawn.ec = -1;
-        glog(`${pnm(currentPlayer)} captured ${pnm(capturedPlayer)}'s pawn!`, true);
+      // Check if captured player has a shield
+      if (shieldTurns[capturedPlayer] > 0) {
+        glog(`${pnm(currentPlayer)} tried to capture ${pnm(capturedPlayer)}'s pawn — but it's shielded! 🛡️`, true);
         finishMove(er, ec, bar, movingPawn);
-      });
+      } else {
+        soundCapture();
+        animateCapturedPawn(capturedPawn, capturedPlayer, () => {
+          capturedPawn.onBoard = false; capturedPawn.er = -1; capturedPawn.ec = -1;
+          glog(`${pnm(currentPlayer)} captured ${pnm(capturedPlayer)}'s pawn!`, true);
+          finishMove(er, ec, bar, movingPawn);
+        });
+      }
     } else {
       finishMove(er, ec, bar, movingPawn);
     }
@@ -2082,6 +2433,8 @@ function animateCapturedPawn(pawn, player, onDone) {
 }
 
 function finishMove(er, ec, bar, movingPawn) {
+  // Check trap FIRST — if triggered, pawn goes home and turn ends
+  if (checkTrap(er, ec, movingPawn)) { nextTurn(); return; }
   // Check powerup collection
   checkPowerupCollection(er, ec);
   // End possession after move
@@ -2480,8 +2833,21 @@ function renderBoard() {
 
     const bar = barAt(er, ec);
     if (bar) {
+      const isTemp = tempBarricades.find(tb => tb.er === er && tb.ec === ec);
       const b = document.createElement('div');
-      b.className = 'barr'; div.appendChild(b);
+      b.className = isTemp ? 'barr-temp' : 'barr';
+      div.appendChild(b);
+      // Show warning dots in last 3 turns
+      if (isTemp && isTemp.turnsLeft <= 3) {
+        const dots = document.createElement('div');
+        dots.className = 'temp-bar-dots';
+        for (let d = 0; d < isTemp.turnsLeft; d++) {
+          const dot = document.createElement('div');
+          dot.className = 'temp-bar-dot';
+          dots.appendChild(dot);
+        }
+        div.appendChild(dots);
+      }
     }
 
     // Powerup inside cell
@@ -2535,10 +2901,51 @@ function renderBoard() {
         if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17) {
           div.classList.add('bplace','clickable');
           div.onclick = () => placeBarricade(er, ec);
-          // Ghost barricade preview on hover
           const ghost = document.createElement('div');
           ghost.className = 'barr-ghost';
           div.appendChild(ghost);
+        }
+      }
+      if (phase==='place-temp-barricade') {
+        const ct = getCell(er,ec);
+        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17) {
+          div.classList.add('bplace','clickable');
+          div.onclick = () => placeTempBarricade(er, ec);
+          const ghost = document.createElement('div');
+          ghost.className = 'barr-ghost';
+          div.appendChild(ghost);
+        }
+      }
+      // Trap placement
+      if (phase==='place-trap') {
+        const ct = getCell(er,ec);
+        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17 && !traps.find(t=>t.er===er&&t.ec===ec)) {
+          div.classList.add('bplace','clickable');
+          div.onclick = () => placeTrap(er, ec);
+        }
+      }
+      // Trap flash — briefly visible
+      if (trapFlashing.has(`${er},${ec}`)) {
+        const tf = document.createElement('div');
+        tf.style.cssText = 'font-size:1.2rem;pointer-events:none;';
+        tf.textContent = '🪤';
+        div.appendChild(tf);
+      }
+      // Bulldozer — pick phase: highlight permanent barricades
+      if (phase==='bulldoze-pick' && barAt(er,ec) && !tempBarricades.find(tb=>tb.er===er&&tb.ec===ec)) {
+        div.classList.add('reachable','clickable');
+        div.onclick = () => bulldozePick(er, ec);
+      }
+      // Bulldozer — place phase: highlight valid cells, and selected barricade
+      if (phase==='bulldoze-place') {
+        if (bulldozePickedBarricade && bulldozePickedBarricade.er===er && bulldozePickedBarricade.ec===ec) {
+          div.classList.add('selected-c');
+        } else {
+          const ct = getCell(er,ec);
+          if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17) {
+            div.classList.add('bplace','clickable');
+            div.onclick = () => bulldozePlace(er, ec);
+          }
         }
       }
     }
@@ -2653,10 +3060,12 @@ function renderSidebar() {
     const act = p===currentPlayer&&!gameOver;
     const cpu = isCPU(p);
     const reserve = (pawns[p]||[]).filter(pw=>!pw.onBoard).length;
+    const shielded = shieldTurns[p] > 0;
     h += `<div class="prow${act?' active':''}">
       <div class="pdot" style="background:${PCOLS[p]}"></div>
       <div class="pnm">${cpu?'CPU '+p:PNMS[p]}</div>
       <div class="ptg">${reserve}/5 home</div>
+      ${shielded?'<span class="ptg">🛡️</span>':''}
       ${act?'<div class="pbdg">TURN</div>':''}
     </div>`;
   }
@@ -2668,6 +3077,10 @@ function renderSidebar() {
     'pick-pawn': diceVal > 6 ? `🎲 DOUBLE ROLL: ${diceVal} steps — Pick a pawn!` : `Rolled ${diceVal} — Pick a pawn`,
     'move': `Move exactly ${diceVal} steps`,
     'place-barricade': 'Place barricade anywhere on board',
+    'place-temp-barricade': '🚧 Place your temp barricade — it lasts 3 turns',
+    'place-trap': '🪤 Click any path cell to place your trap',
+    'bulldoze-pick': '🚜 Click a barricade to pick it up',
+    'bulldoze-place': '🚜 Now click where to place it',
   };
   document.getElementById('phbox').innerHTML = `<small>PHASE</small>${cpu?pnm(currentPlayer)+' thinking…':(msgs[phase]||'')}`;
   document.getElementById('rbtn').disabled = phase!=='roll'||gameOver||cpu;
