@@ -462,6 +462,97 @@
   }
   .toggle input:checked ~ .toggle-thumb{transform:translateX(16px);}
 
+
+  /* ── MOBILE RESPONSIVE ── */
+  @media (max-width: 700px) {
+
+    /* Stack layout vertically */
+    .main {
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+      gap: 10px;
+    }
+
+    /* Sidebar goes below board, full width, horizontal wrap */
+    .sidebar {
+      width: 100% !important;
+      flex-direction: row !important;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    /* Panels shrink and share space */
+    .sidebar .panel {
+      flex: 1;
+      min-width: 140px;
+      padding: 10px 12px;
+    }
+
+    /* Hide log on mobile — saves space */
+    .sidebar .panel:last-child {
+      display: none;
+    }
+
+    /* Dice area horizontal */
+    .dice-a {
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* Smaller dice */
+    #dface {
+      width: 52px !important;
+      height: 52px !important;
+      font-size: 1.8rem !important;
+      border-radius: 10px !important;
+    }
+
+    /* Smaller roll button */
+    #rollbtn { font-size: .72rem; padding: 7px; }
+
+    /* Player rows compact */
+    .prow { padding: 5px 8px; margin-bottom: 3px; }
+    .pnm { font-size: .75rem; }
+    .pbdg { font-size: .55rem; padding: 1px 4px; }
+
+    /* Phase box smaller */
+    .phbox { font-size: .68rem; padding: 7px 10px; min-height: 40px; }
+
+    /* Header compact */
+    header { padding: 10px 14px; }
+    .logo { font-size: .9rem; }
+    .header-sub { display: none; }
+    .settings-btn { width: 30px; height: 30px; font-size: .9rem; }
+
+    /* Scaler: allow full width */
+    #scaler { align-items: flex-start; }
+
+    /* Board wrap: no extra padding */
+    #board-wrap { padding: 8px; border-radius: 10px; }
+
+    /* Setup screen */
+    .sbox { width: 92vw; padding: 24px 20px; gap: 16px; }
+    .sbox h1 { font-size: 1.6rem; }
+
+    /* Settings/HTP modals */
+    .settings-box, .htp-box { width: 92vw; padding: 22px 18px; }
+
+    /* Toggle row compact */
+    .toggle-row { margin-bottom: 6px; }
+
+    /* Auto-roll hint text */
+    .dh { font-size: .65rem; }
+  }
+
+  /* Very small screens */
+  @media (max-width: 380px) {
+    .sidebar .panel { min-width: 120px; }
+    .main { padding: 6px; gap: 6px; }
+  }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -1136,26 +1227,36 @@ function scaleToFit() {
   const inner = document.getElementById('scaler-inner');
   const scaler = document.getElementById('scaler');
   if (!inner || !scaler) return;
-  if (animating) return; // never rescale during animation
+  if (animating) return;
 
-  // Temporarily remove transform to get natural dimensions
-  const prev = inner.style.transform;
+  const isMobile = window.innerWidth <= 700;
+
+  // Temporarily remove transform to measure natural size
   inner.style.transform = 'none';
 
-  const availH = scaler.offsetHeight;
-  const availW = scaler.offsetWidth;
-  const naturalH = inner.offsetHeight;
-  const naturalW = inner.offsetWidth;
-
-  if (naturalH === 0 || naturalW === 0) {
-    inner.style.transform = prev;
-    return;
+  if (isMobile) {
+    // On mobile: scale the board-wrap to fit the screen width
+    const boardWrap = document.getElementById('board-wrap');
+    if (!boardWrap) return;
+    const availW = window.innerWidth - 20; // 10px padding each side
+    const naturalW = boardWrap.offsetWidth;
+    if (naturalW === 0) return;
+    const scale = Math.min(availW / naturalW, 1);
+    _cachedScale = scale;
+    inner.style.transform = `scale(${scale})`;
+    inner.style.transformOrigin = 'top center';
+  } else {
+    // Desktop: fit entire layout (board + sidebar) in viewport
+    const availH = scaler.offsetHeight;
+    const availW = scaler.offsetWidth;
+    const naturalH = inner.offsetHeight;
+    const naturalW = inner.offsetWidth;
+    if (naturalH === 0 || naturalW === 0) return;
+    const scale = Math.min(availH / naturalH, availW / naturalW, 1);
+    _cachedScale = scale;
+    inner.style.transform = `scale(${scale})`;
+    inner.style.transformOrigin = 'top center';
   }
-
-  const scale = Math.min(availH / naturalH, availW / naturalW, 1);
-  _cachedScale = scale;
-  inner.style.transform = `scale(${scale})`;
-  inner.style.transformOrigin = 'top center';
 }
 
 // Debounced resize handler — waits 150ms after resize stops
