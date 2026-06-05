@@ -2688,8 +2688,9 @@ function pickPawn(pawn) {
 }
 
 function moveTo(er, ec) {
-  if (phase!=='move'||!selPawn||gameOver||animating) return;
-  if (!reachable.find(x=>x.er===er&&x.ec===ec)) return;
+  console.log('[_origMoveTo] phase:', phase, 'selPawn:', selPawn?.id, 'gameOver:', gameOver, 'animating:', animating, 'reachable:', reachable.length);
+  if (phase!=='move'||!selPawn||gameOver||animating) { console.log('[_origMoveTo] BLOCKED by phase/selPawn/gameOver/animating'); return; }
+  if (!reachable.find(x=>x.er===er&&x.ec===ec)) { console.log('[_origMoveTo] BLOCKED by reachable check'); return; }
 
   const movingPawn = selPawn;
   const fromReserve = !movingPawn.onBoard;
@@ -3890,14 +3891,14 @@ function leaveRoom() {
 }
 
 // ── Game start ───────────────────────────────────────────────────
-function startOnlineGame(players, mode, numPlayers) {
+function startOnlineGame(players, mode, npOnline) {
   mpIsOnline = true;
   document.getElementById('setup').style.display = 'none';
 
   // Configure game settings from server
-  window.numPlayers = numPlayers;
-  window.cpuMode = 'none'; // no CPU in online games
-  window.powerupsEnabled = mode === 'powerups';
+  numPlayers = npOnline;
+  cpuMode = 'none';
+  powerupsEnabled = mode === 'powerups';
 
   // Map server players to game slots
   // Our slot = mpSlot, others are opponents
@@ -4096,7 +4097,8 @@ pickPawn = function(pawn) {
 
 const _origMoveTo = moveTo;
 moveTo = function(er, ec) {
-  if (mpGuard()) return;
+  console.log('[moveTo] called er:', er, 'ec:', ec, 'mpGuard:', mpGuard(), 'phase:', phase, 'selPawn:', selPawn?.id, 'currentPlayer:', currentPlayer, 'mpSlot:', mpSlot);
+  if (mpGuard()) { console.log('[moveTo] BLOCKED by mpGuard'); return; }
   const pw = selPawn;
   const fromReserve = pw && !pw.onBoard;
   const pawnId = pw ? pw.id : null;
