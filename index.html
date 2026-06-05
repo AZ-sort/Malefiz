@@ -1741,7 +1741,7 @@
 <div id="mp-screen">
   <div class="mp-wrap">
     <div class="mp-header">
-      <button class="btn bg" onclick="showSetup()" style="width:auto;padding:8px 16px;font-size:.78rem;">← Back</button>
+      <button class="btn bg" onclick="showHomepage()" style="width:auto;padding:8px 16px;font-size:.78rem;">← Back</button>
       <h2>Play Online</h2>
       <div class="conn-dot" id="conn-dot"></div>
       <span class="conn-label" id="conn-label">Connecting...</span>
@@ -4392,22 +4392,23 @@ function showMpLobby() {
 // Connect socket immediately on load for live stats and room creation
 setTimeout(() => {
   connectSocket();
-  // Poll lobby every 5s while homepage is visible
+  // Poll lobby every 3s while homepage is visible to keep rooms fresh
   setInterval(() => {
     if (socket && socket.connected && document.getElementById('homepage').classList.contains('show')) {
       socket.emit('get-lobby');
     }
-  }, 5000);
+  }, 3000);
 }, 300);
+// Extra lobby request after DOM fully ready
+window.addEventListener('load', () => {
+  setTimeout(() => { if (socket && socket.connected) socket.emit('get-lobby'); }, 1000);
+});
   document.getElementById('mp-screen').classList.add('show');
   document.getElementById('mp-username').textContent = mpUsername;
   connectSocket();
 }
 
-function showSetup() {
-  document.getElementById('mp-screen').classList.remove('show');
-  document.getElementById('setup').style.display = 'flex';
-}
+function showSetup() { showHomepage(); }
 
 function updateLobbyList(rooms) {
   // Update homepage list
@@ -4563,9 +4564,9 @@ function copyRoomCode() {
 }
 
 function leaveRoom() {
-  if (socket) socket.disconnect();
+  if (socket) { socket.disconnect(); socket = null; }
   document.getElementById('waiting-screen').classList.remove('show');
-  showSetup();
+  showHomepage();
   sessionStorage.removeItem('mp-session');
 }
 
@@ -5012,7 +5013,7 @@ function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np
 function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
 function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
-function resetGame() { document.getElementById('win').classList.remove('show'); document.getElementById('setup').style.display='flex'; }
+function resetGame() { document.getElementById('win').classList.remove('show'); showHomepage(); }
 </script>
 </body>
 </html>
