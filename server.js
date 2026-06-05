@@ -49,14 +49,16 @@ function getRoomList() {
 }
 
 function broadcastLobby() {
-  io.emit('lobby-update', getRoomList());
+  const lobbyData = { rooms: getRoomList(), online: io.engine.clientsCount };
+  io.emit('lobby-update', lobbyData);
 }
 
 io.on('connection', (socket) => {
   console.log('Connected:', socket.id);
 
   // Send current lobby immediately on connect
-  socket.emit('lobby-update', getRoomList());
+  const lobbyData = { rooms: getRoomList(), online: io.engine.clientsCount };
+  socket.emit('lobby-update', lobbyData);
 
   // ── Create room ────────────────────────────────────────────────
   socket.on('create-room', ({ playerName, numPlayers, mode, isPublic }) => {
@@ -177,7 +179,8 @@ io.on('connection', (socket) => {
 
   // ── Get lobby ──────────────────────────────────────────────────
   socket.on('get-lobby', () => {
-    socket.emit('lobby-update', getRoomList());
+    const lobbyData = { rooms: getRoomList(), online: io.engine.clientsCount };
+    socket.emit('lobby-update', lobbyData);
   });
 });
 

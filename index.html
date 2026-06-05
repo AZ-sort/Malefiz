@@ -4297,7 +4297,10 @@ function connectSocket() {
 
   socket.on('connect', () => {
     setConnStatus(true);
+    // Request lobby immediately and again after short delays to ensure it renders
     socket.emit('get-lobby');
+    setTimeout(() => socket && socket.emit('get-lobby'), 500);
+    setTimeout(() => socket && socket.emit('get-lobby'), 1500);
     // Try reconnect if we have a saved session
     const saved = sessionStorage.getItem('mp-session');
     if (saved) {
@@ -4309,7 +4312,12 @@ function connectSocket() {
   socket.on('disconnect', () => setConnStatus(false));
   socket.on('connect_error', () => setConnStatus(false));
 
-  socket.on('lobby-update', (rooms) => { updateLobbyList(rooms); updateHomepageStats(rooms); });
+  socket.on('lobby-update', (data) => {
+    const rooms = Array.isArray(data) ? data : (data.rooms || []);
+    const online = data.online || 0;
+    updateLobbyList(rooms);
+    updateHomepageStats(rooms, online);
+  });
 
   socket.on('room-created', ({ code, slot, secret }) => {
     mpRoomCode = code;
@@ -4399,10 +4407,7 @@ setTimeout(() => {
     }
   }, 3000);
 }, 300);
-// Extra lobby request after DOM fully ready
-window.addEventListener('load', () => {
-  setTimeout(() => { if (socket && socket.connected) socket.emit('get-lobby'); }, 1000);
-});
+
   document.getElementById('mp-screen').classList.add('show');
   document.getElementById('mp-username').textContent = mpUsername;
   connectSocket();
@@ -4971,11 +4976,14 @@ function updateHpStats() {
 }
 
 // Update stats display when lobby updates
-function updateHomepageStats(rooms) {
-  const online = document.getElementById('hp-online-count');
-  const games = document.getElementById('hp-games-count');
-  if (online) online.textContent = (rooms.length * 2 + Math.floor(Math.random()*8) + 3) + ' players online';
-  if (games) games.textContent = rooms.length + ' game' + (rooms.length !== 1 ? 's' : '') + ' in progress';
+function updateHomepageStats(rooms, onlineCount) {
+  const onlineEl = document.getElementById('hp-online-count');
+  const gamesEl = document.getElementById('hp-games-count');
+  if (onlineEl) onlineEl.textContent = (onlineCount || 0) + ' player' + (onlineCount !== 1 ? 's' : '') + ' online';
+  if (gamesEl) {
+    const inProgress = Object.values ? rooms.filter ? rooms.filter(r => r).length : 0 : 0;
+    gamesEl.textContent = rooms.length + ' open room' + (rooms.length !== 1 ? 's' : '');
+  }
 }
 
 // Hide old setup screen — homepage replaces it
