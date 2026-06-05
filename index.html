@@ -3649,6 +3649,7 @@ function connectSocket() {
   });
 
   socket.on('game-action', (action) => {
+    console.log('[MP] Received action:', action.type, 'mpIsOnline:', mpIsOnline);
     if (!mpIsOnline) return;
     handleRemoteAction(action);
   });
@@ -3914,19 +3915,56 @@ function handleRemoteAction(action) {
     phase = 'pick-pawn';
     renderAll();
   } else if (type === 'move' || type === 'deploy-pawn') {
-    const pw = (pawns[currentPlayer]||[]).find(p => p.id === data.pawnId);
+    console.log('[MP] Received move:', type, data.pawnId, data.er, data.ec, 'currentPlayer:', currentPlayer);
+    // Find pawn by id, or use first reserve pawn for deploy
+    let pw = (pawns[currentPlayer]||[]).find(p => p.id === data.pawnId);
+    if (!pw && type === 'deploy-pawn') {
+      pw = (pawns[currentPlayer]||[]).find(p => !p.onBoard);
+    }
     if (pw) {
-      selPawn = pw;
-      reachable = [{ er: data.er, ec: data.ec }];
-      _origMoveTo(data.er, data.ec); // use original to avoid guard/sync loop
-    } else if (type === 'deploy-pawn') {
-      // Try first reserve pawn
-      const reservePw = (pawns[currentPlayer]||[]).find(p => !p.onBoard);
-      if (reservePw) {
-        selPawn = reservePw;
-        reachable = [{ er: data.er, ec: data.ec }];
-        _origMoveTo(data.er, data.ec);
+      // Directly apply the move — bypass all guards and checks
+      const wasOnBoard = pw.onBoard;
+      // Handle capture
+      for (let p=1; p<=numPlayers; p++) {
+        if (p === currentPlayer) continue;
+        const ep = (pawns[p]||[]).find(x => x.onBoard && x.er===data.er && x.ec===data.ec);
+        if (ep) {
+          ep.onBoard = false; ep.er = -1; ep.ec = -1;
+          glog(`${pnm(currentPlayer)} captured ${pnm(p)}'s pawn!`, true);
+        }
       }
+      // Check mine
+      const mineIdx = traps.findIndex(t => t.er===data.er && t.ec===data.ec);
+      if (mineIdx !== -1) {
+        traps.splice(mineIdx, 1);
+        pw.onBoard = false; pw.er = -1; pw.ec = -1;
+        soundTrapTrigger();
+        glog(`💥 ${pnm(currentPlayer)} hit a mine!`, true);
+        nextTurn(); renderAll(); return;
+      }
+      // Check barricade capture
+      const bar = barAt(data.er, data.ec);
+      // Animate the move
+      const startEr = pw.onBoard ? pw.er : ENTRY[currentPlayer][0];
+      const startEc = pw.onBoard ? pw.ec : ENTRY[currentPlayer][1];
+      pw.onBoard = true;
+      pw.er = data.er; pw.ec = data.ec;
+      // Check powerup collection
+      checkPowerupCollection(data.er, data.ec);
+      // Win check
+      if (data.er === 4 && data.ec === 9) {
+        gameOver = true; renderAll();
+        setTimeout(() => showWin(currentPlayer), 300);
+        return;
+      }
+      if (bar) {
+        barricades = barricades.filter(b => !(b.er===data.er && b.ec===data.ec));
+        phase = 'place-barricade';
+        glog(`${pnm(currentPlayer)} removed a barricade`, true);
+      } else {
+        nextTurn();
+      }
+      renderAll();
     }
   } else if (type === 'place-barricade') {
     _origPlaceBarricade(data.er, data.ec);
@@ -4003,12 +4041,14 @@ moveTo = function(er, ec) {
   const pw = selPawn;
   const fromReserve = pw && !pw.onBoard;
   const pawnId = pw ? pw.id : null;
-  _origMoveTo(er, ec);
+  // Sync BEFORE executing locally so state is still valid
   if (mpIsOnline && pawnId !== null) {
+    console.log('[MP] Sending move:', fromReserve ? 'deploy-pawn' : 'move', pawnId, er, ec);
     syncAction(fromReserve ? 'deploy-pawn' : 'move', {
       pawnId, er, ec
     });
   }
+  _origMoveTo(er, ec);
 };
 
 const _origPlaceBarricade = placeBarricade;
