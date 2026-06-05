@@ -4293,6 +4293,7 @@ let dcTimer = null;
 // ── Connection ───────────────────────────────────────────────────
 function connectSocket() {
   if (socket && socket.connected) return;
+  if (socket) { socket.removeAllListeners(); socket = null; } // clean up dead socket
   socket = io(SERVER_URL, { transports: ['websocket','polling'] });
 
   socket.on('connect', () => {
@@ -4415,7 +4416,12 @@ setTimeout(() => {
 
 function showSetup() { showHomepage(); }
 
+let _lastLobbyRooms = [];
+let _lastLobbyOnline = 0;
+
 function updateLobbyList(rooms) {
+  // Cache latest data
+  _lastLobbyRooms = rooms || [];
   // Update homepage list
   const hpList = document.getElementById('hp-room-list');
   const hpEmpty = document.getElementById('hp-room-empty');
@@ -4931,7 +4937,11 @@ function showHomepage() {
   document.getElementById('win').classList.remove('show');
   gameOver = false;
   // Reconnect fresh for lobby
-  setTimeout(() => { connectSocket(); }, 300);
+  setTimeout(() => {
+    connectSocket();
+    // Re-render cached lobby immediately if we have data
+    if (_lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms);
+  }, 300);
   updateHpStats();
   // Connect socket to get live stats
   if (!socket) connectSocket();
@@ -4969,6 +4979,14 @@ function setHpDiff(d) {
   document.getElementById('hp-diff-med').classList.toggle('on', d==='medium');
 }
 
+function refreshLobby() {
+  if (socket && socket.connected) {
+    socket.emit('get-lobby');
+  } else {
+    connectSocket();
+  }
+}
+
 function updateHpStats() {
   if (!socket || !socket.connected) return;
   // Request lobby to get player count
@@ -4988,6 +5006,8 @@ function updateHomepageStats(rooms, onlineCount) {
 
 // Hide old setup screen — homepage replaces it
 document.getElementById('setup').style.display = 'none';
+// Re-render lobby if we already have cached data
+setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms); }, 400);
 
 
 // ── Homepage multiplayer actions ─────────────────────────────────
