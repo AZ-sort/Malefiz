@@ -4335,10 +4335,12 @@ function connectSocket() {
   });
 
   socket.on('join-error', (msg) => {
-    const el = document.getElementById('join-error');
-    el.textContent = msg;
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 4000);
+    // Show in mp-screen or homepage whichever is visible
+    ['join-error', 'hp-join-error'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = msg; el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 4000); }
+    });
   });
 
   socket.on('game-start', ({ players, mode, numPlayers }) => {
@@ -4387,8 +4389,8 @@ function setConnStatus(connected) {
 // ── Lobby ────────────────────────────────────────────────────────
 function showMpLobby() {
   document.getElementById('setup').style.display = 'none';
-// Connect socket on load for live stats
-setTimeout(() => { if (!socket) connectSocket(); }, 500);
+// Connect socket immediately on load for live stats and room creation
+setTimeout(() => { connectSocket(); }, 300);
   document.getElementById('mp-screen').classList.add('show');
   document.getElementById('mp-username').textContent = mpUsername;
   connectSocket();
@@ -4498,7 +4500,10 @@ function joinByCode() {
 
 // ── Waiting room ─────────────────────────────────────────────────
 function showWaitingRoom() {
+  // Hide all screens
   document.getElementById('mp-screen').classList.remove('show');
+  document.getElementById('homepage').classList.remove('show');
+  document.getElementById('setup').style.display = 'none';
   const ws = document.getElementById('waiting-screen');
   ws.classList.add('show');
   document.getElementById('waiting-code').textContent = mpRoomCode;
@@ -4957,7 +4962,7 @@ document.getElementById('setup').style.display = 'none';
 
 // ── Homepage multiplayer actions ─────────────────────────────────
 function hpJoinRoom(code) {
-  if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 800); return; }
+  if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 1500); return; }
   socket.emit('join-room', { code, playerName: mpUsername });
 }
 
@@ -4974,7 +4979,17 @@ function hpJoinByCode() {
 }
 
 function hpCreateRoom() {
-  if (!socket || !socket.connected) { connectSocket(); setTimeout(hpCreateRoom, 800); return; }
+  if (!socket || !socket.connected) {
+    // Show feedback that we're connecting
+    const btn = document.querySelector('#homepage .hp-cta-primary:last-of-type');
+    if (btn) { btn.textContent = 'Connecting...'; btn.disabled = true; }
+    connectSocket();
+    setTimeout(() => {
+      if (btn) { btn.textContent = '+ Create Room'; btn.disabled = false; }
+      if (socket && socket.connected) hpCreateRoom();
+    }, 1500);
+    return;
+  }
   socket.emit('create-room', {
     playerName: mpUsername,
     numPlayers: mpCreateNP,
