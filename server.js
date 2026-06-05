@@ -6,85 +6,178 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*' }
+  cors: { origin: '*' },
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// Serve the game files
 app.use(express.static(path.join(__dirname)));
 
-// Room storage
-const rooms = {};
+// ── Name generation ──────────────────────────────────────────────
+const ADJECTIVES = ['Swift','Brave','Mighty','Shadow','Crimson','Golden','Silver','Iron','Wild','Frost','Storm','Thunder','Blazing','Silent','Cosmic','Neon','Phantom','Rogue','Savage','Stealth'];
+const NOUNS = ['Fox','Wolf','Eagle','Tiger','Dragon','Falcon','Viper','Panda','Cobra','Hawk','Bear','Lynx','Raven','Shark','Panther','Jaguar','Falcon','Manta','Raptor','Phoenix'];
+
+function generateName() {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  const num = String(Math.floor(Math.random() * 90) + 10);
+  return adj + noun + num;
+}
 
 function generateRoomCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+// ── Room storage ─────────────────────────────────────────────────
+// rooms[code] = { code, host, players[], numPlayers, mode, isPublic, started, gameState }
+const rooms = {};
+// socketId -> roomCode mapping for reconnect
+const socketRooms = {};
+// disconnected players: { name, slot, roomCode, secret } waiting to reconnect
+const disconnectedPlayers = {};
 
-  // Create a new room
-  socket.on('create-room', ({ playerName, numPlayers }) => {
+function getRoomList() {
+  return Object.values(rooms)
+    .filter(r => r.isPublic && !r.started && r.players.length < r.numPlayers)
+    .map(r => ({
+      code: r.code,
+      host: r.host,
+      players: r.players.length,
+      numPlayers: r.numPlayers,
+      mode: r.mode,
+    }));
+}
+
+function broadcastLobby() {
+  io.emit('lobby-update', getRoomList());
+}
+
+io.on('connection', (socket) => {
+  console.log('Connected:', socket.id);
+
+  // Send current lobby immediately on connect
+  socket.emit('lobby-update', getRoomList());
+
+  // ── Create room ────────────────────────────────────────────────
+  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic }) => {
     const code = generateRoomCode();
+    const secret = Math.random().toString(36).substring(2, 12);
+    const player = { id: socket.id, name: playerName, slot: 1, secret, connected: true };
     rooms[code] = {
       code,
-      players: [{ id: socket.id, name: playerName, slot: 1 }],
+      host: playerName,
+      players: [player],
       numPlayers,
-      gameState: null,
-      started: false
+      mode,
+      isPublic,
+      started: false,
+      gameState: null
     };
     socket.join(code);
-    socket.roomCode = code;
-    socket.emit('room-created', { code, slot: 1 });
-    console.log(`Room ${code} created by ${playerName}`);
+    socketRooms[socket.id] = code;
+    socket.emit('room-created', { code, slot: 1, secret });
+    broadcastLobby();
+    console.log(`Room ${code} created by ${playerName} (${numPlayers}p, ${mode}, ${isPublic ? 'public' : 'private'})`);
   });
 
-  // Join an existing room
+  // ── Join room ──────────────────────────────────────────────────
   socket.on('join-room', ({ code, playerName }) => {
-    const room = rooms[code.toUpperCase()];
-    if (!room) {
-      socket.emit('join-error', 'Room not found');
-      return;
-    }
-    if (room.started) {
-      socket.emit('join-error', 'Game already started');
-      return;
-    }
-    if (room.players.length >= room.numPlayers) {
-      socket.emit('join-error', 'Room is full');
-      return;
-    }
-    const slot = room.players.length + 1;
-    room.players.push({ id: socket.id, name: playerName, slot });
-    socket.join(code.toUpperCase());
-    socket.roomCode = code.toUpperCase();
-    socket.emit('room-joined', { code: code.toUpperCase(), slot, players: room.players });
-    io.to(code.toUpperCase()).emit('player-joined', { players: room.players });
-    console.log(`${playerName} joined room ${code.toUpperCase()}`);
+    const room = rooms[code?.toUpperCase()];
+    if (!room) { socket.emit('join-error', 'Room not found. Check the code and try again.'); return; }
+    if (room.started) { socket.emit('join-error', 'Game already in progress.'); return; }
+    if (room.players.length >= room.numPlayers) { socket.emit('join-error', 'Room is full.'); return; }
 
-    // Auto-start when room is full
+    const secret = Math.random().toString(36).substring(2, 12);
+    const slot = room.players.length + 1;
+    const player = { id: socket.id, name: playerName, slot, secret, connected: true };
+    room.players.push(player);
+    socket.join(code.toUpperCase());
+    socketRooms[socket.id] = code.toUpperCase();
+    socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: room.players, mode: room.mode, numPlayers: room.numPlayers });
+    io.to(code.toUpperCase()).emit('player-joined', { players: room.players });
+    broadcastLobby();
+    console.log(`${playerName} joined ${code.toUpperCase()} (slot ${slot})`);
+
+    // Auto-start when full
     if (room.players.length === room.numPlayers) {
       room.started = true;
-      io.to(code.toUpperCase()).emit('game-start', { players: room.players });
-      console.log(`Room ${code.toUpperCase()} game started`);
+      broadcastLobby();
+      setTimeout(() => {
+        io.to(code.toUpperCase()).emit('game-start', {
+          players: room.players,
+          mode: room.mode,
+          numPlayers: room.numPlayers
+        });
+        console.log(`Room ${code.toUpperCase()} started`);
+      }, 1000);
     }
   });
 
-  // Sync a game action to all other players in the room
+  // ── Reconnect ──────────────────────────────────────────────────
+  socket.on('reconnect-attempt', ({ code, secret }) => {
+    const room = rooms[code];
+    if (!room) { socket.emit('reconnect-failed', 'Room no longer exists.'); return; }
+    const player = room.players.find(p => p.secret === secret);
+    if (!player) { socket.emit('reconnect-failed', 'Could not verify identity.'); return; }
+    // Update socket id
+    player.id = socket.id;
+    player.connected = true;
+    socket.join(code);
+    socketRooms[socket.id] = code;
+    socket.emit('reconnected', { slot: player.slot, players: room.players, gameState: room.gameState });
+    socket.to(code).emit('player-reconnected', { slot: player.slot, name: player.name });
+    console.log(`${player.name} reconnected to ${code}`);
+  });
+
+  // ── Game actions ───────────────────────────────────────────────
   socket.on('game-action', (action) => {
-    const code = socket.roomCode;
+    const code = socketRooms[socket.id];
     if (!code || !rooms[code]) return;
+    // Store game state snapshot for reconnects
+    if (action.type === 'state-sync') {
+      rooms[code].gameState = action.state;
+    }
     socket.to(code).emit('game-action', action);
   });
 
-  // Handle disconnect
+  // ── Disconnect ─────────────────────────────────────────────────
   socket.on('disconnect', () => {
-    const code = socket.roomCode;
+    const code = socketRooms[socket.id];
     if (code && rooms[code]) {
-      io.to(code).emit('player-disconnected');
-      delete rooms[code];
-      console.log(`Room ${code} closed — player disconnected`);
+      const room = rooms[code];
+      const player = room.players.find(p => p.id === socket.id);
+      if (player) {
+        player.connected = false;
+        if (room.started) {
+          // Game in progress — give them 30s to reconnect
+          io.to(code).emit('player-disconnected', { slot: player.slot, name: player.name });
+          setTimeout(() => {
+            if (!player.connected && rooms[code]) {
+              io.to(code).emit('player-left', { slot: player.slot, name: player.name });
+              // If only 1 player left, close room
+              const connected = room.players.filter(p => p.connected).length;
+              if (connected === 0) delete rooms[code];
+            }
+          }, 30000);
+        } else {
+          // Not started — remove player and update lobby
+          room.players = room.players.filter(p => p.id !== socket.id);
+          if (room.players.length === 0) {
+            delete rooms[code];
+          } else {
+            io.to(code).emit('player-joined', { players: room.players });
+          }
+          broadcastLobby();
+        }
+      }
     }
-    console.log('Player disconnected:', socket.id);
+    delete socketRooms[socket.id];
+    console.log('Disconnected:', socket.id);
+  });
+
+  // ── Get lobby ──────────────────────────────────────────────────
+  socket.on('get-lobby', () => {
+    socket.emit('lobby-update', getRoomList());
   });
 });
 

@@ -748,6 +748,164 @@
   .glow-overlay.shield-p3 { animation: glow-shield-p3 1.6s ease-in-out infinite; }
   .glow-overlay.shield-p4 { animation: glow-shield-p4 1.6s ease-in-out infinite; }
 
+
+  /* ── Multiplayer Screens ── */
+  #mp-screen {
+    display:none;position:fixed;inset:0;
+    background:var(--bg);z-index:100;
+    flex-direction:column;align-items:center;
+    overflow-y:auto;
+  }
+  #mp-screen.show{display:flex;}
+  .mp-wrap {
+    width:100%;max-width:960px;padding:24px;
+    display:flex;flex-direction:column;gap:20px;
+  }
+  .mp-header {
+    display:flex;align-items:center;gap:12px;
+  }
+  .mp-header h2{font-size:1.4rem;font-weight:700;flex:1;}
+  .mp-header .conn-dot {
+    width:8px;height:8px;border-radius:50%;background:#444;
+    flex-shrink:0;transition:background .3s;
+  }
+  .mp-header .conn-dot.connected{background:#3cc45a;}
+  .mp-header .conn-label{font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted);}
+
+  /* Lobby layout */
+  .mp-cols{display:flex;gap:16px;align-items:flex-start;}
+  .mp-lobby{flex:1;min-width:0;}
+  .mp-create{width:280px;flex-shrink:0;}
+
+  /* Room list */
+  .room-list{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);overflow:hidden;
+    min-height:200px;
+  }
+  .room-list-header{
+    padding:12px 16px;border-bottom:1px solid var(--border);
+    font-size:.65rem;font-family:'DM Mono',monospace;
+    color:var(--muted);letter-spacing:.1em;text-transform:uppercase;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .room-empty{
+    padding:40px 20px;text-align:center;
+    font-size:.8rem;color:var(--muted);
+  }
+  .room-row{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);
+    transition:background .12s;cursor:pointer;
+  }
+  .room-row:last-child{border-bottom:none;}
+  .room-row:hover{background:var(--surface2);}
+  .room-host{flex:1;font-size:.85rem;font-weight:600;}
+  .room-host small{display:block;font-size:.68rem;font-family:'DM Mono',monospace;color:var(--muted);font-weight:400;margin-top:2px;}
+  .room-badge{
+    font-size:.62rem;font-family:'DM Mono',monospace;
+    padding:3px 8px;border-radius:4px;font-weight:600;
+  }
+  .badge-classic{background:rgba(124,106,255,.15);color:var(--accent);}
+  .badge-powerups{background:rgba(255,201,60,.15);color:#ffc93c;}
+  .room-players{font-size:.8rem;font-family:'DM Mono',monospace;color:var(--muted);}
+  .room-join-btn{
+    padding:5px 14px;border-radius:6px;border:none;
+    background:var(--accent);color:#fff;
+    font-family:'Sora',sans-serif;font-size:.75rem;font-weight:600;
+    cursor:pointer;transition:all .12s;
+  }
+  .room-join-btn:hover{background:var(--accent-h);}
+
+  /* Join by code */
+  .join-code-row{
+    display:flex;gap:8px;margin-top:10px;
+  }
+  .join-code-input{
+    flex:1;padding:10px 12px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:var(--radius-sm);
+    color:var(--text);font-family:'DM Mono',monospace;font-size:.85rem;
+    outline:none;transition:border .13s;text-transform:uppercase;
+    letter-spacing:.1em;
+  }
+  .join-code-input:focus{border-color:var(--accent);}
+  .join-code-input::placeholder{color:var(--muted);letter-spacing:.05em;text-transform:none;}
+
+  /* Create panel */
+  .create-panel{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:20px;
+    display:flex;flex-direction:column;gap:14px;
+  }
+  .create-panel h3{font-size:.65rem;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;}
+
+  /* Username display */
+  .username-row{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--surface2);border:1px solid var(--border);
+    border-radius:var(--radius-sm);padding:10px 12px;
+  }
+  .username-label{font-size:.68rem;font-family:'DM Mono',monospace;color:var(--muted);}
+  .username-val{font-size:.88rem;font-weight:700;color:var(--accent);}
+
+  /* Waiting room */
+  #waiting-screen{
+    display:none;position:fixed;inset:0;
+    background:rgba(13,13,20,.97);backdrop-filter:blur(6px);
+    align-items:center;justify-content:center;z-index:150;
+  }
+  #waiting-screen.show{display:flex;}
+  .waiting-box{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;padding:36px;width:400px;
+    display:flex;flex-direction:column;gap:20px;align-items:center;
+    text-align:center;animation:pop .3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .waiting-box h2{font-size:1.3rem;font-weight:700;}
+  .room-code-display{
+    font-size:2.2rem;font-family:'DM Mono',monospace;font-weight:700;
+    color:var(--accent);letter-spacing:.25em;
+    background:var(--surface2);padding:14px 24px;border-radius:10px;
+    border:1px solid var(--border);cursor:pointer;user-select:all;
+  }
+  .room-code-display:hover{border-color:var(--accent);}
+  .waiting-players{width:100%;display:flex;flex-direction:column;gap:8px;}
+  .waiting-player{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:8px;background:var(--surface2);
+    border:1px solid var(--border);
+  }
+  .waiting-player .wp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .waiting-player .wp-name{flex:1;font-size:.85rem;font-weight:600;text-align:left;}
+  .waiting-player .wp-you{font-size:.62rem;font-family:'DM Mono',monospace;color:var(--accent);}
+  .waiting-player.empty{opacity:.35;border-style:dashed;}
+  .waiting-dots span{display:inline-block;animation:wdot 1.2s ease-in-out infinite;}
+  .waiting-dots span:nth-child(2){animation-delay:.2s;}
+  .waiting-dots span:nth-child(3){animation-delay:.4s;}
+  @keyframes wdot{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+
+  /* Disconnect overlay */
+  #dc-overlay{
+    display:none;position:fixed;inset:0;
+    background:rgba(13,13,20,.92);backdrop-filter:blur(8px);
+    align-items:center;justify-content:center;z-index:300;
+  }
+  #dc-overlay.show{display:flex;}
+  .dc-box{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;padding:36px;text-align:center;
+    display:flex;flex-direction:column;gap:14px;align-items:center;
+    animation:pop .3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .dc-box h2{font-size:1.2rem;font-weight:700;}
+  .dc-box p{font-size:.82rem;color:var(--muted);}
+  .dc-timer{font-size:2rem;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent);}
+
+  @media(max-width:700px){
+    .mp-cols{flex-direction:column;}
+    .mp-create{width:100%;}
+  }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -758,6 +916,7 @@
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
 <script defer src="/_vercel/insights/script.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 
@@ -798,7 +957,8 @@
         <div class="rb" id="pu-on" onclick="setPowerups(true)">⚡ Powerups</div>
       </div>
     </div>
-    <button class="btn bp" onclick="startGame()">Start Game →</button>
+    <button class="btn bp" onclick="startGame()">▶ Local Game</button>
+    <button class="btn bp" onclick="showMpLobby()" style="background:linear-gradient(135deg,#7c6aff,#3cc45a);">🌐 Play Online</button>
     <button class="btn bg" onclick="openHTP()" style="margin-top:-8px;">📖 How to Play</button>
   </div>
 </div>
@@ -935,6 +1095,114 @@
     <h2 id="target-title">Choose a target</h2>
     <div id="target-list"></div>
     <button class="btn bg" onclick="closeTargetModal()" style="margin-top:4px;font-size:.76rem;">Cancel</button>
+  </div>
+</div>
+
+
+<!-- ── MULTIPLAYER LOBBY SCREEN ── -->
+<div id="mp-screen">
+  <div class="mp-wrap">
+    <div class="mp-header">
+      <button class="btn bg" onclick="showSetup()" style="width:auto;padding:8px 16px;font-size:.78rem;">← Back</button>
+      <h2>Play Online</h2>
+      <div class="conn-dot" id="conn-dot"></div>
+      <span class="conn-label" id="conn-label">Connecting...</span>
+    </div>
+
+    <!-- Username -->
+    <div class="username-row">
+      <span class="username-label">Playing as</span>
+      <span class="username-val" id="mp-username">...</span>
+    </div>
+
+    <div class="mp-cols">
+      <!-- Lobby list -->
+      <div class="mp-lobby">
+        <div class="room-list" id="room-list">
+          <div class="room-list-header">
+            <span>Open Rooms</span>
+            <span id="room-count" style="color:var(--text)">0 rooms</span>
+          </div>
+          <div class="room-empty" id="room-empty">No open rooms — create one to start!</div>
+        </div>
+
+        <!-- Join by code -->
+        <div style="margin-top:12px;">
+          <div class="slbl">Join Private Room</div>
+          <div class="join-code-row">
+            <input class="join-code-input" id="join-code-input" placeholder="Enter room code..." maxlength="6">
+            <button class="btn bp" style="width:auto;padding:10px 18px;" onclick="joinByCode()">Join</button>
+          </div>
+          <div id="join-error" style="font-size:.72rem;color:#e84545;margin-top:6px;font-family:'DM Mono',monospace;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Create panel -->
+      <div class="mp-create">
+        <div class="create-panel">
+          <h3>Create Game</h3>
+          <div>
+            <div class="slbl">Players</div>
+            <div class="rbs">
+              <div class="rb on" id="mp-np2" onclick="setMpNP(2)">2</div>
+              <div class="rb" id="mp-np3" onclick="setMpNP(3)">3</div>
+              <div class="rb" id="mp-np4" onclick="setMpNP(4)">4</div>
+            </div>
+          </div>
+          <div>
+            <div class="slbl">Game Mode</div>
+            <div class="rbs">
+              <div class="rb on" id="mp-classic" onclick="setMpMode('classic')">Classic</div>
+              <div class="rb" id="mp-powerups" onclick="setMpMode('powerups')">⚡ Powerups</div>
+            </div>
+          </div>
+          <div>
+            <div class="slbl">Visibility</div>
+            <div class="rbs">
+              <div class="rb on" id="mp-public" onclick="setMpVisibility(true)">🌐 Public</div>
+              <div class="rb" id="mp-private" onclick="setMpVisibility(false)">🔒 Private</div>
+            </div>
+          </div>
+          <button class="btn bp" onclick="createRoom()">+ Create Room</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── WAITING ROOM ── -->
+<div id="waiting-screen">
+  <div class="waiting-box">
+    <h2>Waiting for players</h2>
+    <div id="waiting-mode-label" style="font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);"></div>
+
+    <!-- Room code (only shown for private rooms) -->
+    <div id="waiting-code-section" style="display:none;width:100%;">
+      <div class="slbl" style="text-align:center;margin-bottom:8px;">Share this code</div>
+      <div class="room-code-display" id="waiting-code" onclick="copyRoomCode()">------</div>
+      <div id="copy-confirm" style="font-size:.7rem;color:#3cc45a;font-family:'DM Mono',monospace;margin-top:6px;display:none;">Copied!</div>
+    </div>
+
+    <!-- Players -->
+    <div class="waiting-players" id="waiting-players"></div>
+
+    <div style="font-size:.8rem;color:var(--muted);">
+      <span class="waiting-dots"><span>●</span><span>●</span><span>●</span></span>
+      waiting for everyone to join
+    </div>
+
+    <button class="btn bg" onclick="leaveRoom()" style="font-size:.76rem;">Leave Room</button>
+  </div>
+</div>
+
+<!-- ── DISCONNECT OVERLAY ── -->
+<div id="dc-overlay">
+  <div class="dc-box">
+    <div style="font-size:2.5rem;">📡</div>
+    <h2 id="dc-title">Player Disconnected</h2>
+    <p id="dc-msg">Waiting for them to reconnect...</p>
+    <div class="dc-timer" id="dc-timer">30</div>
+    <button class="btn bp" onclick="dismissDc()" style="width:180px;">Continue Playing</button>
   </div>
 </div>
 
@@ -3291,6 +3559,437 @@ function setPowerups(on) {
   document.getElementById('pu-on').classList.toggle('on', on === true);
   document.getElementById('pu-off').classList.toggle('on', on === false);
 }
+
+// ================================================================
+// MULTIPLAYER SYSTEM
+// ================================================================
+const SERVER_URL = 'https://malefiz-production.up.railway.app';
+
+// Name generator — AdjectiveNounNN format
+const MP_ADJ = ['Swift','Brave','Mighty','Shadow','Crimson','Golden','Silver','Iron','Wild','Frost','Storm','Thunder','Blazing','Silent','Cosmic','Neon','Phantom','Rogue','Savage','Stealth'];
+const MP_NOUN = ['Fox','Wolf','Eagle','Tiger','Dragon','Falcon','Viper','Panda','Cobra','Hawk','Bear','Lynx','Raven','Shark','Panther','Jaguar','Manta','Raptor','Phoenix','Bison'];
+
+function genUsername() {
+  const a = MP_ADJ[Math.floor(Math.random()*MP_ADJ.length)];
+  const n = MP_NOUN[Math.floor(Math.random()*MP_NOUN.length)];
+  const d = String(Math.floor(Math.random()*90)+10);
+  return a+n+d;
+}
+
+// Multiplayer state
+let socket = null;
+let mpUsername = genUsername();
+let mpSlot = null;
+let mpRoomCode = null;
+let mpSecret = null;
+let mpRoomMode = 'classic';
+let mpRoomNumPlayers = 2;
+let mpIsOnline = false;
+let mpCreateNP = 2;
+let mpCreateMode = 'classic';
+let mpCreatePublic = true;
+let dcTimer = null;
+
+// ── Connection ───────────────────────────────────────────────────
+function connectSocket() {
+  if (socket && socket.connected) return;
+  socket = io(SERVER_URL, { transports: ['websocket','polling'] });
+
+  socket.on('connect', () => {
+    setConnStatus(true);
+    socket.emit('get-lobby');
+    // Try reconnect if we have a saved session
+    const saved = sessionStorage.getItem('mp-session');
+    if (saved) {
+      const { code, secret } = JSON.parse(saved);
+      socket.emit('reconnect-attempt', { code, secret });
+    }
+  });
+
+  socket.on('disconnect', () => setConnStatus(false));
+  socket.on('connect_error', () => setConnStatus(false));
+
+  socket.on('lobby-update', (rooms) => updateLobbyList(rooms));
+
+  socket.on('room-created', ({ code, slot, secret }) => {
+    mpRoomCode = code;
+    mpSlot = slot;
+    mpSecret = secret;
+    sessionStorage.setItem('mp-session', JSON.stringify({ code, secret }));
+    showWaitingRoom();
+  });
+
+  socket.on('room-joined', ({ code, slot, secret, players, mode, numPlayers }) => {
+    mpRoomCode = code;
+    mpSlot = slot;
+    mpSecret = secret;
+    mpRoomMode = mode;
+    mpRoomNumPlayers = numPlayers;
+    sessionStorage.setItem('mp-session', JSON.stringify({ code, secret }));
+    updateWaitingPlayers(players, numPlayers);
+    showWaitingRoom();
+  });
+
+  socket.on('player-joined', ({ players }) => {
+    updateWaitingPlayers(players, mpRoomNumPlayers);
+  });
+
+  socket.on('join-error', (msg) => {
+    const el = document.getElementById('join-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 4000);
+  });
+
+  socket.on('game-start', ({ players, mode, numPlayers }) => {
+    mpRoomMode = mode;
+    mpRoomNumPlayers = numPlayers;
+    document.getElementById('waiting-screen').classList.remove('show');
+    startOnlineGame(players, mode, numPlayers);
+  });
+
+  socket.on('game-action', (action) => {
+    if (!mpIsOnline) return;
+    handleRemoteAction(action);
+  });
+
+  socket.on('player-disconnected', ({ slot, name }) => {
+    showDcOverlay(name, slot);
+  });
+
+  socket.on('player-reconnected', ({ slot, name }) => {
+    hideDcOverlay();
+    glog(`${name} reconnected!`, true);
+  });
+
+  socket.on('player-left', ({ name }) => {
+    hideDcOverlay();
+    glog(`${name} left the game.`, true);
+  });
+
+  socket.on('reconnected', ({ slot, players, gameState }) => {
+    mpSlot = slot;
+    hideDcOverlay();
+    glog('Reconnected!', true);
+    if (gameState) applyGameState(gameState);
+  });
+}
+
+function setConnStatus(connected) {
+  const dot = document.getElementById('conn-dot');
+  const lbl = document.getElementById('conn-label');
+  if (dot) dot.className = 'conn-dot' + (connected ? ' connected' : '');
+  if (lbl) lbl.textContent = connected ? 'Connected' : 'Disconnected';
+}
+
+// ── Lobby ────────────────────────────────────────────────────────
+function showMpLobby() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('mp-screen').classList.add('show');
+  document.getElementById('mp-username').textContent = mpUsername;
+  connectSocket();
+}
+
+function showSetup() {
+  document.getElementById('mp-screen').classList.remove('show');
+  document.getElementById('setup').style.display = 'flex';
+}
+
+function updateLobbyList(rooms) {
+  const list = document.getElementById('room-list');
+  const empty = document.getElementById('room-empty');
+  const count = document.getElementById('room-count');
+  if (!list) return;
+
+  // Remove old rows
+  list.querySelectorAll('.room-row').forEach(r => r.remove());
+
+  count.textContent = rooms.length + ' room' + (rooms.length !== 1 ? 's' : '');
+
+  if (rooms.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  rooms.forEach(room => {
+    const row = document.createElement('div');
+    row.className = 'room-row';
+    const modeClass = room.mode === 'powerups' ? 'badge-powerups' : 'badge-classic';
+    const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
+    row.innerHTML = `
+      <div class="room-host">
+        ${room.host}
+        <small>${room.players}/${room.numPlayers} players</small>
+      </div>
+      <span class="room-badge ${modeClass}">${modeLabel}</span>
+      <button class="room-join-btn" onclick="joinRoom('${room.code}')">Join</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function setMpNP(n) {
+  mpCreateNP = n;
+  [2,3,4].forEach(x => document.getElementById('mp-np'+x).classList.toggle('on', x===n));
+}
+
+function setMpMode(m) {
+  mpCreateMode = m;
+  document.getElementById('mp-classic').classList.toggle('on', m==='classic');
+  document.getElementById('mp-powerups').classList.toggle('on', m==='powerups');
+}
+
+function setMpVisibility(pub) {
+  mpCreatePublic = pub;
+  document.getElementById('mp-public').classList.toggle('on', pub);
+  document.getElementById('mp-private').classList.toggle('on', !pub);
+}
+
+function createRoom() {
+  if (!socket || !socket.connected) { alert('Not connected to server. Please wait.'); return; }
+  mpRoomNumPlayers = mpCreateNP;
+  mpRoomMode = mpCreateMode;
+  socket.emit('create-room', {
+    playerName: mpUsername,
+    numPlayers: mpCreateNP,
+    mode: mpCreateMode,
+    isPublic: mpCreatePublic
+  });
+}
+
+function joinRoom(code) {
+  if (!socket || !socket.connected) { alert('Not connected to server.'); return; }
+  socket.emit('join-room', { code, playerName: mpUsername });
+}
+
+function joinByCode() {
+  const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+  if (code.length < 4) {
+    document.getElementById('join-error').textContent = 'Please enter a valid room code.';
+    document.getElementById('join-error').style.display = 'block';
+    return;
+  }
+  joinRoom(code);
+}
+
+// ── Waiting room ─────────────────────────────────────────────────
+function showWaitingRoom() {
+  document.getElementById('mp-screen').classList.remove('show');
+  const ws = document.getElementById('waiting-screen');
+  ws.classList.add('show');
+  document.getElementById('waiting-code').textContent = mpRoomCode;
+
+  // Show code section for private rooms
+  const codeSection = document.getElementById('waiting-code-section');
+  codeSection.style.display = mpCreatePublic === false ? 'block' : 'block'; // always show
+
+  document.getElementById('waiting-mode-label').textContent =
+    (mpRoomMode === 'powerups' ? '⚡ Powerups mode · ' : 'Classic mode · ') + mpRoomNumPlayers + ' players';
+
+  updateWaitingPlayers(
+    [{ name: mpUsername, slot: mpSlot }],
+    mpRoomNumPlayers
+  );
+}
+
+function updateWaitingPlayers(players, numPlayers) {
+  const container = document.getElementById('waiting-players');
+  if (!container) return;
+  container.innerHTML = '';
+  const colors = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)'];
+  for (let i = 1; i <= numPlayers; i++) {
+    const player = players.find(p => p.slot === i);
+    const div = document.createElement('div');
+    div.className = 'waiting-player' + (player ? '' : ' empty');
+    if (player) {
+      const isYou = player.slot === mpSlot;
+      div.innerHTML = `
+        <div class="wp-dot" style="background:${colors[i-1]}"></div>
+        <div class="wp-name">${player.name}</div>
+        ${isYou ? '<span class="wp-you">YOU</span>' : ''}
+      `;
+    } else {
+      div.innerHTML = `
+        <div class="wp-dot" style="background:${colors[i-1]};opacity:.3"></div>
+        <div class="wp-name" style="color:var(--muted)">Waiting...</div>
+      `;
+    }
+    container.appendChild(div);
+  }
+}
+
+function copyRoomCode() {
+  navigator.clipboard.writeText(mpRoomCode).then(() => {
+    const cc = document.getElementById('copy-confirm');
+    cc.style.display = 'block';
+    setTimeout(() => cc.style.display = 'none', 2000);
+  });
+}
+
+function leaveRoom() {
+  if (socket) socket.disconnect();
+  document.getElementById('waiting-screen').classList.remove('show');
+  showSetup();
+  sessionStorage.removeItem('mp-session');
+}
+
+// ── Game start ───────────────────────────────────────────────────
+function startOnlineGame(players, mode, numPlayers) {
+  mpIsOnline = true;
+  document.getElementById('setup').style.display = 'none';
+
+  // Configure game settings from server
+  window.numPlayers = numPlayers;
+  window.cpuMode = 'none'; // no CPU in online games
+  window.powerupsEnabled = mode === 'powerups';
+
+  // Map server players to game slots
+  // Our slot = mpSlot, others are opponents
+  // Override PNMS with actual player names
+  players.forEach(p => {
+    PNMS[p.slot] = p.name;
+  });
+
+  document.getElementById('glog').innerHTML = '';
+  initGame();
+  renderAll();
+  glog('Online game started! Good luck 🎮', true);
+
+  // Update setup buttons visibility
+  document.getElementById('rbtn').disabled = mpSlot !== currentPlayer;
+}
+
+// ── Sync outgoing actions ─────────────────────────────────────────
+// Call this after every local game action to broadcast to opponents
+function syncAction(type, data) {
+  if (!mpIsOnline || !socket) return;
+  socket.emit('game-action', { type, data, slot: mpSlot });
+}
+
+// ── Handle incoming actions ───────────────────────────────────────
+function handleRemoteAction(action) {
+  const { type, data } = action;
+  if (type === 'roll') {
+    // Remote player rolled — apply their dice value
+    diceVal = data.diceVal;
+    animDice(diceVal);
+    soundDice();
+    glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
+    phase = 'pick-pawn';
+    renderAll();
+  } else if (type === 'move') {
+    // Remote player moved a pawn
+    const pawnObj = pawns[currentPlayer]?.find(p => p.id === data.pawnId);
+    if (pawnObj) {
+      const path = data.path;
+      selPawn = pawnObj;
+      reachable = [{ er: data.er, ec: data.ec }];
+      moveTo(data.er, data.ec);
+    }
+  } else if (type === 'place-barricade') {
+    placeBarricade(data.er, data.ec);
+  } else if (type === 'place-temp-barricade') {
+    placeTempBarricade(data.er, data.ec);
+  } else if (type === 'deploy-pawn') {
+    const pawnObj = pawns[currentPlayer]?.find(p => !p.onBoard);
+    if (pawnObj) {
+      selPawn = pawnObj;
+      moveTo(data.er, data.ec);
+    }
+  } else if (type === 'use-powerup') {
+    // Handle powerup use by remote player
+    const pu = { type: data.puType, id: data.puId };
+    pendingPowerup = pu;
+    confirmPowerup();
+  } else if (type === 'target-chosen') {
+    pendingPowerup = { type: data.puType, id: data.puId };
+    if (data.puType === 'skip') applySkip(data.target);
+    else if (data.puType === 'possess') applyPossession(data.target);
+  }
+}
+
+// ── Disconnect overlay ────────────────────────────────────────────
+let dcCountdown = 30;
+function showDcOverlay(name, slot) {
+  document.getElementById('dc-title').textContent = name + ' disconnected';
+  document.getElementById('dc-msg').textContent = 'Waiting for them to reconnect...';
+  document.getElementById('dc-overlay').classList.add('show');
+  dcCountdown = 30;
+  document.getElementById('dc-timer').textContent = dcCountdown;
+  dcTimer = setInterval(() => {
+    dcCountdown--;
+    document.getElementById('dc-timer').textContent = dcCountdown;
+    if (dcCountdown <= 0) { clearInterval(dcTimer); hideDcOverlay(); }
+  }, 1000);
+}
+
+function hideDcOverlay() {
+  clearInterval(dcTimer);
+  document.getElementById('dc-overlay').classList.remove('show');
+}
+
+function dismissDc() {
+  hideDcOverlay();
+}
+
+// ── Intercept local actions to sync them ─────────────────────────
+// We patch rollDice, moveTo, placeBarricade to emit sync events
+
+const _origRollDice = rollDice;
+rollDice = function() {
+  _origRollDice();
+  if (mpIsOnline && diceVal) {
+    syncAction('roll', { diceVal });
+  }
+};
+
+const _origMoveTo = moveTo;
+moveTo = function(er, ec) {
+  if (mpIsOnline && selPawn) {
+    const fromReserve = !selPawn.onBoard;
+    syncAction(fromReserve ? 'deploy-pawn' : 'move', {
+      pawnId: selPawn.id,
+      er, ec,
+      path: null // simplified — path computed on remote side
+    });
+  }
+  _origMoveTo(er, ec);
+};
+
+const _origPlaceBarricade = placeBarricade;
+placeBarricade = function(er, ec) {
+  if (mpIsOnline) syncAction('place-barricade', { er, ec });
+  _origPlaceBarricade(er, ec);
+};
+
+const _origPlaceTempBarricade = placeTempBarricade;
+placeTempBarricade = function(er, ec) {
+  if (mpIsOnline) syncAction('place-temp-barricade', { er, ec });
+  _origPlaceTempBarricade(er, ec);
+};
+
+// ── Turn gating — only allow input on your turn ───────────────────
+// Patch nextTurn to also update button state and sync turn
+const _origNextTurn = nextTurn;
+nextTurn = function() {
+  _origNextTurn();
+  if (mpIsOnline) {
+    const isMyTurn = currentPlayer === mpSlot;
+    document.getElementById('rbtn').disabled = !isMyTurn || phase !== 'roll';
+  }
+};
+
+// ── State sync for reconnects ─────────────────────────────────────
+function applyGameState(state) {
+  // Restore game state from server snapshot
+  if (!state) return;
+  try {
+    Object.assign(window, state);
+    renderAll();
+  } catch(e) {}
+}
+
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
 function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
