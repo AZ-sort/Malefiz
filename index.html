@@ -4909,13 +4909,24 @@ function hideHomepage() {
 }
 
 function showHomepage() {
+  // If leaving an active online game, notify server and disconnect
+  if (mpIsOnline && socket && socket.connected) {
+    socket.disconnect();
+    socket = null;
+    mpIsOnline = false;
+    mpSlot = null;
+    mpRoomCode = null;
+    mpSecret = null;
+    sessionStorage.removeItem('mp-session');
+  }
   document.getElementById('homepage').classList.add('show');
   document.getElementById('setup').style.display = 'none';
   document.getElementById('mp-screen').classList.remove('show');
   document.getElementById('waiting-screen').classList.remove('show');
-  // Refresh lobby when returning to homepage
-  if (socket && socket.connected) socket.emit('get-lobby');
-  else connectSocket();
+  document.getElementById('win').classList.remove('show');
+  gameOver = false;
+  // Reconnect fresh for lobby
+  setTimeout(() => { connectSocket(); }, 300);
   updateHpStats();
   // Connect socket to get live stats
   if (!socket) connectSocket();
