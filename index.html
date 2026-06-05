@@ -1490,8 +1490,8 @@
         <!-- Room list -->
         <div class="hp-room-list" id="hp-room-list">
           <div class="hp-room-list-header">
-            <span>Open Rooms</span>
-            <span id="hp-room-count" style="color:var(--text);font-weight:600;">0</span>
+            <span>Open Rooms <span id="hp-room-count" style="color:var(--muted);font-weight:400;">(0)</span></span>
+            <button onclick="refreshLobby()" title="Refresh" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0;transition:color .13s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">↻</button>
           </div>
           <div class="hp-room-empty" id="hp-room-empty">No open rooms yet — create one!</div>
         </div>
@@ -4428,7 +4428,7 @@ function updateLobbyList(rooms) {
   const hpCount = document.getElementById('hp-room-count');
   if (hpList) {
     hpList.querySelectorAll('.hp-room-row').forEach(r => r.remove());
-    if (hpCount) hpCount.textContent = rooms.length + ' room' + (rooms.length !== 1 ? 's' : '');
+    if (hpCount) hpCount.textContent = '(' + rooms.length + ')';
     if (rooms.length === 0) {
       if (hpEmpty) hpEmpty.style.display = 'block';
     } else {
