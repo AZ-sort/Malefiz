@@ -1455,6 +1455,7 @@ function initGame() {
   barricades = BARRICADE_INIT_CELLS.map(([er,ec]) => ({er,ec}));
   currentPlayer=1; diceVal=null; phase='roll'; selPawn=null; reachable=[]; gameOver=false;
   initPowerups();
+  anyPawnMoved = false;
 }
 
 // ================================================================
@@ -1509,6 +1510,7 @@ function getReachableWithPaths(startEr, startEc, steps, player) {
 
 function getReachable(pawn, steps) {
   const map = getReachableWithPaths(pawn.er, pawn.ec, steps, pawn.player);
+  lastReachMap = map; // save for sync
   return Object.keys(map).map(k => { const [er,ec]=k.split(',').map(Number); return {er,ec}; });
 }
 
@@ -1567,6 +1569,7 @@ function getReachableFromEntry(player, steps) {
   }
 
   dfs(eer, eec, steps - 1, -1, -1, [{er:eer, ec:eec}]);
+  lastReachMap = reachMap; // save for sync
   return Object.keys(reachMap).map(k => { const [er,ec]=k.split(',').map(Number); return {er,ec}; });
 }
 
@@ -2123,6 +2126,9 @@ function trySpawnPowerup() {
     p.age = (p.age || 0) + 1;
     if (p.age >= (p.maxAge || 30)) {
       glog(`⌛ A ${POWERUP_TYPES[p.type].name} powerup disappeared`);
+      if (mpIsOnline && currentPlayer === mpSlot) {
+        syncAction('powerup-despawn', { er: p.er, ec: p.ec });
+      }
       return false;
     }
     return true;
@@ -2176,9 +2182,14 @@ function trySpawnPowerup() {
   const cell = candidates[0];
   const types = Object.keys(POWERUP_TYPES);
   const type = types[Math.floor(Math.random() * types.length)];
-  boardPowerups.push({ er: cell.er, ec: cell.ec, type, maxAge: Math.floor(Math.random()*11)+30 }); // 30-40 turns
+  const newPu = { er: cell.er, ec: cell.ec, type, maxAge: Math.floor(Math.random()*11)+30 };
+  boardPowerups.push(newPu);
   nextSpawnAt = turnCount + Math.floor(Math.random()*3) + 4; // next in 4-6 turns
   glog(`✨ A ${POWERUP_TYPES[type].name} powerup appeared on the board!`, true);
+  // Sync powerup spawn to all players (only active player generates, others receive)
+  if (mpIsOnline && currentPlayer === mpSlot) {
+    syncAction('powerup-spawn', { er: cell.er, ec: cell.ec, type, maxAge: newPu.maxAge, nextSpawnAt });
+  }
 }
 
 // tickPowerups — powerups now stay forever, this is kept as no-op
@@ -2586,8 +2597,47 @@ function soundPossession() {
   });
 }
 
+
+// Get the path a pawn took to reach (er,ec) for animation purposes
+function getPathTo(pawn, er, ec, player) {
+  const reach = pawn.onBoard
+    ? getReachable(pawn, diceVal)
+    : getReachableFromEntry(player, diceVal);
+  // reachMap stores the path — find matching destination
+  // Since getReachable returns cells, we need to rebuild
+  // Use a simpler approach: BFS path from start to dest
+  const startEr = pawn.onBoard ? pawn.er : ENTRY[player][0];
+  const startEc = pawn.onBoard ? pawn.ec : ENTRY[player][1];
+  return buildPath(startEr, startEc, er, ec, diceVal, player);
+}
+
+function buildPath(startEr, startEc, destEr, destEc, steps, player) {
+  // BFS to find path of exactly `steps` steps from start to dest
+  const queue = [[{er:startEr,ec:startEc}]];
+  const visited = new Set();
+  while (queue.length) {
+    const path = queue.shift();
+    const cur = path[path.length-1];
+    const key = `${cur.er},${cur.ec},${path.length}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+    if (path.length === steps+1 && cur.er===destEr && cur.ec===destEc) return path;
+    if (path.length > steps+1) continue;
+    for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr=cur.er+dr, nc=cur.ec+dc;
+      if (!isWalkable(nr,nc)) continue;
+      if (barAt(nr,nc) && !(nr===destEr&&nc===destEc)) continue;
+      queue.push([...path, {er:nr,ec:nc}]);
+    }
+  }
+  // fallback
+  return [{er:startEr,ec:startEc},{er:destEr,ec:destEc}];
+}
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
+let anyPawnMoved = false; // track if first move happened
+let firstRollDone = false;
 
 function toggleAutoRoll() {
   autoRoll = document.getElementById('autoroll-toggle').checked;
@@ -2604,6 +2654,7 @@ function rollDice() {
   diceVal = Math.floor(Math.random()*6)+1;
   animDice(diceVal);
   soundDice();
+  firstRollDone = true;
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn';
   // In possession mode, we pick the target player's pawn instead
@@ -2712,6 +2763,7 @@ function animateCapturedPawn(pawn, player, onDone) {
 }
 
 function finishMove(er, ec, bar, movingPawn) {
+  anyPawnMoved = true;
   // Check trap FIRST — if triggered, pawn goes home and turn ends
   if (checkTrap(er, ec, movingPawn)) { nextTurn(); return; }
   // Check powerup collection
@@ -2814,6 +2866,7 @@ function doCPU() {
   diceVal = Math.floor(Math.random()*6)+1;
   animDice(diceVal);
   soundDice();
+  firstRollDone = true;
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn'; renderAll();
   setTimeout(() => {
@@ -3074,7 +3127,7 @@ function updateGlowOverlay() {
   }
 }
 
-function renderAll() { renderBoard(); renderSidebar(); updateGlowOverlay(); if(window.innerWidth>700) setTimeout(scaleToFit,0); }
+function renderAll() { renderBoard(); renderSidebar(); updateGlowOverlay(); if(window.innerWidth>700) setTimeout(scaleToFit,0); if(mpIsOnline) updateOnlineTurnUI(); }
 
 function renderBoard() {
   const container = document.getElementById('board');
@@ -3652,6 +3705,7 @@ function connectSocket() {
     console.log('[MP] Received action:', action.type, 'mpIsOnline:', mpIsOnline);
     if (!mpIsOnline) return;
     handleRemoteAction(action);
+    setTimeout(updateOnlineTurnUI, 100);
   });
 
   socket.on('player-disconnected', ({ slot, name }) => {
@@ -3856,9 +3910,7 @@ function startOnlineGame(players, mode, numPlayers) {
   initGame();
   renderAll();
   glog('Online game started! Good luck 🎮', true);
-
-  // Update setup buttons visibility
-  document.getElementById('rbtn').disabled = mpSlot !== currentPlayer;
+  updateOnlineTurnUI();
 }
 
 // (sync functions defined below)
@@ -3922,62 +3974,70 @@ function handleRemoteAction(action) {
       pw = (pawns[currentPlayer]||[]).find(p => !p.onBoard);
     }
     if (pw) {
-      // Directly apply the move — bypass all guards and checks
-      const wasOnBoard = pw.onBoard;
-      // Handle capture
-      for (let p=1; p<=numPlayers; p++) {
-        if (p === currentPlayer) continue;
-        const ep = (pawns[p]||[]).find(x => x.onBoard && x.er===data.er && x.ec===data.ec);
-        if (ep) {
-          ep.onBoard = false; ep.er = -1; ep.ec = -1;
-          glog(`${pnm(currentPlayer)} captured ${pnm(p)}'s pawn!`, true);
-        }
-      }
-      // Check mine
-      const mineIdx = traps.findIndex(t => t.er===data.er && t.ec===data.ec);
-      if (mineIdx !== -1) {
-        traps.splice(mineIdx, 1);
-        pw.onBoard = false; pw.er = -1; pw.ec = -1;
-        soundTrapTrigger();
-        glog(`💥 ${pnm(currentPlayer)} hit a mine!`, true);
-        nextTurn(); renderAll(); return;
-      }
-      // Check barricade capture
-      const bar = barAt(data.er, data.ec);
-      // Animate the move
+      selPawn = pw;
       const startEr = pw.onBoard ? pw.er : ENTRY[currentPlayer][0];
       const startEc = pw.onBoard ? pw.ec : ENTRY[currentPlayer][1];
-      pw.onBoard = true;
-      pw.er = data.er; pw.ec = data.ec;
-      // Check powerup collection
-      checkPowerupCollection(data.er, data.ec);
-      // Win check
-      if (data.er === 4 && data.ec === 9) {
-        gameOver = true; renderAll();
-        setTimeout(() => showWin(currentPlayer), 300);
-        return;
+      // Set entry position for deploy
+      if (!pw.onBoard) {
+        pw.onBoard = true;
+        pw.er = startEr;
+        pw.ec = startEc;
       }
-      if (bar) {
-        barricades = barricades.filter(b => !(b.er===data.er && b.ec===data.ec));
-        phase = 'place-barricade';
-        glog(`${pnm(currentPlayer)} removed a barricade`, true);
-      } else {
-        nextTurn();
-      }
-      renderAll();
+      // Use sent path for smooth animation, fallback to direct 2-point
+      const path = (data.path && data.path.length >= 2)
+        ? data.path
+        : [{ er: pw.er, ec: pw.ec }, { er: data.er, ec: data.ec }];
+      // Use finishMove after animation for consistent logic
+      reachable = [{ er: data.er, ec: data.ec }];
+      animatePawnAlongPath(pw, path, () => {
+        // Check captures
+        let capturedPawn = null, capturedPlayer = null;
+        for (let p=1; p<=numPlayers; p++) {
+          if (p===currentPlayer) continue;
+          const ep = (pawns[p]||[]).find(x=>x.onBoard&&x.er===data.er&&x.ec===data.ec&&x!==pw);
+          if (ep) { capturedPawn=ep; capturedPlayer=p; break; }
+        }
+        if (capturedPawn) {
+          soundCapture();
+          animateCapturedPawn(capturedPawn, capturedPlayer, () => {
+            capturedPawn.onBoard=false; capturedPawn.er=-1; capturedPawn.ec=-1;
+            glog(`${pnm(currentPlayer)} captured ${pnm(capturedPlayer)}'s pawn!`,true);
+            finishMove(data.er, data.ec, barAt(data.er,data.ec), pw);
+          });
+        } else {
+          finishMove(data.er, data.ec, barAt(data.er,data.ec), pw);
+        }
+      });
     }
   } else if (type === 'place-barricade') {
     _origPlaceBarricade(data.er, data.ec);
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
+  } else if (type === 'powerup-spawn') {
+    // Apply powerup spawn from active player
+    if (!boardPowerups.find(p=>p.er===data.er&&p.ec===data.ec)) {
+      boardPowerups.push({ er: data.er, ec: data.ec, type: data.type, maxAge: data.maxAge, age: 0 });
+      nextSpawnAt = data.nextSpawnAt;
+      glog(`✨ A ${POWERUP_TYPES[data.type].name} powerup appeared!`, true);
+      renderAll();
+    }
+  } else if (type === 'powerup-despawn') {
+    boardPowerups = boardPowerups.filter(p=>!(p.er===data.er&&p.ec===data.ec));
+    renderAll();
   } else if (type === 'place-trap') {
     _placeTrapInternal(data.er, data.ec);
   } else if (type === 'bulldoze-pick') {
     bulldozePickedBarricade = { er: data.er, ec: data.ec };
-    phase = 'bulldoze-place';
-    renderAll();
+    // Don't show place UI on remote side
   } else if (type === 'bulldoze-place') {
-    _bulldozePlaceInternal(data.er, data.ec);
+    if (bulldozePickedBarricade) {
+      barricades = barricades.filter(b=>!(b.er===bulldozePickedBarricade.er&&b.ec===bulldozePickedBarricade.ec));
+      barricades.push({ er: data.er, ec: data.ec });
+      soundBarricadePlace();
+      glog(`${pnm(currentPlayer)} moved a barricade 🚜`);
+      bulldozePickedBarricade = null;
+      nextTurn(); renderAll();
+    }
   } else if (type === 'use-powerup') {
     // Apply powerup effect directly
     if (data.puType === 'double') {
@@ -4037,15 +4097,17 @@ pickPawn = function(pawn) {
 const _origMoveTo = moveTo;
 moveTo = function(er, ec) {
   if (mpGuard()) return;
-  // Capture pawn info BEFORE calling original (which clears selPawn)
   const pw = selPawn;
   const fromReserve = pw && !pw.onBoard;
   const pawnId = pw ? pw.id : null;
-  // Sync BEFORE executing locally so state is still valid
+  // Capture the reachable path BEFORE executing (reachable gets cleared)
+  const pathToSend = reachable.find ? reachable : [];
+  // Find the specific path to destination from reachMap
+  const destPath = lastReachMap && lastReachMap[`${er},${ec}`] ? lastReachMap[`${er},${ec}`] : null;
   if (mpIsOnline && pawnId !== null) {
-    console.log('[MP] Sending move:', fromReserve ? 'deploy-pawn' : 'move', pawnId, er, ec);
     syncAction(fromReserve ? 'deploy-pawn' : 'move', {
-      pawnId, er, ec
+      pawnId, er, ec,
+      path: destPath || [{ er, ec }]
     });
   }
   _origMoveTo(er, ec);
@@ -4119,7 +4181,10 @@ function updateOnlineTurnUI() {
   if (!mpIsOnline) return;
   const mine = currentPlayer === mpSlot;
   const rbtn = document.getElementById('rbtn');
-  if (rbtn) rbtn.disabled = !mine || phase !== 'roll' || gameOver;
+  if (rbtn) {
+    rbtn.disabled = !mine || phase !== 'roll' || gameOver;
+    rbtn.style.opacity = mine ? '1' : '0.4';
+  }
 }
 
 // Patch nextTurn to update UI
