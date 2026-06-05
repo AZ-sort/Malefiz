@@ -1256,7 +1256,7 @@
   </div>
 </div></div></div>
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://malefiz-production.up.railway.app/socket.io/socket.io.js"></script>
 <script>
 // ================================================================
 // MALEFIZ.GG — Board mapped precisely from Excel spreadsheet
@@ -3933,61 +3933,216 @@ function dismissDc() {
   hideDcOverlay();
 }
 
-// ── Intercept local actions to sync them ─────────────────────────
-// We patch rollDice, moveTo, placeBarricade to emit sync events
+// ── Turn gating ──────────────────────────────────────────────────
+// Returns true if it's this client's turn to act
+function isMyTurn() {
+  return !mpIsOnline || currentPlayer === mpSlot;
+}
 
+// Block all input if not your turn in online mode
+function mpGuard() {
+  return mpIsOnline && currentPlayer !== mpSlot;
+}
+
+// ── Sync outgoing actions ─────────────────────────────────────────
+function syncAction(type, data) {
+  if (!mpIsOnline || !socket || !socket.connected) return;
+  socket.emit('game-action', { type, data, slot: mpSlot });
+}
+
+// ── Handle incoming remote actions ───────────────────────────────
+function handleRemoteAction(action) {
+  const { type, data } = action;
+  if (type === 'roll') {
+    diceVal = data.diceVal;
+    animDice(diceVal);
+    soundDice();
+    glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
+    phase = 'pick-pawn';
+    renderAll();
+  } else if (type === 'move' || type === 'deploy-pawn') {
+    // Find the pawn by id
+    const pw = (pawns[currentPlayer]||[]).find(p => p.id === data.pawnId);
+    if (pw) {
+      selPawn = pw;
+      reachable = [{ er: data.er, ec: data.ec }];
+      // Call internal move without syncing back
+      _moveToInternal(data.er, data.ec);
+    }
+  } else if (type === 'place-barricade') {
+    _placeBarricadeInternal(data.er, data.ec);
+  } else if (type === 'place-temp-barricade') {
+    _placeTempBarricadeInternal(data.er, data.ec);
+  } else if (type === 'place-trap') {
+    _placeTrapInternal(data.er, data.ec);
+  } else if (type === 'bulldoze-pick') {
+    bulldozePickedBarricade = { er: data.er, ec: data.ec };
+    phase = 'bulldoze-place';
+    renderAll();
+  } else if (type === 'bulldoze-place') {
+    _bulldozePlaceInternal(data.er, data.ec);
+  } else if (type === 'use-powerup') {
+    // Apply powerup effect directly
+    if (data.puType === 'double') {
+      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+      doubleRollActive = true;
+      renderAll();
+    } else if (data.puType === 'shield') {
+      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+      shieldTurns[currentPlayer] = 3 * numPlayers;
+      renderAll();
+    } else if (data.puType === 'tempbar') {
+      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+      phase = 'place-temp-barricade';
+      renderAll();
+    } else if (data.puType === 'trap') {
+      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+      phase = 'place-trap';
+      renderAll();
+    } else if (data.puType === 'bulldoze') {
+      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+      phase = 'bulldoze-pick';
+      renderAll();
+    }
+  } else if (type === 'target-action') {
+    if (data.puType === 'skip') applySkip(data.target);
+    else if (data.puType === 'possess') applyPossession(data.target);
+    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+    renderAll();
+  }
+  updateOnlineTurnUI();
+}
+
+// ── Internal versions (no sync, called from remote handler) ───────
+function _moveToInternal(er, ec) { moveTo(er, ec); }
+function _placeBarricadeInternal(er, ec) { placeBarricade(er, ec); }
+function _placeTempBarricadeInternal(er, ec) { placeTempBarricade(er, ec); }
+function _placeTrapInternal(er, ec) { placeTrap(er, ec); }
+function _bulldozePlaceInternal(er, ec) { bulldozePlace(er, ec); }
+
+// ── Wrap local actions to block on remote turn & sync ────────────
 const _origRollDice = rollDice;
 rollDice = function() {
+  if (mpGuard()) return; // not your turn
   _origRollDice();
+  // diceVal is set inside _origRollDice if doubleRoll didn't fire
   if (mpIsOnline && diceVal) {
     syncAction('roll', { diceVal });
   }
 };
 
+const _origPickPawn = pickPawn;
+pickPawn = function(pawn) {
+  if (mpGuard()) return;
+  _origPickPawn(pawn);
+};
+
 const _origMoveTo = moveTo;
 moveTo = function(er, ec) {
-  if (mpIsOnline && selPawn) {
-    const fromReserve = !selPawn.onBoard;
+  if (mpGuard()) return;
+  const pw = selPawn;
+  const fromReserve = pw && !pw.onBoard;
+  _origMoveTo(er, ec);
+  if (mpIsOnline && pw) {
     syncAction(fromReserve ? 'deploy-pawn' : 'move', {
-      pawnId: selPawn.id,
-      er, ec,
-      path: null // simplified — path computed on remote side
+      pawnId: pw.id, er, ec
     });
   }
-  _origMoveTo(er, ec);
 };
 
 const _origPlaceBarricade = placeBarricade;
 placeBarricade = function(er, ec) {
-  if (mpIsOnline) syncAction('place-barricade', { er, ec });
+  if (mpGuard()) return;
   _origPlaceBarricade(er, ec);
+  if (mpIsOnline) syncAction('place-barricade', { er, ec });
 };
 
 const _origPlaceTempBarricade = placeTempBarricade;
 placeTempBarricade = function(er, ec) {
-  if (mpIsOnline) syncAction('place-temp-barricade', { er, ec });
+  if (mpGuard()) return;
   _origPlaceTempBarricade(er, ec);
+  if (mpIsOnline) syncAction('place-temp-barricade', { er, ec });
 };
 
-// ── Turn gating — only allow input on your turn ───────────────────
-// Patch nextTurn to also update button state and sync turn
+const _origPlaceTrap = placeTrap;
+placeTrap = function(er, ec) {
+  if (mpGuard()) return;
+  _origPlaceTrap(er, ec);
+  if (mpIsOnline) syncAction('place-trap', { er, ec });
+};
+
+const _origBulldozePick = bulldozePick;
+bulldozePick = function(er, ec) {
+  if (mpGuard()) return;
+  _origBulldozePick(er, ec);
+  if (mpIsOnline) syncAction('bulldoze-pick', { er, ec });
+};
+
+const _origBulldozePlace = bulldozePlace;
+bulldozePlace = function(er, ec) {
+  if (mpGuard()) return;
+  _origBulldozePlace(er, ec);
+  if (mpIsOnline) syncAction('bulldoze-place', { er, ec });
+};
+
+// Sync powerup use
+const _origConfirmPowerup = confirmPowerup;
+confirmPowerup = function() {
+  if (mpGuard()) return;
+  const pu = pendingPowerup;
+  _origConfirmPowerup();
+  if (mpIsOnline && pu) {
+    syncAction('use-powerup', { puType: pu.type, puId: pu.id });
+  }
+};
+
+// Sync target selection (skip/possess)
+const _origApplySkip = applySkip;
+applySkip = function(target) {
+  _origApplySkip(target);
+  if (mpIsOnline) syncAction('target-action', { puType:'skip', target, puId: pendingPowerup?.id });
+};
+
+const _origApplyPossession = applyPossession;
+applyPossession = function(target) {
+  _origApplyPossession(target);
+  if (mpIsOnline) syncAction('target-action', { puType:'possess', target, puId: pendingPowerup?.id });
+};
+
+// ── Update UI based on whose turn it is ──────────────────────────
+function updateOnlineTurnUI() {
+  if (!mpIsOnline) return;
+  const mine = currentPlayer === mpSlot;
+  const rbtn = document.getElementById('rbtn');
+  if (rbtn) rbtn.disabled = !mine || phase !== 'roll' || gameOver;
+}
+
+// Patch nextTurn to update UI
 const _origNextTurn = nextTurn;
 nextTurn = function() {
   _origNextTurn();
+  updateOnlineTurnUI();
+};
+
+// Patch startPlayerTurn
+const _origStartPlayerTurn = startPlayerTurn;
+startPlayerTurn = function() {
   if (mpIsOnline) {
-    const isMyTurn = currentPlayer === mpSlot;
-    document.getElementById('rbtn').disabled = !isMyTurn || phase !== 'roll';
+    updateOnlineTurnUI();
+    // Only auto-roll if it's our turn
+    if (currentPlayer === mpSlot && autoRoll) {
+      const hasPowerups = (playerPowerups[currentPlayer]||[]).length > 0;
+      if (!hasPowerups) setTimeout(rollDice, 500);
+    }
+    return;
   }
+  _origStartPlayerTurn();
 };
 
 // ── State sync for reconnects ─────────────────────────────────────
 function applyGameState(state) {
-  // Restore game state from server snapshot
   if (!state) return;
-  try {
-    Object.assign(window, state);
-    renderAll();
-  } catch(e) {}
+  try { Object.assign(window, state); renderAll(); } catch(e) {}
 }
 
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
