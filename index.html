@@ -4660,10 +4660,18 @@ function handleRemoteAction(action) {
     renderAll();
   } else if (type === 'move' || type === 'deploy-pawn') {
     console.log('[MP] Received move:', type, data.pawnId, data.er, data.ec, 'currentPlayer:', currentPlayer);
-    // Find pawn by id, or use first reserve pawn for deploy
-    let pw = (pawns[currentPlayer]||[]).find(p => p.id === data.pawnId);
+    // Find pawn by id — check current player AND possessed player
+    const searchPlayers = possessionActive
+      ? [possessionTargetPlayer, currentPlayer]
+      : [currentPlayer];
+    let pw = null;
+    for (const sp of searchPlayers) {
+      pw = (pawns[sp]||[]).find(p => p.id === data.pawnId);
+      if (pw) break;
+    }
     if (!pw && type === 'deploy-pawn') {
-      pw = (pawns[currentPlayer]||[]).find(p => !p.onBoard);
+      const deployPlayer = possessionActive ? possessionTargetPlayer : currentPlayer;
+      pw = (pawns[deployPlayer]||[]).find(p => !p.onBoard);
     }
     if (pw) {
       selPawn = pw;
@@ -4719,8 +4727,8 @@ function handleRemoteAction(action) {
   } else if (type === 'place-trap') {
     _placeTrapInternal(data.er, data.ec);
   } else if (type === 'bulldoze-pick') {
+    // Just record which barricade was picked, no UI shown on remote
     bulldozePickedBarricade = { er: data.er, ec: data.ec };
-    // Don't show place UI on remote side
   } else if (type === 'bulldoze-place') {
     if (bulldozePickedBarricade) {
       barricades = barricades.filter(b=>!(b.er===bulldozePickedBarricade.er&&b.ec===bulldozePickedBarricade.ec));
@@ -4735,6 +4743,7 @@ function handleRemoteAction(action) {
     if (data.puType === 'double') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
       doubleRollActive = true;
+      glowTurnSnapshot = '';
       renderAll();
     } else if (data.puType === 'shield') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
@@ -4742,11 +4751,11 @@ function handleRemoteAction(action) {
       renderAll();
     } else if (data.puType === 'tempbar') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
-      phase = 'place-temp-barricade';
+      // Don't show placement UI on remote — just wait for the place-temp-barricade action
       renderAll();
     } else if (data.puType === 'trap') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
-      phase = 'place-trap';
+      // Don't show placement UI on remote
       renderAll();
     } else if (data.puType === 'bulldoze') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
@@ -4754,8 +4763,9 @@ function handleRemoteAction(action) {
       renderAll();
     }
   } else if (type === 'target-action') {
-    if (data.puType === 'skip') applySkip(data.target);
-    else if (data.puType === 'possess') applyPossession(data.target);
+    // Use original functions to avoid re-syncing back to sender
+    if (data.puType === 'skip') _origApplySkip(data.target);
+    else if (data.puType === 'possess') _origApplyPossession(data.target);
     playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
     renderAll();
   }
