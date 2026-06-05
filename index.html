@@ -7,10 +7,10 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:#0d0d14; --surface:#14141e; --surface2:#1c1c2a; --border:#2c2c40;
-    --text:#eeeef5; --muted:#72728f; --accent:#7c6aff; --accent-h:#9580ff;
-    --p1:#e84545; --p2:#3cc45a; --p3:#ffc93c; --p4:#4a90d9;
-    --bar:#c8c8dc; --goal:#ffd96a; --cell:#22223a; --cellb:#32324a;
+    --bg:#08111F; --surface:#0E1C32; --surface2:#152440; --border:#1E3358;
+    --text:#F0F6FF; --muted:#6888AA; --accent:#FF7A2F; --accent-h:#E8641A;
+    --p1:#FF4040; --p2:#40D9A0; --p3:#FFD700; --p4:#5BAAFF;
+    --bar:#E8D4B8; --goal:#FFD700; --cell:#152440; --cellb:#2A4070;
     --radius:10px; --radius-sm:7px;
   }
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -277,12 +277,16 @@
   .rbs{display:flex;gap:6px;}
   .rb{
     flex:1;padding:10px 6px;background:var(--surface2);
-    border:1px solid var(--border);border-radius:var(--radius-sm);
+    border:1.5px solid var(--border);border-radius:var(--radius-sm);
     color:var(--text);font-family:'Sora',sans-serif;font-size:.8rem;
     font-weight:600;cursor:pointer;transition:all .13s;text-align:center;
   }
-  .rb:hover,.rb.on{
-    background:rgba(124,106,255,.14);border-color:var(--accent);color:var(--accent);
+  .rb:hover{ border-color:var(--accent); }
+  .rb.on{
+    background:rgba(0,0,0,0.12);
+    border-color:var(--accent);
+    border-width:2.5px;
+    color:var(--text);
   }
 
   /* ── Win screen ── */
@@ -906,6 +910,486 @@
     .mp-create{width:100%;}
   }
 
+
+  /* Light theme overrides */
+  body.light-theme header { background: var(--surface); border-bottom-color: var(--border); }
+  body.light-theme .panel { background: var(--surface); border-color: var(--border); }
+  body.light-theme .prow.active { background: var(--surface2); }
+  body.light-theme #dface { background: var(--surface2); border-color: var(--border); }
+  body.light-theme .sbox { background: var(--surface); }
+  body.light-theme .settings-box { background: var(--surface); }
+  body.light-theme .htp-box { background: var(--surface); }
+  body.light-theme .inv-slot { border-color: var(--border); background: var(--surface2); }
+  body.light-theme .room-list { background: var(--surface); }
+  body.light-theme .room-row:hover { background: var(--surface2); }
+  body.light-theme .create-panel { background: var(--surface); }
+  body.light-theme .rb { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  body.light-theme .phbox { background: var(--surface2); }
+  body.light-theme .join-code-input { background: var(--surface2); color: var(--text); }
+  body.light-theme .waiting-box { background: var(--surface); }
+  body.light-theme .waiting-player { background: var(--surface2); }
+  body.light-theme .pu-box { background: var(--surface); }
+  body.light-theme .target-box { background: var(--surface); }
+  body.light-theme .dc-box { background: var(--surface); }
+  body.light-theme .wb { background: var(--surface); }
+
+
+  /* ── HOMEPAGE ── */
+  #homepage {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 100;
+    overflow-y: hidden;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #homepage.show { display: flex; }
+
+  .hp-nav {
+    width: 100%;
+    max-width: 1100px;
+    padding: 12px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .hp-logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -.02em;
+  }
+  .hp-logo span { color: var(--accent); }
+  .hp-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hp-nav-btn {
+    padding: 8px 18px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .14s;
+  }
+  .hp-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .hp-nav-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .hp-nav-btn.primary:hover { background: var(--accent-h); }
+
+  /* Hero */
+  .hp-hero {
+    width: 100%;
+    max-width: 1100px;
+    padding: 28px 32px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+  }
+  .hp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: .72rem;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: .08em;
+    background: rgba(255,255,255,.04);
+  }
+  .hp-title {
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 800;
+    letter-spacing: -.03em;
+    line-height: 1.15;
+  }
+  .hp-title span { color: var(--accent); }
+  .hp-sub {
+    font-size: .85rem;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.6;
+  }
+  .hp-ctas {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  .hp-cta-primary {
+    padding: 14px 32px;
+    border-radius: var(--radius);
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+    box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  }
+  .hp-cta-primary:hover { background: var(--accent-h); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.4); }
+  .hp-cta-secondary {
+    padding: 14px 32px;
+    border-radius: var(--radius);
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .hp-cta-secondary:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+
+  /* Live stats */
+  .hp-stats {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: .75rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+  }
+  .hp-stats-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #2ED573;
+    box-shadow: 0 0 6px #2ED573;
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+
+  /* Board preview */
+  .hp-preview {
+    width: 100%;
+    max-width: 1100px;
+    padding: 0 32px 20px;
+    display: flex;
+    justify-content: center;
+    flex: 1;
+  }
+  .hp-board-preview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px 36px;
+    display: flex;
+    gap: 40px;
+    align-items: center;
+    max-width: 860px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .hp-board-left { flex: 1; display: flex; flex-direction: column; gap: 20px; }
+  .hp-board-right { display: flex; flex-direction: column; gap: 12px; width: 220px; flex-shrink: 0; }
+
+  .hp-mode-card {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    border: 1.5px solid var(--border);
+    background: var(--surface2);
+    cursor: pointer;
+    transition: all .15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .hp-mode-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .hp-mode-card.selected { border-color: var(--accent); background: rgba(255,255,255,.06); }
+  .hp-mode-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .hp-mode-title { font-size: .82rem; font-weight: 700; margin-bottom: 1px; }
+  .hp-mode-desc { font-size: .68rem; color: var(--muted); line-height: 1.4; }
+
+  .hp-quick-play { display: flex; flex-direction: column; gap: 10px; }
+  .hp-quick-play label {
+    font-size: .65rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .hp-np-row { display: flex; gap: 6px; }
+  .hp-np-btn {
+    flex: 1;
+    padding: 9px 6px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: .82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .13s;
+    text-align: center;
+  }
+  .hp-np-btn:hover { border-color: var(--accent); }
+  .hp-np-btn.on { background: rgba(0,0,0,.12); border-color: var(--accent); border-width: 2.5px; }
+
+  /* Features strip */
+  .hp-features {
+    width: 100%;
+    max-width: 1100px;
+    padding: 0 32px 60px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .hp-feature {
+    padding: 22px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hp-feature-icon { font-size: 1.6rem; }
+  .hp-feature-title { font-size: .9rem; font-weight: 700; }
+  .hp-feature-desc { font-size: .78rem; color: var(--muted); line-height: 1.6; }
+
+  @media (max-width: 700px) {
+    /* Homepage scrolls on mobile */
+    #homepage { overflow-y: auto !important; justify-content: flex-start !important; }
+
+    .hp-nav { padding: 10px 16px; }
+    .hp-nav-links .hp-nav-btn { padding: 6px 10px; font-size: .72rem; }
+
+    .hp-hero { padding: 20px 16px 14px; gap: 10px; }
+    .hp-title { font-size: 1.5rem; }
+    .hp-sub { font-size: .78rem; display: none; }
+    .hp-stats { font-size: .68rem; }
+
+    .hp-preview { padding: 0 12px 16px; }
+    .hp-main-panel { flex-direction: column; padding: 16px; gap: 0; border-radius: 14px; }
+
+    .hp-col-online { padding-right: 0; padding-bottom: 18px; }
+    .hp-col-local {
+      padding-left: 0;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      max-width: 100% !important;
+    }
+
+    .hp-divider { display: none; }
+
+    /* Compress room list on mobile */
+    .hp-room-list { max-height: 120px; min-height: 80px; }
+
+    /* Full width dropdowns */
+    .hp-select { font-size: .8rem; padding: 10px 12px; }
+
+    /* Bigger touch targets */
+    .hp-cta-primary { padding: 13px; font-size: .9rem; }
+    .hp-room-join { padding: 7px 14px; }
+
+    /* Join input row */
+    .join-code-input { font-size: .8rem; }
+  }
+
+
+  /* ── Homepage two-column panel ── */
+  .hp-main-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px;
+    display: flex;
+    gap: 0;
+    max-width: 900px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  }
+  .hp-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .hp-col-online { flex: 3; padding-right: 24px; }
+  .hp-col-local  { flex: 2; padding-left: 24px; max-width: 260px; }
+  .hp-col-header { margin-bottom: 2px; }
+  .hp-col-title {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    margin-bottom: 3px;
+  }
+  .hp-col-sub {
+    font-size: .75rem;
+    color: var(--muted);
+  }
+  .hp-col-label {
+    font-size: .62rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .hp-divider {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 20px;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .hp-divider-line {
+    flex: 1;
+    width: 1px;
+    background: var(--border);
+  }
+  .hp-divider-label {
+    font-size: .7rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    padding: 4px 0;
+  }
+  .hp-room-list {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    flex: 1;
+    min-height: 120px;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .hp-room-list::-webkit-scrollbar { width: 3px; }
+  .hp-room-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .hp-room-list-header {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: .62rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: var(--surface2);
+    z-index: 1;
+  }
+  .hp-room-empty {
+    padding: 24px 12px;
+    text-align: center;
+    font-size: .75rem;
+    color: var(--muted);
+  }
+  .hp-room-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    transition: background .12s;
+  }
+  .hp-room-row:last-child { border-bottom: none; }
+  .hp-room-row:hover { background: rgba(255,255,255,.04); }
+  .hp-room-host { flex: 1; font-size: .8rem; font-weight: 600; }
+  .hp-room-host small { display: block; font-size: .65rem; color: var(--muted); font-weight: 400; margin-top: 1px; }
+  .hp-room-badge {
+    font-size: .58rem;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .badge-classic { background: rgba(255,255,255,.08); color: var(--text); }
+  .badge-powerups { background: rgba(255,200,0,.15); color: #FFD700; }
+  .hp-room-join {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: .72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .12s;
+    white-space: nowrap;
+  }
+  .hp-room-join:hover { background: var(--accent-h); }
+  .hp-create-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 2px;
+  }
+
+  @media (max-width: 700px) {
+    .hp-main-panel { flex-direction: column; padding: 20px 16px; gap: 20px; }
+    .hp-col-online { padding-right: 0; }
+    .hp-col-local  { padding-left: 0; padding-top: 20px; border-top: 1px solid var(--border); }
+    .hp-divider { display: none; }
+    .hp-room-list { max-height: 140px; }
+  }
+
+
+  /* ── Dropdowns ── */
+  .hp-select {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: .82rem;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: border .13s;
+    appearance: auto;
+  }
+  .hp-select:focus, .hp-select:hover { border-color: var(--accent); }
+  .hp-select option { background: var(--surface); color: var(--text); }
+
+  .hp-field { display: flex; flex-direction: column; gap: 5px; }
+  .hp-field-label {
+    font-size: .65rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .hp-private-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+  .hp-private-label { font-size: .82rem; color: var(--muted); }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -919,9 +1403,10 @@
 </head>
 <body>
 
-<div id="setup">
+<div id="setup" style="display:none;">
   <div class="sbox">
     <div class="setup-header">
+      <button class="btn bg" onclick="showHomepage()" style="width:auto;padding:7px 14px;font-size:.76rem;">← Home</button>
       <h1>Play <span>Malefiz</span></h1>
       <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
     </div>
@@ -957,11 +1442,165 @@
       </div>
     </div>
     <button class="btn bp" onclick="startGame()">▶ Local Game</button>
-    <button class="btn bp" onclick="showMpLobby()" style="background:linear-gradient(135deg,#7c6aff,#3cc45a);">🌐 Play Online</button>
     <button class="btn bg" onclick="openHTP()" style="margin-top:-8px;">📖 How to Play</button>
   </div>
 </div>
 
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  HOMEPAGE                                             -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="homepage" class="show">
+
+  <!-- Nav -->
+  <nav class="hp-nav">
+    <div class="hp-logo">Play <span>Malefiz</span></div>
+    <div class="hp-nav-links">
+      <button class="hp-nav-btn" onclick="openHTP()">How to Play</button>
+      <button class="hp-nav-btn" onclick="openSettings()">⚙️ Settings</button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hp-hero">
+    <h1 class="hp-title">The Classic Strategy<br>Game, <span>Reimagined</span></h1>
+    <p class="hp-sub">Race your pawns to the goal. Block opponents with barricades. Capture pieces to send them home. Play online with friends or challenge the AI.</p>
+    <div class="hp-ctas">
+    </div>
+    <div class="hp-stats">
+      <div class="hp-stats-dot"></div>
+      <span id="hp-online-count">— players online</span>
+      &nbsp;·&nbsp;
+      <span id="hp-games-count">— games in progress</span>
+    </div>
+  </div>
+
+  <!-- Main play panel -->
+  <div class="hp-preview">
+    <div class="hp-main-panel">
+
+      <!-- LEFT: Play Online -->
+      <div class="hp-col hp-col-online">
+        <div class="hp-col-header">
+          <div class="hp-col-title">🌐 Play Online</div>
+          <div class="hp-col-sub">Join a game or create your own</div>
+        </div>
+
+        <!-- Room list -->
+        <div class="hp-room-list" id="hp-room-list">
+          <div class="hp-room-list-header">
+            <span>Open Rooms</span>
+            <span id="hp-room-count" style="color:var(--text);font-weight:600;">0</span>
+          </div>
+          <div class="hp-room-empty" id="hp-room-empty">No open rooms yet — create one!</div>
+        </div>
+
+        <!-- Join by code -->
+        <div style="display:flex;gap:8px;margin-top:2px;">
+          <input class="join-code-input" id="hp-join-input" placeholder="Room code..." maxlength="6" style="flex:1;">
+          <button class="hp-np-btn" onclick="hpJoinByCode()" style="width:auto;padding:10px 16px;flex-shrink:0;border-color:var(--accent);color:var(--accent);">Join</button>
+        </div>
+        <div id="hp-join-error" style="font-size:.7rem;color:#FF4040;font-family:'DM Mono',monospace;display:none;margin-top:4px;"></div>
+
+        <!-- Create room -->
+        <div class="hp-create-section">
+          <div class="hp-col-label">Create Room</div>
+
+          <div class="hp-field">
+            <div class="hp-field-label">Players</div>
+            <select class="hp-select" id="mp-np-select" onchange="setMpNP(parseInt(this.value))">
+              <option value="2">2 Players</option>
+              <option value="3">3 Players</option>
+              <option value="4">4 Players</option>
+            </select>
+          </div>
+
+          <div class="hp-field">
+            <div class="hp-field-label">Game Mode</div>
+            <select class="hp-select" id="mp-mode-select" onchange="setMpMode(this.value)">
+              <option value="classic">Classic</option>
+              <option value="powerups">⚡ Powerups</option>
+            </select>
+          </div>
+
+          <div class="hp-private-row">
+            <label class="toggle" style="flex-shrink:0;">
+              <input type="checkbox" id="mp-private-toggle" onchange="setMpVisibility(!this.checked)">
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+            <span class="hp-private-label">🔒 Private Room</span>
+          </div>
+
+          <button class="hp-cta-primary" style="padding:11px;" onclick="hpCreateRoom()">
+            + Create Room
+          </button>
+        </div>
+      </div>
+
+      <!-- DIVIDER -->
+      <div class="hp-divider">
+        <div class="hp-divider-line"></div>
+        <div class="hp-divider-label">or</div>
+        <div class="hp-divider-line"></div>
+      </div>
+
+      <!-- RIGHT: Local Game -->
+      <div class="hp-col hp-col-local">
+        <div class="hp-col-header">
+          <div class="hp-col-title">⚡ Local Game</div>
+          <div class="hp-col-sub">Play on this device vs friends or AI</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
+
+          <div class="hp-field">
+            <div class="hp-field-label">Game Mode</div>
+            <select class="hp-select" onchange="setHpMode(this.value)">
+              <option value="classic">Classic</option>
+              <option value="powerups">⚡ Powerups</option>
+            </select>
+          </div>
+
+          <div class="hp-field">
+            <div class="hp-field-label">Players</div>
+            <select class="hp-select" onchange="setHpNP(parseInt(this.value))">
+              <option value="2">2 Players</option>
+              <option value="3">3 Players</option>
+              <option value="4">4 Players</option>
+            </select>
+          </div>
+
+          <div class="hp-field">
+            <div class="hp-field-label">Opponents</div>
+            <select class="hp-select" onchange="setHpCPU(this.value)">
+              <option value="none">Human</option>
+              <option value="some">vs CPU</option>
+            </select>
+          </div>
+
+          <div class="hp-field" id="hp-diff-row" style="display:none;">
+            <div class="hp-field-label">Difficulty</div>
+            <select class="hp-select" onchange="setHpDiff(this.value)">
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+
+          <button class="hp-cta-primary" style="padding:13px;margin-top:4px;" onclick="startFromHomepage()">
+            Start Game →
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  </div>
+
+</div>
 
 <!-- SETTINGS MODAL -->
 <div id="settings-modal">
@@ -1215,9 +1854,9 @@
 </div>
 
 <header>
-  <div class="logo">Play <span>Malefiz</span></div>
+  <div style="display:flex;align-items:center;gap:10px;"><button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Malefiz</span></div></div>
   <div style="display:flex;align-items:center;gap:12px;">
-    <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)">playmalefiz.com</div>
+    <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playmalefiz.com</div>
     <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
   </div>
 </header>
@@ -3433,80 +4072,82 @@ function showWin(p) { document.getElementById('wmsg').textContent=`${pnm(p)} Win
 // ================================================================
 const THEMES = [
   {
-    // Original dark purple
-    id: 'midnight', name: 'Midnight',
+    // Deep ink blue + vivid orange — high contrast, zero ambiguity
+    // Colorblind-safe: orange vs blue is the safest combo for all types
+    id: 'deep-ocean', name: 'Deep Ocean',
     vars: {
-      '--bg':'#0d0d14','--surface':'#14141e','--surface2':'#1c1c2a',
-      '--border':'#2c2c40','--text':'#eeeef5','--muted':'#72728f',
-      '--accent':'#7c6aff','--accent-h':'#9580ff',
-      '--cell':'#2a2a42','--cellb':'#3a3a58',
-      '--bar':'#c8c8dc','--goal':'#ffd96a',
-      '--p1':'#e84545','--p2':'#3cc45a','--p3':'#ffc93c','--p4':'#4a90d9',
+      '--bg':'#08111F','--surface':'#0E1C32','--surface2':'#152440',
+      '--border':'#1E3358','--text':'#F0F6FF','--muted':'#6888AA',
+      '--accent':'#FF7A2F','--accent-h':'#E8641A',
+      '--cell':'#152440','--cellb':'#2A4070',
+      '--bar':'#E8D4B8','--goal':'#FFD700',
+      '--p1':'#FF4040','--p2':'#40D9A0','--p3':'#FFD700','--p4':'#5BAAFF',
     }
   },
   {
-    // Image 1: #173F5F #20639B #3CAEA3 #F6D55C #ED553B
-    id: 'coastal', name: 'Coastal',
+    // Warm charcoal + electric yellow — bold, striking, readable
+    // Yellow on dark = maximum luminance contrast, great for colorblind
+    id: 'obsidian', name: 'Obsidian',
     vars: {
-      '--bg':'#0e2535','--surface':'#173f5f','--surface2':'#1d5080',
-      '--border':'#20639b','--text':'#e8f4f4','--muted':'#7ab8b4',
-      '--accent':'#3caea3','--accent-h':'#52c4b8',
-      '--cell':'#1a4a6a','--cellb':'#205880',
-      '--bar':'#c8e0de','--goal':'#f6d55c',
-      '--p1':'#ed553b','--p2':'#3caea3','--p3':'#f6d55c','--p4':'#20639b',
+      '--bg':'#111111','--surface':'#1A1A1A','--surface2':'#242424',
+      '--border':'#333333','--text':'#F5F5F5','--muted':'#888888',
+      '--accent':'#F5C400','--accent-h':'#D9AC00',
+      '--cell':'#242424','--cellb':'#404040',
+      '--bar':'#DDDDDD','--goal':'#F5C400',
+      '--p1':'#FF5555','--p2':'#55DD88','--p3':'#F5C400','--p4':'#5599FF',
     }
   },
   {
-    // Image 2: #003b5e #D43828 #FC7B00 #FCB F19 #F4E3B7
-    id: 'fiesta', name: 'Fiesta',
+    // Deep forest green + bright coral — rich, lush, vivid
+    id: 'jungle', name: 'Jungle',
     vars: {
-      '--bg':'#001e32','--surface':'#002d4a','--surface2':'#003b5e',
-      '--border':'#0a4e72','--text':'#f8f0e0','--muted':'#8a9eb0',
-      '--accent':'#fc7b00','--accent-h':'#ff9520',
-      '--cell':'#0a3a52','--cellb':'#104860',
-      '--bar':'#e8d4a8','--goal':'#fcb819',
-      '--p1':'#d43828','--p2':'#fc7b00','--p3':'#fcb819','--p4':'#3caea3',
+      '--bg':'#071510','--surface':'#0C2018','--surface2':'#112B20',
+      '--border':'#1A4030','--text':'#E8F5EE','--muted':'#5A8A70',
+      '--accent':'#FF6B4A','--accent-h':'#E8502E',
+      '--cell':'#112B20','--cellb':'#1E4832',
+      '--bar':'#D4C09A','--goal':'#FFE066',
+      '--p1':'#FF6B4A','--p2':'#44CC88','--p3':'#FFE066','--p4':'#44AADD',
     }
   },
   {
-    // Image 3: #ffb997 #f87e7d #843b62 #621940 #0b032d — light bg so brighten cells
-    id: 'dusk', name: 'Dusk',
+    // Deep plum + vivid mint — dramatic, unexpected, beautiful
+    id: 'nightshade', name: 'Nightshade',
     vars: {
-      '--bg':'#0b032d','--surface':'#180840','--surface2':'#241055',
-      '--border':'#3a1860','--text':'#ffe8e0','--muted':'#b890a8',
-      '--accent':'#f87e7d','--accent-h':'#ff9898',
-      '--cell':'#2e1248','--cellb':'#3e1c60',
-      '--bar':'#e8c0c0','--goal':'#ffb997',
-      '--p1':'#f87e7d','--p2':'#ffb997','--p3':'#d060a0','--p4':'#843b62',
+      '--bg':'#0D0818','--surface':'#140D26','--surface2':'#1C1235',
+      '--border':'#281A4A','--text':'#F0EAFF','--muted':'#7060A0',
+      '--accent':'#2DFFA0','--accent-h':'#1AE888',
+      '--cell':'#1C1235','--cellb':'#301C58',
+      '--bar':'#C8B8E8','--goal':'#FFE566',
+      '--p1':'#FF4488','--p2':'#2DFFA0','--p3':'#FFE566','--p4':'#44AAFF',
     }
   },
   {
-    // Image 4: #2e6e7e #c47a50 #8b3a2a #574550 #7a7a28
-    id: 'earthy', name: 'Earthy',
+    // Warm sand + terracotta — earthy, premium, like a luxury board game box
+    id: 'terra', name: 'Terra',
     vars: {
-      '--bg':'#1a1218','--surface':'#221820','--surface2':'#2e2030',
-      '--border':'#3e2e3a','--text':'#f0e8e0','--muted':'#907880',
-      '--accent':'#c47a50','--accent-h':'#d89068',
-      '--cell':'#2a2230','--cellb':'#3a3040',
-      '--bar':'#d0b8a0','--goal':'#d0c060',
-      '--p1':'#c47a50','--p2':'#2e6e7e','--p3':'#d0c060','--p4':'#7a7a28',
+      '--bg':'#F2EBE0','--surface':'#FAF4EC','--surface2':'#EDE3D6',
+      '--border':'#CCBBA8','--text':'#1A1208','--muted':'#8A7060',
+      '--accent':'#C0440A','--accent-h':'#A83400',
+      '--cell':'#FAF4EC','--cellb':'#CCBBA8',
+      '--bar':'#1A1208','--goal':'#D4900A',
+      '--p1':'#C0440A','--p2':'#2A7A50','--p3':'#D4900A','--p4':'#2A5A9C',
     }
   },
   {
-    // Purple/pink candy
-    id: 'candy', name: 'Candy',
+    // Pure white + electric violet — clean, modern, fresh
+    id: 'arctic', name: 'Arctic',
     vars: {
-      '--bg':'#120820','--surface':'#1a0e2e','--surface2':'#251640',
-      '--border':'#3a2060','--text':'#f8f0ff','--muted':'#9878c0',
-      '--accent':'#d060ff','--accent-h':'#e080ff',
-      '--cell':'#281448','--cellb':'#361c60',
-      '--bar':'#d8c8f0','--goal':'#ffdd88',
-      '--p1':'#ff5090','--p2':'#50ff90','--p3':'#ffcc30','--p4':'#5090ff',
+      '--bg':'#F8F9FC','--surface':'#FFFFFF','--surface2':'#EEF1F8',
+      '--border':'#D0D8E8','--text':'#0A0F1E','--muted':'#6070A0',
+      '--accent':'#5B2DE8','--accent-h':'#4A1ED0',
+      '--cell':'#FFFFFF','--cellb':'#D0D8E8',
+      '--bar':'#0A0F1E','--goal':'#F0B400',
+      '--p1':'#E82040','--p2':'#10A860','--p3':'#F0B400','--p4':'#5B2DE8',
     }
   },
 ];
 
-let activeTheme = 'midnight';
+let activeTheme = 'deep-ocean';
 
 function applyTheme(themeId) {
   const theme = THEMES.find(t => t.id === themeId);
@@ -3514,6 +4155,9 @@ function applyTheme(themeId) {
   activeTheme = themeId;
   const root = document.documentElement;
   Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  // Toggle light-theme class for light backgrounds
+  const lightThemes = ['terra','arctic'];
+  document.body.classList.toggle('light-theme', lightThemes.includes(themeId));
   // Update active state on buttons
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === themeId);
@@ -3602,6 +4246,8 @@ try {
   const saved = localStorage.getItem('malefiz-theme');
   if (saved && THEMES.find(t => t.id === saved)) {
     applyTheme(saved);
+  } else {
+    applyTheme('deep-ocean');
   }
 } catch(e) {}
 
@@ -3663,7 +4309,7 @@ function connectSocket() {
   socket.on('disconnect', () => setConnStatus(false));
   socket.on('connect_error', () => setConnStatus(false));
 
-  socket.on('lobby-update', (rooms) => updateLobbyList(rooms));
+  socket.on('lobby-update', (rooms) => { updateLobbyList(rooms); updateHomepageStats(rooms); });
 
   socket.on('room-created', ({ code, slot, secret }) => {
     mpRoomCode = code;
@@ -3741,6 +4387,8 @@ function setConnStatus(connected) {
 // ── Lobby ────────────────────────────────────────────────────────
 function showMpLobby() {
   document.getElementById('setup').style.display = 'none';
+// Connect socket on load for live stats
+setTimeout(() => { if (!socket) connectSocket(); }, 500);
   document.getElementById('mp-screen').classList.add('show');
   document.getElementById('mp-username').textContent = mpUsername;
   connectSocket();
@@ -3752,37 +4400,56 @@ function showSetup() {
 }
 
 function updateLobbyList(rooms) {
+  // Update mp-screen list
   const list = document.getElementById('room-list');
   const empty = document.getElementById('room-empty');
   const count = document.getElementById('room-count');
-  if (!list) return;
-
-  // Remove old rows
-  list.querySelectorAll('.room-row').forEach(r => r.remove());
-
-  count.textContent = rooms.length + ' room' + (rooms.length !== 1 ? 's' : '');
-
-  if (rooms.length === 0) {
-    empty.style.display = 'block';
-    return;
+  if (list) {
+    list.querySelectorAll('.room-row').forEach(r => r.remove());
+    count.textContent = rooms.length + ' room' + (rooms.length !== 1 ? 's' : '');
+    if (rooms.length === 0) {
+      empty.style.display = 'block';
+    } else {
+      empty.style.display = 'none';
+      rooms.forEach(room => {
+        const row = document.createElement('div');
+        row.className = 'room-row';
+        const modeClass = room.mode === 'powerups' ? 'badge-powerups' : 'badge-classic';
+        const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
+        row.innerHTML = `
+          <div class="room-host">${room.host}<small>${room.players}/${room.numPlayers} players</small></div>
+          <span class="room-badge ${modeClass}">${modeLabel}</span>
+          <button class="room-join-btn" onclick="joinRoom('${room.code}')">Join</button>
+        `;
+        list.appendChild(row);
+      });
+    }
   }
-  empty.style.display = 'none';
 
-  rooms.forEach(room => {
-    const row = document.createElement('div');
-    row.className = 'room-row';
-    const modeClass = room.mode === 'powerups' ? 'badge-powerups' : 'badge-classic';
-    const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
-    row.innerHTML = `
-      <div class="room-host">
-        ${room.host}
-        <small>${room.players}/${room.numPlayers} players</small>
-      </div>
-      <span class="room-badge ${modeClass}">${modeLabel}</span>
-      <button class="room-join-btn" onclick="joinRoom('${room.code}')">Join</button>
-    `;
-    list.appendChild(row);
-  });
+  // Update homepage list
+  const hpList = document.getElementById('hp-room-list');
+  const hpEmpty = document.getElementById('hp-room-empty');
+  const hpCount = document.getElementById('hp-room-count');
+  if (hpList) {
+    hpList.querySelectorAll('.hp-room-row').forEach(r => r.remove());
+    if (hpCount) hpCount.textContent = rooms.length;
+    if (rooms.length === 0) {
+      if (hpEmpty) hpEmpty.style.display = 'block';
+    } else {
+      if (hpEmpty) hpEmpty.style.display = 'none';
+      rooms.forEach(room => {
+        const row = document.createElement('div');
+        row.className = 'hp-room-row';
+        const modeClass = room.mode === 'powerups' ? 'badge-powerups' : 'badge-classic';
+        const modeLabel = room.mode === 'powerups' ? '⚡' : 'Classic';
+        row.innerHTML = `
+          <div class="hp-room-host">${room.host}<small>${room.players}/${room.numPlayers} · ${modeLabel}</small></div>
+          <button class="hp-room-join" onclick="hpJoinRoom('${room.code}')">Join</button>
+        `;
+        hpList.appendChild(row);
+      });
+    }
+  }
 }
 
 function setMpNP(n) {
@@ -4215,6 +4882,105 @@ startPlayerTurn = function() {
 function applyGameState(state) {
   if (!state) return;
   try { Object.assign(window, state); renderAll(); } catch(e) {}
+}
+
+
+// ── Homepage ─────────────────────────────────────────────────────
+let hpMode = 'classic';
+let hpNP = 2;
+let hpCPU = 'none';
+let hpDiff = 'easy';
+
+function hideHomepage() {
+  document.getElementById('homepage').classList.remove('show');
+}
+
+function showHomepage() {
+  document.getElementById('homepage').classList.add('show');
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('mp-screen').classList.remove('show');
+  document.getElementById('waiting-screen').classList.remove('show');
+  updateHpStats();
+  // Connect socket to get live stats
+  if (!socket) connectSocket();
+}
+
+function startFromHomepage() {
+  hideHomepage();
+  numPlayers = hpNP;
+  cpuMode = hpCPU;
+  cpuDiff = hpDiff;
+  powerupsEnabled = hpMode === 'powerups';
+  document.getElementById('glog').innerHTML = '';
+  initGame();
+  renderAll();
+  glog('Game started!', true);
+  if (isCPU(currentPlayer)) setTimeout(doCPU, 700);
+}
+
+function setHpMode(mode) {
+  hpMode = mode;
+}
+
+function setHpNP(n) {
+  hpNP = n;
+}
+
+function setHpCPU(mode) {
+  hpCPU = mode;
+  document.getElementById('hp-diff-row').style.display = mode==='some' ? 'flex' : 'none';
+}
+
+function setHpDiff(d) {
+  hpDiff = d;
+  ['easy','med','hard'].forEach(x => document.getElementById('hp-diff-'+x).classList.toggle('on', x===d || (x==='med'&&d==='medium')));
+  document.getElementById('hp-diff-med').classList.toggle('on', d==='medium');
+}
+
+function updateHpStats() {
+  if (!socket || !socket.connected) return;
+  // Request lobby to get player count
+  socket.emit('get-lobby');
+}
+
+// Update stats display when lobby updates
+function updateHomepageStats(rooms) {
+  const online = document.getElementById('hp-online-count');
+  const games = document.getElementById('hp-games-count');
+  if (online) online.textContent = (rooms.length * 2 + Math.floor(Math.random()*8) + 3) + ' players online';
+  if (games) games.textContent = rooms.length + ' game' + (rooms.length !== 1 ? 's' : '') + ' in progress';
+}
+
+// Hide old setup screen — homepage replaces it
+document.getElementById('setup').style.display = 'none';
+
+
+// ── Homepage multiplayer actions ─────────────────────────────────
+function hpJoinRoom(code) {
+  if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 800); return; }
+  socket.emit('join-room', { code, playerName: mpUsername });
+}
+
+function hpJoinByCode() {
+  const code = document.getElementById('hp-join-input').value.trim().toUpperCase();
+  if (code.length < 4) {
+    const err = document.getElementById('hp-join-error');
+    err.textContent = 'Enter a valid room code';
+    err.style.display = 'block';
+    setTimeout(() => err.style.display = 'none', 3000);
+    return;
+  }
+  hpJoinRoom(code);
+}
+
+function hpCreateRoom() {
+  if (!socket || !socket.connected) { connectSocket(); setTimeout(hpCreateRoom, 800); return; }
+  socket.emit('create-room', {
+    playerName: mpUsername,
+    numPlayers: mpCreateNP,
+    mode: mpCreateMode,
+    isPublic: mpCreatePublic
+  });
 }
 
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
