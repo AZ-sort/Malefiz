@@ -3860,54 +3860,7 @@ function startOnlineGame(players, mode, numPlayers) {
   document.getElementById('rbtn').disabled = mpSlot !== currentPlayer;
 }
 
-// ── Sync outgoing actions ─────────────────────────────────────────
-// Call this after every local game action to broadcast to opponents
-function syncAction(type, data) {
-  if (!mpIsOnline || !socket) return;
-  socket.emit('game-action', { type, data, slot: mpSlot });
-}
-
-// ── Handle incoming actions ───────────────────────────────────────
-function handleRemoteAction(action) {
-  const { type, data } = action;
-  if (type === 'roll') {
-    // Remote player rolled — apply their dice value
-    diceVal = data.diceVal;
-    animDice(diceVal);
-    soundDice();
-    glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
-    phase = 'pick-pawn';
-    renderAll();
-  } else if (type === 'move') {
-    // Remote player moved a pawn
-    const pawnObj = pawns[currentPlayer]?.find(p => p.id === data.pawnId);
-    if (pawnObj) {
-      const path = data.path;
-      selPawn = pawnObj;
-      reachable = [{ er: data.er, ec: data.ec }];
-      moveTo(data.er, data.ec);
-    }
-  } else if (type === 'place-barricade') {
-    placeBarricade(data.er, data.ec);
-  } else if (type === 'place-temp-barricade') {
-    placeTempBarricade(data.er, data.ec);
-  } else if (type === 'deploy-pawn') {
-    const pawnObj = pawns[currentPlayer]?.find(p => !p.onBoard);
-    if (pawnObj) {
-      selPawn = pawnObj;
-      moveTo(data.er, data.ec);
-    }
-  } else if (type === 'use-powerup') {
-    // Handle powerup use by remote player
-    const pu = { type: data.puType, id: data.puId };
-    pendingPowerup = pu;
-    confirmPowerup();
-  } else if (type === 'target-chosen') {
-    pendingPowerup = { type: data.puType, id: data.puId };
-    if (data.puType === 'skip') applySkip(data.target);
-    else if (data.puType === 'possess') applyPossession(data.target);
-  }
-}
+// (sync functions defined below)
 
 // ── Disconnect overlay ────────────────────────────────────────────
 let dcCountdown = 30;
@@ -3961,18 +3914,24 @@ function handleRemoteAction(action) {
     phase = 'pick-pawn';
     renderAll();
   } else if (type === 'move' || type === 'deploy-pawn') {
-    // Find the pawn by id
     const pw = (pawns[currentPlayer]||[]).find(p => p.id === data.pawnId);
     if (pw) {
       selPawn = pw;
       reachable = [{ er: data.er, ec: data.ec }];
-      // Call internal move without syncing back
-      _moveToInternal(data.er, data.ec);
+      _origMoveTo(data.er, data.ec); // use original to avoid guard/sync loop
+    } else if (type === 'deploy-pawn') {
+      // Try first reserve pawn
+      const reservePw = (pawns[currentPlayer]||[]).find(p => !p.onBoard);
+      if (reservePw) {
+        selPawn = reservePw;
+        reachable = [{ er: data.er, ec: data.ec }];
+        _origMoveTo(data.er, data.ec);
+      }
     }
   } else if (type === 'place-barricade') {
-    _placeBarricadeInternal(data.er, data.ec);
+    _origPlaceBarricade(data.er, data.ec);
   } else if (type === 'place-temp-barricade') {
-    _placeTempBarricadeInternal(data.er, data.ec);
+    _origPlaceTempBarricade(data.er, data.ec);
   } else if (type === 'place-trap') {
     _placeTrapInternal(data.er, data.ec);
   } else if (type === 'bulldoze-pick') {
@@ -4014,9 +3973,9 @@ function handleRemoteAction(action) {
 }
 
 // ── Internal versions (no sync, called from remote handler) ───────
-function _moveToInternal(er, ec) { moveTo(er, ec); }
-function _placeBarricadeInternal(er, ec) { placeBarricade(er, ec); }
-function _placeTempBarricadeInternal(er, ec) { placeTempBarricade(er, ec); }
+
+
+
 function _placeTrapInternal(er, ec) { placeTrap(er, ec); }
 function _bulldozePlaceInternal(er, ec) { bulldozePlace(er, ec); }
 
@@ -4040,12 +3999,14 @@ pickPawn = function(pawn) {
 const _origMoveTo = moveTo;
 moveTo = function(er, ec) {
   if (mpGuard()) return;
+  // Capture pawn info BEFORE calling original (which clears selPawn)
   const pw = selPawn;
   const fromReserve = pw && !pw.onBoard;
+  const pawnId = pw ? pw.id : null;
   _origMoveTo(er, ec);
-  if (mpIsOnline && pw) {
+  if (mpIsOnline && pawnId !== null) {
     syncAction(fromReserve ? 'deploy-pawn' : 'move', {
-      pawnId: pw.id, er, ec
+      pawnId, er, ec
     });
   }
 };
@@ -4063,6 +4024,10 @@ placeTempBarricade = function(er, ec) {
   _origPlaceTempBarricade(er, ec);
   if (mpIsOnline) syncAction('place-temp-barricade', { er, ec });
 };
+
+// Fix internal versions to use originals (avoid guard/sync loops)
+function _placeBarricadeInternal(er,ec){ _origPlaceBarricade(er,ec); }
+function _placeTempBarricadeInternal(er,ec){ _origPlaceTempBarricade(er,ec); }
 
 const _origPlaceTrap = placeTrap;
 placeTrap = function(er, ec) {
