@@ -1627,7 +1627,7 @@
     </div>
     <div class="settings-section">
       <div class="settings-section-label">🎮 Game</div>
-      <button class="btn bg" onclick="closeSettings();resetGame();" style="font-size:.78rem;">New Game</button>
+      <button class="btn bg" onclick="closeSettings();showHomepage();" style="font-size:.78rem;">New Game</button>
     </div>
 
     <div class="settings-section">
@@ -1888,7 +1888,7 @@
     <div class="panel">
       <h3>Action</h3>
       <div class="phbox" id="phbox"><small>PHASE</small>Waiting...</div>
-      <div style="margin-top:8px"><button class="btn bg" onclick="resetGame()" style="font-size:.72rem">New Game</button></div>
+      <div style="margin-top:8px"><button class="btn bg" onclick="showHomepage()" style="font-size:.72rem">New Game</button></div>
     </div>
 
     <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;"><h3>Log</h3><div class="glog" id="glog" style="flex:1;min-height:0;"></div></div>
@@ -4390,7 +4390,15 @@ function setConnStatus(connected) {
 function showMpLobby() {
   document.getElementById('setup').style.display = 'none';
 // Connect socket immediately on load for live stats and room creation
-setTimeout(() => { connectSocket(); }, 300);
+setTimeout(() => {
+  connectSocket();
+  // Poll lobby every 5s while homepage is visible
+  setInterval(() => {
+    if (socket && socket.connected && document.getElementById('homepage').classList.contains('show')) {
+      socket.emit('get-lobby');
+    }
+  }, 5000);
+}, 300);
   document.getElementById('mp-screen').classList.add('show');
   document.getElementById('mp-username').textContent = mpUsername;
   connectSocket();
@@ -4402,6 +4410,29 @@ function showSetup() {
 }
 
 function updateLobbyList(rooms) {
+  // Update homepage list
+  const hpList = document.getElementById('hp-room-list');
+  const hpEmpty = document.getElementById('hp-room-empty');
+  const hpCount = document.getElementById('hp-room-count');
+  if (hpList) {
+    hpList.querySelectorAll('.hp-room-row').forEach(r => r.remove());
+    if (hpCount) hpCount.textContent = rooms.length + ' room' + (rooms.length !== 1 ? 's' : '');
+    if (rooms.length === 0) {
+      if (hpEmpty) hpEmpty.style.display = 'block';
+    } else {
+      if (hpEmpty) hpEmpty.style.display = 'none';
+      rooms.forEach(room => {
+        const row = document.createElement('div');
+        row.className = 'hp-room-row';
+        const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
+        row.innerHTML = `
+          <div class="hp-room-host">${room.host}<small>${room.players}/${room.numPlayers} · ${modeLabel}</small></div>
+          <button class="hp-room-join" onclick="joinRoom('${room.code}')">Join</button>
+        `;
+        hpList.appendChild(row);
+      });
+    }
+  }
   // Update mp-screen list
   const list = document.getElementById('room-list');
   const empty = document.getElementById('room-empty');
@@ -4428,47 +4459,23 @@ function updateLobbyList(rooms) {
     }
   }
 
-  // Update homepage list
-  const hpList = document.getElementById('hp-room-list');
-  const hpEmpty = document.getElementById('hp-room-empty');
-  const hpCount = document.getElementById('hp-room-count');
-  if (hpList) {
-    hpList.querySelectorAll('.hp-room-row').forEach(r => r.remove());
-    if (hpCount) hpCount.textContent = rooms.length;
-    if (rooms.length === 0) {
-      if (hpEmpty) hpEmpty.style.display = 'block';
-    } else {
-      if (hpEmpty) hpEmpty.style.display = 'none';
-      rooms.forEach(room => {
-        const row = document.createElement('div');
-        row.className = 'hp-room-row';
-        const modeClass = room.mode === 'powerups' ? 'badge-powerups' : 'badge-classic';
-        const modeLabel = room.mode === 'powerups' ? '⚡' : 'Classic';
-        row.innerHTML = `
-          <div class="hp-room-host">${room.host}<small>${room.players}/${room.numPlayers} · ${modeLabel}</small></div>
-          <button class="hp-room-join" onclick="hpJoinRoom('${room.code}')">Join</button>
-        `;
-        hpList.appendChild(row);
-      });
-    }
-  }
 }
 
 function setMpNP(n) {
   mpCreateNP = n;
-  [2,3,4].forEach(x => document.getElementById('mp-np'+x).classList.toggle('on', x===n));
+  [2,3,4].forEach(x => { const el = document.getElementById('mp-np'+x); if(el) el.classList.toggle('on', x===n); });
 }
 
 function setMpMode(m) {
   mpCreateMode = m;
-  document.getElementById('mp-classic').classList.toggle('on', m==='classic');
-  document.getElementById('mp-powerups').classList.toggle('on', m==='powerups');
+  const c = document.getElementById('mp-classic'); if(c) c.classList.toggle('on', m==='classic');
+  const p = document.getElementById('mp-powerups'); if(p) p.classList.toggle('on', m==='powerups');
 }
 
 function setMpVisibility(pub) {
   mpCreatePublic = pub;
-  document.getElementById('mp-public').classList.toggle('on', pub);
-  document.getElementById('mp-private').classList.toggle('on', !pub);
+  const pp = document.getElementById('mp-public'); if(pp) pp.classList.toggle('on', pub);
+  const pv = document.getElementById('mp-private'); if(pv) pv.classList.toggle('on', !pub);
 }
 
 function createRoom() {
@@ -4905,6 +4912,9 @@ function showHomepage() {
   document.getElementById('setup').style.display = 'none';
   document.getElementById('mp-screen').classList.remove('show');
   document.getElementById('waiting-screen').classList.remove('show');
+  // Refresh lobby when returning to homepage
+  if (socket && socket.connected) socket.emit('get-lobby');
+  else connectSocket();
   updateHpStats();
   // Connect socket to get live stats
   if (!socket) connectSocket();
