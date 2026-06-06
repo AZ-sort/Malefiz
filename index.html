@@ -3129,6 +3129,10 @@ function checkTrap(er, ec, pawn) {
   pawn.onBoard = false; pawn.er = -1; pawn.ec = -1;
   soundCapture();
   soundTrapTrigger();
+  // Sync trap trigger to remote so their screen also removes the pawn
+  if (mpIsOnline) {
+    syncAction('trap-triggered', { er, ec, pawnId: pawn.id, player: pawn.player });
+  }
   glog(`💥 ${pnm(pawn.player)} hit a bomb and went back to home base!`, true);
   renderAll();
   return true;
@@ -4789,14 +4793,7 @@ function handleRemoteAction(action) {
         }
         // Don't run checkPowerupCollection on remote — handled by collect-powerup sync
         // checkPowerupCollection(data.er, data.ec);
-        // Check mine
-        const mineIdx = traps.findIndex(t=>t.er===data.er&&t.ec===data.ec);
-        if (mineIdx !== -1) {
-          traps.splice(mineIdx,1);
-          soundTrapTrigger();
-          pw.onBoard=false; pw.er=-1; pw.ec=-1;
-          glog(`💥 ${pnm(currentPlayer)} hit a bomb!`,true);
-        }
+        // Mine/trap check handled by 'trap-triggered' sync event — don't check here
         // DON'T call nextTurn() — wait for next-turn-resolved from active player
         selPawn = null; reachable = [];
         renderAll();
@@ -4825,6 +4822,17 @@ function handleRemoteAction(action) {
     // Trigger startPlayerTurn so auto-roll fires if it's our turn
     startPlayerTurn();
     return;
+  } else if (type === 'trap-triggered') {
+    // Remove trap and send pawn home on remote screen
+    traps = traps.filter(t => !(t.er===data.er && t.ec===data.ec));
+    // Find the pawn by id
+    const tpawn = (pawns[data.player]||[]).find(p => p.id === data.pawnId);
+    if (tpawn) {
+      tpawn.onBoard = false; tpawn.er = -1; tpawn.ec = -1;
+      soundTrapTrigger();
+      glog(`💥 ${pnm(data.player)} hit a bomb!`, true);
+    }
+    renderAll();
   } else if (type === 'temp-bar-expired') {
     // Remove temp barricade on remote
     barricades = barricades.filter(b => !(b.er===data.er && b.ec===data.ec));
@@ -4901,7 +4909,7 @@ function handleRemoteAction(action) {
 
 
 
-function _placeTrapInternal(er, ec) { placeTrap(er, ec); }
+function _placeTrapInternal(er, ec) { _origPlaceTrap(er, ec); }
 function _bulldozePlaceInternal(er, ec) { bulldozePlace(er, ec); }
 
 // ── Wrap local actions to block on remote turn & sync ────────────
