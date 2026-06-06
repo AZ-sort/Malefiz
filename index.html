@@ -4369,6 +4369,12 @@ function connectSocket() {
     glog(`${name} left the game.`, true);
   });
 
+  socket.on('room-expired', ({ message }) => {
+    hideDcOverlay();
+    alert(message || 'Room expired after 30 minutes of inactivity.');
+    showHomepage();
+  });
+
   socket.on('reconnected', ({ slot, players, gameState }) => {
     mpSlot = slot;
     hideDcOverlay();
