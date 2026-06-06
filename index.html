@@ -2913,13 +2913,20 @@ function checkPowerupCollection(er, ec) {
 }
 
 function applyPowerupCollection(boardIdx, pu, stableId, player) {
-  boardPowerups.splice(boardIdx, 1);
-  const inv = playerPowerups[player] || [];
-  // Don't double-add if already collected (idempotent)
-  if (!inv.find(p => p.id === stableId)) {
-    playerPowerups[player] = [...inv, { type: pu.type, id: stableId }];
-    soundPowerup();
-    glog(`${pnm(player)} collected ${POWERUP_TYPES[pu.type].icon} ${POWERUP_TYPES[pu.type].name}!`, true);
+  try {
+    if (boardIdx >= 0 && boardIdx < boardPowerups.length) {
+      boardPowerups.splice(boardIdx, 1);
+    }
+    const inv = playerPowerups[player] || [];
+    // Don't double-add if already collected (idempotent)
+    if (!inv.find(p => p.id === stableId)) {
+      playerPowerups[player] = [...inv, { type: pu.type, id: stableId }];
+      soundPowerup();
+      glog(`${pnm(player)} collected ${POWERUP_TYPES[pu.type]?.icon || '?'} ${POWERUP_TYPES[pu.type]?.name || pu.type}!`, true);
+    }
+  } catch(e) {
+    // Never let a collection error soft-lock the game
+    console.error('Collection error:', e);
   }
 }
 
