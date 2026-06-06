@@ -4583,8 +4583,11 @@ function showWaitingRoom() {
   const codeSection = document.getElementById('waiting-code-section');
   codeSection.style.display = mpCreatePublic === false ? 'block' : 'block'; // always show
 
+  // Use mpCreateMode as fallback in case mpRoomMode wasn't set yet
+  const displayMode = mpRoomMode || mpCreateMode;
+  const displayNP = mpRoomNumPlayers || mpCreateNP;
   document.getElementById('waiting-mode-label').textContent =
-    (mpRoomMode === 'powerups' ? '⚡ Powerups mode · ' : 'Classic mode · ') + mpRoomNumPlayers + ' players';
+    (displayMode === 'powerups' ? '⚡ Powerups mode · ' : 'Classic mode · ') + displayNP + ' players';
 
   updateWaitingPlayers(
     [{ name: mpUsername, slot: mpSlot }],
@@ -4745,7 +4748,9 @@ function handleRemoteAction(action) {
         const bar = barAt(data.er, data.ec);
         if (bar) {
           barricades = barricades.filter(b=>!(b.er===data.er&&b.ec===data.ec));
-          soundBarricadePlace();
+          soundBarricadeCapture();
+          phase = 'place-barricade'; // must be set so place-barricade sync can apply
+          glog(`${pnm(currentPlayer)} removed a barricade — placing it...`, true);
         }
         // Check powerup collection
         checkPowerupCollection(data.er, data.ec);
@@ -4763,7 +4768,15 @@ function handleRemoteAction(action) {
       });
     }
   } else if (type === 'place-barricade') {
-    _origPlaceBarricade(data.er, data.ec);
+    // Bypass phase check — directly place barricade from remote player
+    const cell = getCell(data.er, data.ec);
+    if (cell) {
+      barricades.push({ er: data.er, ec: data.ec });
+      soundBarricadePlace();
+      glog(`${pnm(currentPlayer)} placed a barricade`, true);
+      phase = 'roll'; // reset phase — next-turn-resolved will set currentPlayer
+      renderAll();
+    }
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
   } else if (type === 'next-turn-resolved') {
