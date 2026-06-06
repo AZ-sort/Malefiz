@@ -8,14 +8,14 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 10000  // more frequent pings to detect drops faster
 });
 
 app.use(express.static(path.join(__dirname)));
 
 // ── Name generation ──────────────────────────────────────────────
 const ADJECTIVES = ['Swift','Brave','Mighty','Shadow','Crimson','Golden','Silver','Iron','Wild','Frost','Storm','Thunder','Blazing','Silent','Cosmic','Neon','Phantom','Rogue','Savage','Stealth'];
-const NOUNS = ['Fox','Wolf','Eagle','Tiger','Dragon','Falcon','Viper','Panda','Cobra','Hawk','Bear','Lynx','Raven','Shark','Panther','Jaguar','Falcon','Manta','Raptor','Phoenix'];
+const NOUNS = ['Fox','Wolf','Eagle','Tiger','Dragon','Falcon','Viper','Panda','Cobra','Hawk','Bear','Lynx','Raven','Shark','Panther','Jaguar','Manta','Raptor','Phoenix','Bison'];
 
 function generateName() {
   const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
@@ -29,12 +29,8 @@ function generateRoomCode() {
 }
 
 // ── Room storage ─────────────────────────────────────────────────
-// rooms[code] = { code, host, players[], numPlayers, mode, isPublic, started, gameState }
 const rooms = {};
-// socketId -> roomCode mapping for reconnect
 const socketRooms = {};
-// disconnected players: { name, slot, roomCode, secret } waiting to reconnect
-const disconnectedPlayers = {};
 
 function getRoomList() {
   return Object.values(rooms)
@@ -56,9 +52,8 @@ function broadcastLobby() {
 io.on('connection', (socket) => {
   console.log('Connected:', socket.id);
 
-  // Send current lobby immediately on connect
-  const lobbyData = { rooms: getRoomList(), online: io.engine.clientsCount };
-  socket.emit('lobby-update', lobbyData);
+  // Send lobby immediately
+  socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
 
   // ── Create room ────────────────────────────────────────────────
   socket.on('create-room', ({ playerName, numPlayers, mode, isPublic }) => {
@@ -73,13 +68,14 @@ io.on('connection', (socket) => {
       mode,
       isPublic,
       started: false,
-      gameState: null
+      gameState: null,      // full serialized game state — updated after every action
+      actionLog: []         // ordered log of all actions for debugging
     };
     socket.join(code);
     socketRooms[socket.id] = code;
     socket.emit('room-created', { code, slot: 1, secret });
     broadcastLobby();
-    console.log(`Room ${code} created by ${playerName} (${numPlayers}p, ${mode}, ${isPublic ? 'public' : 'private'})`);
+    console.log(`Room ${code} created by ${playerName}`);
   });
 
   // ── Join room ──────────────────────────────────────────────────
@@ -98,9 +94,7 @@ io.on('connection', (socket) => {
     socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: room.players, mode: room.mode, numPlayers: room.numPlayers });
     io.to(code.toUpperCase()).emit('player-joined', { players: room.players });
     broadcastLobby();
-    console.log(`${playerName} joined ${code.toUpperCase()} (slot ${slot})`);
 
-    // Auto-start when full
     if (room.players.length === room.numPlayers) {
       room.started = true;
       broadcastLobby();
@@ -110,7 +104,6 @@ io.on('connection', (socket) => {
           mode: room.mode,
           numPlayers: room.numPlayers
         });
-        console.log(`Room ${code.toUpperCase()} started`);
       }, 1000);
     }
   });
@@ -121,24 +114,43 @@ io.on('connection', (socket) => {
     if (!room) { socket.emit('reconnect-failed', 'Room no longer exists.'); return; }
     const player = room.players.find(p => p.secret === secret);
     if (!player) { socket.emit('reconnect-failed', 'Could not verify identity.'); return; }
-    // Update socket id
     player.id = socket.id;
     player.connected = true;
     socket.join(code);
     socketRooms[socket.id] = code;
+    // Send full game state so they catch up
     socket.emit('reconnected', { slot: player.slot, players: room.players, gameState: room.gameState });
     socket.to(code).emit('player-reconnected', { slot: player.slot, name: player.name });
     console.log(`${player.name} reconnected to ${code}`);
+  });
+
+  // ── Request state (tab came back to foreground) ────────────────
+  socket.on('request-state', ({ code, secret }) => {
+    const room = rooms[code];
+    if (!room) return;
+    const player = room.players.find(p => p.secret === secret);
+    if (!player) return;
+    if (room.gameState) {
+      socket.emit('state-update', { gameState: room.gameState });
+    }
   });
 
   // ── Game actions ───────────────────────────────────────────────
   socket.on('game-action', (action) => {
     const code = socketRooms[socket.id];
     if (!code || !rooms[code]) return;
-    // Store game state snapshot for reconnects
-    if (action.type === 'state-sync') {
-      rooms[code].gameState = action.state;
+    const room = rooms[code];
+
+    // Store game state snapshot if included
+    if (action.state) {
+      room.gameState = action.state;
     }
+
+    // Log action for debugging
+    room.actionLog.push({ ...action, ts: Date.now() });
+    if (room.actionLog.length > 200) room.actionLog.shift(); // keep last 200
+
+    // Relay to other players
     socket.to(code).emit('game-action', action);
   });
 
@@ -151,24 +163,19 @@ io.on('connection', (socket) => {
       if (player) {
         player.connected = false;
         if (room.started) {
-          // Game in progress — give them 30s to reconnect
           io.to(code).emit('player-disconnected', { slot: player.slot, name: player.name });
+          // Give 60 seconds to reconnect (up from 30)
           setTimeout(() => {
             if (!player.connected && rooms[code]) {
               io.to(code).emit('player-left', { slot: player.slot, name: player.name });
-              // If only 1 player left, close room
               const connected = room.players.filter(p => p.connected).length;
               if (connected === 0) delete rooms[code];
             }
-          }, 30000);
+          }, 60000);
         } else {
-          // Not started — remove player and update lobby
           room.players = room.players.filter(p => p.id !== socket.id);
-          if (room.players.length === 0) {
-            delete rooms[code];
-          } else {
-            io.to(code).emit('player-joined', { players: room.players });
-          }
+          if (room.players.length === 0) delete rooms[code];
+          else io.to(code).emit('player-joined', { players: room.players });
           broadcastLobby();
         }
       }
@@ -179,8 +186,7 @@ io.on('connection', (socket) => {
 
   // ── Get lobby ──────────────────────────────────────────────────
   socket.on('get-lobby', () => {
-    const lobbyData = { rooms: getRoomList(), online: io.engine.clientsCount };
-    socket.emit('lobby-update', lobbyData);
+    socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
   });
 });
 

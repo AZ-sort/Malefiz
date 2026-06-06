@@ -2171,6 +2171,8 @@ function getReachableFromEntry(player, steps) {
   if (steps === 1) {
     // Roll of 1: must land exactly on entry
     if (occ && occ.player === player) return []; // own pawn blocking
+    // Save to lastReachMap so moveTo can send correct path for multiplayer sync
+    lastReachMap = { [`${eer},${eec}`]: [{er:eer, ec:eec}] };
     return [{er:eer, ec:eec}];
   }
 
@@ -3273,6 +3275,20 @@ function buildPath(startEr, startEc, destEr, destEc, steps, player) {
   return [{er:startEr,ec:startEc},{er:destEr,ec:destEc}];
 }
 
+
+// ── Tab visibility recovery ───────────────────────────────────────
+// When player returns to tab, request latest state from server
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && mpIsOnline && mpRoomCode && mpSecret) {
+    if (socket && socket.connected) {
+      socket.emit('request-state', { code: mpRoomCode, secret: mpSecret });
+    } else {
+      // Socket dropped while tab was hidden — reconnect
+      socket.emit('reconnect-attempt', { code: mpRoomCode, secret: mpSecret });
+    }
+  }
+});
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 let anyPawnMoved = false; // track if first move happened
@@ -4293,7 +4309,7 @@ let dcTimer = null;
 // ── Connection ───────────────────────────────────────────────────
 function connectSocket() {
   if (socket && socket.connected) return;
-  if (socket) { socket.removeAllListeners(); socket = null; } // clean up dead socket
+  if (socket) { try { socket.removeAllListeners(); socket.disconnect(); } catch(e){} socket = null; }
   socket = io(SERVER_URL, { transports: ['websocket','polling'] });
 
   socket.on('connect', () => {
@@ -4386,6 +4402,68 @@ function connectSocket() {
     glog('Reconnected!', true);
     if (gameState) applyGameState(gameState);
   });
+
+  socket.on('state-update', ({ gameState }) => {
+    if (gameState && mpIsOnline) {
+      applyGameState(gameState);
+    }
+  });
+}
+
+
+// ── Game state serialization ─────────────────────────────────────
+function serializeGameState() {
+  try {
+    return JSON.stringify({
+      pawns: pawns,
+      barricades: barricades,
+      tempBarricades: tempBarricades,
+      traps: traps,
+      currentPlayer: currentPlayer,
+      phase: phase,
+      diceVal: diceVal,
+      gameOver: gameOver,
+      skipTurns: skipTurns,
+      shieldTurns: shieldTurns,
+      playerPowerups: playerPowerups,
+      boardPowerups: boardPowerups,
+      turnCount: turnCount,
+      doubleRollActive: doubleRollActive,
+      possessionActive: possessionActive,
+      possessionTargetPlayer: possessionTargetPlayer,
+      bulldozePickedBarricade: bulldozePickedBarricade,
+    });
+  } catch(e) { return null; }
+}
+
+function applyGameState(stateStr) {
+  if (!stateStr) return;
+  try {
+    const s = typeof stateStr === 'string' ? JSON.parse(stateStr) : stateStr;
+    pawns = s.pawns;
+    barricades = s.barricades;
+    tempBarricades = s.tempBarricades || [];
+    traps = s.traps || [];
+    currentPlayer = s.currentPlayer;
+    phase = s.phase;
+    diceVal = s.diceVal;
+    gameOver = s.gameOver;
+    skipTurns = s.skipTurns || {};
+    shieldTurns = s.shieldTurns || {};
+    playerPowerups = s.playerPowerups || {};
+    boardPowerups = s.boardPowerups || [];
+    turnCount = s.turnCount || 0;
+    doubleRollActive = s.doubleRollActive || false;
+    possessionActive = s.possessionActive || false;
+    possessionTargetPlayer = s.possessionTargetPlayer || null;
+    bulldozePickedBarricade = s.bulldozePickedBarricade || null;
+    glowTurnSnapshot = '';
+    selPawn = null;
+    reachable = [];
+    animating = false;
+    renderAll();
+    updateOnlineTurnUI();
+  } catch(e) { console.error('applyGameState error:', e); }
 }
 
 function setConnStatus(connected) {
@@ -4645,7 +4723,9 @@ function mpGuard() {
 // ── Sync outgoing actions ─────────────────────────────────────────
 function syncAction(type, data) {
   if (!mpIsOnline || !socket || !socket.connected) return;
-  socket.emit('game-action', { type, data, slot: mpSlot });
+  // Attach full game state so server can store it and latecomers can catch up
+  const state = serializeGameState();
+  socket.emit('game-action', { type, data, slot: mpSlot, state });
 }
 
 // ── Handle incoming remote actions ───────────────────────────────
@@ -4660,18 +4740,10 @@ function handleRemoteAction(action) {
     renderAll();
   } else if (type === 'move' || type === 'deploy-pawn') {
     console.log('[MP] Received move:', type, data.pawnId, data.er, data.ec, 'currentPlayer:', currentPlayer);
-    // Find pawn by id — check current player AND possessed player
-    const searchPlayers = possessionActive
-      ? [possessionTargetPlayer, currentPlayer]
-      : [currentPlayer];
-    let pw = null;
-    for (const sp of searchPlayers) {
-      pw = (pawns[sp]||[]).find(p => p.id === data.pawnId);
-      if (pw) break;
-    }
+    // Find pawn by id, or use first reserve pawn for deploy
+    let pw = (pawns[currentPlayer]||[]).find(p => p.id === data.pawnId);
     if (!pw && type === 'deploy-pawn') {
-      const deployPlayer = possessionActive ? possessionTargetPlayer : currentPlayer;
-      pw = (pawns[deployPlayer]||[]).find(p => !p.onBoard);
+      pw = (pawns[currentPlayer]||[]).find(p => !p.onBoard);
     }
     if (pw) {
       selPawn = pw;
@@ -4727,8 +4799,8 @@ function handleRemoteAction(action) {
   } else if (type === 'place-trap') {
     _placeTrapInternal(data.er, data.ec);
   } else if (type === 'bulldoze-pick') {
-    // Just record which barricade was picked, no UI shown on remote
     bulldozePickedBarricade = { er: data.er, ec: data.ec };
+    // Don't show place UI on remote side
   } else if (type === 'bulldoze-place') {
     if (bulldozePickedBarricade) {
       barricades = barricades.filter(b=>!(b.er===bulldozePickedBarricade.er&&b.ec===bulldozePickedBarricade.ec));
@@ -4743,7 +4815,6 @@ function handleRemoteAction(action) {
     if (data.puType === 'double') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
       doubleRollActive = true;
-      glowTurnSnapshot = '';
       renderAll();
     } else if (data.puType === 'shield') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
@@ -4751,11 +4822,11 @@ function handleRemoteAction(action) {
       renderAll();
     } else if (data.puType === 'tempbar') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
-      // Don't show placement UI on remote — just wait for the place-temp-barricade action
+      phase = 'place-temp-barricade';
       renderAll();
     } else if (data.puType === 'trap') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
-      // Don't show placement UI on remote
+      phase = 'place-trap';
       renderAll();
     } else if (data.puType === 'bulldoze') {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
@@ -4763,9 +4834,8 @@ function handleRemoteAction(action) {
       renderAll();
     }
   } else if (type === 'target-action') {
-    // Use original functions to avoid re-syncing back to sender
-    if (data.puType === 'skip') _origApplySkip(data.target);
-    else if (data.puType === 'possess') _origApplyPossession(data.target);
+    if (data.puType === 'skip') applySkip(data.target);
+    else if (data.puType === 'possess') applyPossession(data.target);
     playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
     renderAll();
   }
