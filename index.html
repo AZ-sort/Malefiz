@@ -2154,6 +2154,7 @@ function initGame() {
   currentPlayer=1; diceVal=null; phase='roll'; selPawn=null; reachable=[]; gameOver=false;
   initPowerups();
   anyPawnMoved = false;
+  lastDiceVal = 0;
 }
 
 // ================================================================
@@ -3350,6 +3351,7 @@ function updateSyncBtn() {
 
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
+let lastDiceVal = 0;
 let anyPawnMoved = false; // track if first move happened
 let firstRollDone = false;
 
@@ -3365,7 +3367,11 @@ function rollDice() {
   if (phase!=='roll'||gameOver||isCPU(currentPlayer)||animating) return;
   // Double roll powerup check
   if (applyDoubleRoll()) return;
-  diceVal = Math.floor(Math.random()*6)+1;
+  let roll = Math.floor(Math.random()*6)+1;
+  // Reroll once if same as last roll (reduces jarring streaks)
+  if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
+  lastDiceVal = roll;
+  diceVal = roll;
   animDice(diceVal);
   soundDice();
   firstRollDone = true;
@@ -3478,7 +3484,13 @@ function finishMove(er, ec, bar, movingPawn) {
   // End possession after move
 
   // Win check
-  if (er===4 && ec===9) { gameOver=true; renderAll(); setTimeout(()=>{soundWin();showWin(currentPlayer);},300); return; }
+  if (er===4 && ec===9) {
+    gameOver=true;
+    renderAll();
+    setTimeout(()=>{soundWin();showWin(currentPlayer);},300);
+    if (mpIsOnline) syncAction('game-over', { winner: currentPlayer });
+    return;
+  }
 
   // Barricade captured
   if (bar) {
@@ -3572,7 +3584,11 @@ function isCPU(p) { return cpuMode==='some' && p !== 1; } // player 1 is always 
 
 function doCPU() {
   if (gameOver) return;
-  diceVal = Math.floor(Math.random()*6)+1;
+  let roll = Math.floor(Math.random()*6)+1;
+  // Reroll once if same as last roll (reduces jarring streaks)
+  if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
+  lastDiceVal = roll;
+  diceVal = roll;
   animDice(diceVal);
   soundDice();
   firstRollDone = true;
@@ -4870,6 +4886,11 @@ function handleRemoteAction(action) {
       glog(`💥 ${pnm(data.player)} hit a bomb!`, true);
     }
     renderAll();
+  } else if (type === 'game-over') {
+    gameOver = true;
+    renderAll();
+    setTimeout(() => { soundWin(); showWin(data.winner); }, 300);
+    return;
   } else if (type === 'temp-bar-expired') {
     // Remove temp barricade on remote
     barricades = barricades.filter(b => !(b.er===data.er && b.ec===data.ec));
