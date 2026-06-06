@@ -2897,9 +2897,15 @@ function checkPowerupCollection(er, ec) {
     return;
   }
   const pu = boardPowerups.splice(idx, 1)[0];
-  playerPowerups[currentPlayer] = [...inv, {type: pu.type, id: Date.now()}];
+  // Use stable ID based on position + type — same on all clients
+  const stableId = `${pu.type}_${pu.er}_${pu.ec}`;
+  playerPowerups[currentPlayer] = [...inv, { type: pu.type, id: stableId }];
   soundPowerup();
   glog(`${pnm(currentPlayer)} collected ${POWERUP_TYPES[pu.type].icon} ${POWERUP_TYPES[pu.type].name}!`, true);
+  // In online mode, sync the collection so both clients apply it identically
+  if (mpIsOnline && currentPlayer === mpSlot) {
+    syncAction('collect-powerup', { er, ec, type: pu.type, stableId, player: currentPlayer });
+  }
 }
 
 // ── Powerup activation ──────────────────────────────────────────
@@ -4704,8 +4710,10 @@ function mpGuard() {
 // ── Sync outgoing actions ─────────────────────────────────────────
 function syncAction(type, data) {
   if (!mpIsOnline || !socket || !socket.connected) return;
-  // Attach full game state so server can store it and latecomers can catch up
-  const state = serializeGameState();
+  // Only attach state to turn-ending actions (accurate post-action state)
+  // Move actions carry pre-move state which is stale — don't attach it
+  const stateTypes = ['next-turn-resolved', 'place-barricade', 'collect-powerup'];
+  const state = stateTypes.includes(type) ? serializeGameState() : null;
   socket.emit('game-action', { type, data, slot: mpSlot, state });
 }
 
@@ -4756,8 +4764,8 @@ function handleRemoteAction(action) {
           phase = 'place-barricade'; // must be set so place-barricade sync can apply
           glog(`${pnm(currentPlayer)} removed a barricade — placing it...`, true);
         }
-        // Check powerup collection
-        checkPowerupCollection(data.er, data.ec);
+        // Don't run checkPowerupCollection on remote — handled by collect-powerup sync
+        // checkPowerupCollection(data.er, data.ec);
         // Check mine
         const mineIdx = traps.findIndex(t=>t.er===data.er&&t.ec===data.ec);
         if (mineIdx !== -1) {
@@ -4809,6 +4817,17 @@ function handleRemoteAction(action) {
       glog(`✨ A ${POWERUP_TYPES[data.type].name} powerup appeared!`, true);
       renderAll();
     }
+  } else if (type === 'collect-powerup') {
+    // Apply powerup collection exactly as active player did
+    const bidx = boardPowerups.findIndex(p => p.er===data.er && p.ec===data.ec);
+    if (bidx !== -1) boardPowerups.splice(bidx, 1);
+    const pinv = playerPowerups[data.player] || [];
+    if (!pinv.find(p => p.id === data.stableId)) {
+      playerPowerups[data.player] = [...pinv, { type: data.type, id: data.stableId }];
+    }
+    soundPowerup();
+    glog(`${pnm(data.player)} collected ${POWERUP_TYPES[data.type].icon} ${POWERUP_TYPES[data.type].name}!`, true);
+    renderAll();
   } else if (type === 'powerup-despawn') {
     boardPowerups = boardPowerups.filter(p=>!(p.er===data.er&&p.ec===data.ec));
     renderAll();
