@@ -4781,14 +4781,16 @@ function handleRemoteAction(action) {
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
   } else if (type === 'next-turn-resolved') {
-    // Apply authoritative turn state from active player — prevents skip divergence
+    // Apply authoritative turn state from active player
     currentPlayer = data.currentPlayer;
     phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
-      doubleRollActive = false;
+    doubleRollActive = false;
     document.getElementById('dface').textContent = '⚀';
     renderAll();
     updateOnlineTurnUI();
-    return; // don't fall through to updateOnlineTurnUI again
+    // Trigger startPlayerTurn so auto-roll fires if it's our turn
+    startPlayerTurn();
+    return;
   } else if (type === 'temp-bar-expired') {
     // Remove temp barricade on remote
     barricades = barricades.filter(b => !(b.er===data.er && b.ec===data.ec));
