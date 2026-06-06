@@ -2762,12 +2762,16 @@ function trySpawnPowerup() {
   if (!powerupsEnabled) return;
   turnCount++;
 
+  // In online mode, only the active player runs spawn/tick logic
+  // Everyone else receives state via sync — prevents divergence
+  if (mpIsOnline && currentPlayer !== mpSlot) return;
+
   // Tick down existing powerups (despawn after 6-12 individual turns, set on spawn)
   boardPowerups = boardPowerups.filter(p => {
     p.age = (p.age || 0) + 1;
     if (p.age >= (p.maxAge || 30)) {
       glog(`⌛ A ${POWERUP_TYPES[p.type].name} powerup disappeared`);
-      if (mpIsOnline && currentPlayer === mpSlot) {
+      if (mpIsOnline) {
         syncAction('powerup-despawn', { er: p.er, ec: p.ec });
       }
       return false;
@@ -2781,6 +2785,7 @@ function trySpawnPowerup() {
     if (tb.turnsLeft <= 0) {
       barricades = barricades.filter(b => !(b.er === tb.er && b.ec === tb.ec));
       glog(`🚧 A temp barricade disappeared!`);
+      if (mpIsOnline) syncAction('temp-bar-expired', { er: tb.er, ec: tb.ec });
       return false;
     }
     return true;
@@ -2828,8 +2833,8 @@ function trySpawnPowerup() {
   nextSpawnAt = turnCount + Math.floor(Math.random()*3) + 4; // next in 4-6 turns
   glog(`✨ A ${POWERUP_TYPES[type].name} powerup appeared on the board!`, true);
   // Sync powerup spawn to all players (only active player generates, others receive)
-  if (mpIsOnline && currentPlayer === mpSlot) {
-    syncAction('powerup-spawn', { er: cell.er, ec: cell.ec, type, maxAge: newPu.maxAge, nextSpawnAt });
+  if (mpIsOnline) {
+    syncAction('powerup-spawn', { er: cell.er, ec: cell.ec, type, maxAge: newPu.maxAge, nextSpawnAt, turnCount });
   }
 }
 
@@ -4785,11 +4790,18 @@ function handleRemoteAction(action) {
     _origPlaceBarricade(data.er, data.ec);
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
+  } else if (type === 'temp-bar-expired') {
+    // Remove temp barricade on remote
+    barricades = barricades.filter(b => !(b.er===data.er && b.ec===data.ec));
+    tempBarricades = tempBarricades.filter(tb => !(tb.er===data.er && tb.ec===data.ec));
+    glog(`🚧 A temp barricade disappeared!`);
+    renderAll();
   } else if (type === 'powerup-spawn') {
-    // Apply powerup spawn from active player
+    // Apply powerup spawn from active player — exact same values, no local random
     if (!boardPowerups.find(p=>p.er===data.er&&p.ec===data.ec)) {
       boardPowerups.push({ er: data.er, ec: data.ec, type: data.type, maxAge: data.maxAge, age: 0 });
       nextSpawnAt = data.nextSpawnAt;
+      turnCount = data.turnCount || turnCount;
       glog(`✨ A ${POWERUP_TYPES[data.type].name} powerup appeared!`, true);
       renderAll();
     }
