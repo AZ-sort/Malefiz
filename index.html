@@ -4837,7 +4837,14 @@ function handleRemoteAction(action) {
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
   } else if (type === 'next-turn-resolved') {
+    let ntrFired = false;
     const applyNTR = () => {
+      if (ntrFired) return; // prevent double execution
+      ntrFired = true;
+      // If player already rolled (phase != 'roll'), this NTR is stale — ignore it
+      // unless it's changing currentPlayer (i.e. it's actually for this new turn)
+      const alreadyActed = phase !== 'roll' && currentPlayer === data.currentPlayer;
+      if (alreadyActed) return;
       if (data.state) applyGameState(data.state);
       currentPlayer = data.currentPlayer;
       phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
@@ -4847,7 +4854,7 @@ function handleRemoteAction(action) {
     };
     if (animating) {
       const wait = setInterval(() => { if (!animating) { clearInterval(wait); applyNTR(); } }, 50);
-      setTimeout(() => { clearInterval(wait); animating = false; applyNTR(); }, 2000);
+      setTimeout(() => { clearInterval(wait); applyNTR(); }, 2000);
     } else {
       applyNTR();
     }
@@ -5049,7 +5056,10 @@ startPlayerTurn = function() {
     // Only auto-roll if it's our turn
     if (currentPlayer === mpSlot && autoRoll) {
       const hasPowerups = (playerPowerups[currentPlayer]||[]).length > 0;
-      if (!hasPowerups) setTimeout(rollDice, 500);
+      if (!hasPowerups) setTimeout(() => {
+        // Only roll if phase is still 'roll' when timeout fires
+        if (phase === 'roll' && currentPlayer === mpSlot && !animating) rollDice();
+      }, 500);
     }
     return;
   }
