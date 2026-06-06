@@ -2769,7 +2769,7 @@ const POWERUP_TYPES = {
   'double':   { icon: '🎲', name: 'Double Roll',    desc: 'Roll the dice — your result is doubled this turn!' },
   'tempbar':  { icon: '🚧', name: 'Temp Barricade', desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 turns.' },
   'shield':   { icon: '🛡️', name: 'Shield',         desc: 'Your pawns cannot be captured for 3 turns.' },
-  'trap':     { icon: '💣', name: 'Mine',           desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
+  'trap':     { icon: '💣', name: 'Bomb',           desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
 };
 
 // Board powerups: [{er, ec, type, turnsLeft}]
@@ -3055,7 +3055,7 @@ function activateShield() {
 function activateTrap() {
   phase = 'place-trap';
   soundTrapPlace();
-  glog(`${pnm(currentPlayer)} activated 💣 Mine — place it on any path cell!`, true);
+  glog(`${pnm(currentPlayer)} activated 💣 Bomb — place it on any path cell!`, true);
   renderAll();
 }
 
@@ -3075,7 +3075,7 @@ function placeTrap(er, ec) {
   trapFlash(er, ec);
 
   soundBarricadePlace();
-  glog(`💣 A mine was placed somewhere on the board...`);
+  glog(`💣 A bomb was placed somewhere on the board...`);
   phase = 'roll';
   renderAll();
 }
@@ -3101,7 +3101,7 @@ function checkTrap(er, ec, pawn) {
   pawn.onBoard = false; pawn.er = -1; pawn.ec = -1;
   soundCapture();
   soundTrapTrigger();
-  glog(`💥 ${pnm(pawn.player)} hit a mine and went back to home base!`, true);
+  glog(`💥 ${pnm(pawn.player)} hit a bomb and went back to home base!`, true);
   renderAll();
   return true;
 }
@@ -4043,7 +4043,7 @@ function renderSidebar() {
     'move': `Move exactly ${diceVal} steps`,
     'place-barricade': 'Place barricade anywhere on board',
     'place-temp-barricade': '🚧 Place your temp barricade — it lasts 3 turns',
-    'place-trap': '💣 Click any path cell to place your mine',
+    'place-trap': '💣 Click any path cell to place your bomb',
   };
   document.getElementById('phbox').innerHTML = `<small>PHASE</small>${cpu?pnm(currentPlayer)+' thinking…':(msgs[phase]||'')}`;
   const onlineBlock = mpIsOnline && currentPlayer !== mpSlot;
@@ -4764,7 +4764,7 @@ function handleRemoteAction(action) {
           traps.splice(mineIdx,1);
           soundTrapTrigger();
           pw.onBoard=false; pw.er=-1; pw.ec=-1;
-          glog(`💥 ${pnm(currentPlayer)} hit a mine!`,true);
+          glog(`💥 ${pnm(currentPlayer)} hit a bomb!`,true);
         }
         // DON'T call nextTurn() — wait for next-turn-resolved from active player
         selPawn = null; reachable = [];
