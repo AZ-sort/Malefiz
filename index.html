@@ -2248,6 +2248,7 @@ function getReachableFromEntry(player, steps) {
     if (rem === 0) {
       const o = pawnAt(er, ec);
       if (o && o.player === player) return; // can't land on own pawn
+      if (o && shieldTurns[o.player] > 0) return; // shielded pawn is impassable
       // Cannot land on temp barricades
       if (tempBarricades.find(tb => tb.er === er && tb.ec === ec)) return;
       const key = `${er},${ec}`;
@@ -3512,7 +3513,7 @@ function nextTurn() {
       renderAll();
       // In online mode, sync the resolved turn so all clients agree
           if (mpIsOnline && mpSlot) {
-        syncAction('next-turn-resolved', { currentPlayer });
+        syncAction('next-turn-resolved', { currentPlayer, state: serializeGameState() });
       }
       startPlayerTurn();
     }, 800);
@@ -3521,7 +3522,7 @@ function nextTurn() {
 
   renderAll();
   if (mpIsOnline && mpSlot) {
-    syncAction('next-turn-resolved', { currentPlayer });
+    syncAction('next-turn-resolved', { currentPlayer, state: serializeGameState() });
   }
   startPlayerTurn();
 }
@@ -3941,8 +3942,8 @@ function renderBoard() {
       // Trap flash — briefly visible
       if (trapFlashing.has(`${er},${ec}`)) {
         const tf = document.createElement('div');
-        tf.style.cssText = 'font-size:1.2rem;pointer-events:none;';
-        tf.textContent = '🪤';
+        tf.style.cssText = 'font-size:1.4rem;pointer-events:none;line-height:1;';
+        tf.innerHTML = '&#x1F4A3;';
         div.appendChild(tf);
       }
     }
@@ -4454,27 +4455,23 @@ function applyGameState(stateStr) {
   if (!stateStr) return;
   try {
     const s = typeof stateStr === 'string' ? JSON.parse(stateStr) : stateStr;
-    pawns = s.pawns;
-    barricades = s.barricades;
+    if (s.pawns) pawns = s.pawns;
+    if (s.barricades) barricades = s.barricades;
     tempBarricades = s.tempBarricades || [];
     traps = s.traps || [];
-    currentPlayer = s.currentPlayer;
-    phase = s.phase;
-    diceVal = s.diceVal;
-    gameOver = s.gameOver;
+    if (s.currentPlayer) currentPlayer = s.currentPlayer;
+    gameOver = s.gameOver || false;
     shieldTurns = s.shieldTurns || {};
     playerPowerups = s.playerPowerups || {};
     boardPowerups = s.boardPowerups || [];
     turnCount = s.turnCount || 0;
-    doubleRollActive = s.doubleRollActive || false;
     glowTurnSnapshot = '';
     selPawn = null;
     reachable = [];
     animating = false;
-    renderAll();
-    updateOnlineTurnUI();
-  } catch(e) { console.error('applyGameState error:', e); }
+  } catch(e) {}
 }
+
 
 function setConnStatus(connected) {
   const dot = document.getElementById('conn-dot');
@@ -4812,14 +4809,18 @@ function handleRemoteAction(action) {
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
   } else if (type === 'next-turn-resolved') {
-    // Apply authoritative turn state from active player
-    currentPlayer = data.currentPlayer;
+    // Apply full authoritative game state — catches any missed events
+    if (data.state) {
+      applyGameState(data.state);
+    } else {
+      // Fallback: just update turn
+      currentPlayer = data.currentPlayer;
+    }
     phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
     doubleRollActive = false;
     document.getElementById('dface').textContent = '⚀';
     renderAll();
     updateOnlineTurnUI();
-    // Trigger startPlayerTurn so auto-roll fires if it's our turn
     startPlayerTurn();
     return;
   } else if (type === 'trap-triggered') {
