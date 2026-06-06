@@ -2945,6 +2945,7 @@ function confirmPowerup() {
 
 // ── Double Roll ─────────────────────────────────────────────────
 let doubleRollActive = false;
+let skipTurns = {}; // kept for compatibility
 
 function activateDoubleRoll() {
   doubleRollActive = true;
@@ -3333,9 +3334,8 @@ function pickPawn(pawn) {
 }
 
 function moveTo(er, ec) {
-  console.log('[_origMoveTo] phase:', phase, 'selPawn:', selPawn?.id, 'gameOver:', gameOver, 'animating:', animating, 'reachable:', reachable.length);
-  if (phase!=='move'||!selPawn||gameOver||animating) { console.log('[_origMoveTo] BLOCKED by phase/selPawn/gameOver/animating'); return; }
-  if (!reachable.find(x=>x.er===er&&x.ec===ec)) { console.log('[_origMoveTo] BLOCKED by reachable check'); return; }
+  if (phase!=='move'||!selPawn||gameOver||animating) { return; }
+  if (!reachable.find(x=>x.er===er&&x.ec===ec)) { return; }
 
   const movingPawn = selPawn;
   const fromReserve = !movingPawn.onBoard;
@@ -4045,7 +4045,8 @@ function renderSidebar() {
     'place-trap': '💣 Click any path cell to place your mine',
   };
   document.getElementById('phbox').innerHTML = `<small>PHASE</small>${cpu?pnm(currentPlayer)+' thinking…':(msgs[phase]||'')}`;
-  document.getElementById('rbtn').disabled = phase!=='roll'||gameOver||cpu;
+  const onlineBlock = mpIsOnline && currentPlayer !== mpSlot;
+  document.getElementById('rbtn').disabled = phase!=='roll'||gameOver||cpu||onlineBlock;
   document.getElementById('dhint').textContent = diceVal?`Rolled: ${diceVal}`:'Roll to begin';
 }
 
@@ -4349,7 +4350,6 @@ function connectSocket() {
   });
 
   socket.on('game-action', (action) => {
-    console.log('[MP] Received action:', action.type, 'mpIsOnline:', mpIsOnline);
     if (!mpIsOnline) return;
     handleRemoteAction(action);
     setTimeout(updateOnlineTurnUI, 100);
@@ -4710,7 +4710,6 @@ function handleRemoteAction(action) {
     phase = 'pick-pawn';
     renderAll();
   } else if (type === 'move' || type === 'deploy-pawn') {
-    console.log('[MP] Received move:', type, data.pawnId, data.er, data.ec, 'currentPlayer:', currentPlayer);
     // Find pawn by id, or use first reserve pawn for deploy
     let pw = (pawns[currentPlayer]||[]).find(p => p.id === data.pawnId);
     if (!pw && type === 'deploy-pawn') {
@@ -4849,8 +4848,7 @@ pickPawn = function(pawn) {
 
 const _origMoveTo = moveTo;
 moveTo = function(er, ec) {
-  console.log('[moveTo] called er:', er, 'ec:', ec, 'mpGuard:', mpGuard(), 'phase:', phase, 'selPawn:', selPawn?.id, 'currentPlayer:', currentPlayer, 'mpSlot:', mpSlot);
-  if (mpGuard()) { console.log('[moveTo] BLOCKED by mpGuard'); return; }
+  if (mpGuard()) { return; }
   const pw = selPawn;
   const fromReserve = pw && !pw.onBoard;
   const pawnId = pw ? pw.id : null;
