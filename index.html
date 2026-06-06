@@ -4885,6 +4885,9 @@ moveTo = function(er, ec) {
   // Find the specific path to destination from reachMap
   const destPath = lastReachMap && lastReachMap[`${er},${ec}`] ? lastReachMap[`${er},${ec}`] : null;
   if (mpIsOnline && pawnId !== null) {
+    // Disable roll button immediately so player can't roll again during animation
+    const rbtn = document.getElementById('rbtn');
+    if (rbtn) { rbtn.disabled = true; rbtn.style.opacity = '0.4'; }
     syncAction(fromReserve ? 'deploy-pawn' : 'move', {
       pawnId, er, ec,
       path: destPath || [{ er, ec }]
@@ -4936,8 +4939,10 @@ function updateOnlineTurnUI() {
   const mine = currentPlayer === mpSlot;
   const rbtn = document.getElementById('rbtn');
   if (rbtn) {
-    rbtn.disabled = !mine || phase !== 'roll' || gameOver;
-    rbtn.style.opacity = mine ? '1' : '0.4';
+    // Also block during animation — prevents re-enable while pawn is moving
+    const canRoll = mine && phase === 'roll' && !gameOver && !animating;
+    rbtn.disabled = !canRoll;
+    rbtn.style.opacity = canRoll ? '1' : '0.4';
   }
 }
 
