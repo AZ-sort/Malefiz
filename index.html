@@ -4837,19 +4837,20 @@ function handleRemoteAction(action) {
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
   } else if (type === 'next-turn-resolved') {
-    // Apply full authoritative game state — catches any missed events
-    if (data.state) {
-      applyGameState(data.state);
-    } else {
-      // Fallback: just update turn
+    const applyNTR = () => {
+      if (data.state) applyGameState(data.state);
       currentPlayer = data.currentPlayer;
+      phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
+      doubleRollActive = false; animating = false;
+      document.getElementById('dface').textContent = '⚀';
+      renderAll(); updateOnlineTurnUI(); startPlayerTurn();
+    };
+    if (animating) {
+      const wait = setInterval(() => { if (!animating) { clearInterval(wait); applyNTR(); } }, 50);
+      setTimeout(() => { clearInterval(wait); animating = false; applyNTR(); }, 2000);
+    } else {
+      applyNTR();
     }
-    phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
-    doubleRollActive = false;
-    document.getElementById('dface').textContent = '⚀';
-    renderAll();
-    updateOnlineTurnUI();
-    startPlayerTurn();
     return;
   } else if (type === 'trap-triggered') {
     // Remove trap and send pawn home on remote screen
