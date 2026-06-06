@@ -654,7 +654,7 @@
   .pu-box p  { font-size: .82rem; color: var(--muted); line-height: 1.6; }
   .pu-actions { display: flex; gap: 8px; }
 
-  /* Skip/Possession target selector */
+  /* Target selector */
   #target-modal {
     display: none; position: fixed; inset: 0; z-index: 300;
     background: rgba(10,10,18,.75); backdrop-filter: blur(6px);
@@ -2766,12 +2766,9 @@ function soundWin() {
 
 const POWERUP_TYPES = {
   'double':   { icon: '🎲', name: 'Double Roll',    desc: 'Roll the dice — your result is doubled this turn!' },
-  'skip':     { icon: '⏭️', name: 'Skip Turn',      desc: 'Choose an opponent — they lose their next turn.' },
-  'possess':  { icon: '👻', name: 'Possession',     desc: 'Move one of an opponent\'s pawns with your dice roll instead of your own.' },
   'tempbar':  { icon: '🚧', name: 'Temp Barricade', desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 turns.' },
   'shield':   { icon: '🛡️', name: 'Shield',         desc: 'Your pawns cannot be captured for 3 turns.' },
   'trap':     { icon: '💣', name: 'Mine',           desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
-  'bulldoze': { icon: '🚜', name: 'Bulldozer',      desc: 'Pick up any permanent barricade and move it anywhere on the board.' },
 };
 
 // Board powerups: [{er, ec, type, turnsLeft}]
@@ -2779,18 +2776,12 @@ let boardPowerups = [];
 // Player inventories: {1: [{type, id}], 2: [...], ...}
 let playerPowerups = {};
 // Skip tracking: {player: turnsToSkip}
-let skipTurns = {};
-// Possession state
-let possessionActive = false;
-let possessionTargetPlayer = null;
 // Shield tracking: {player: turnsRemaining}
 let shieldTurns = {};
 // Temp barricades: [{er, ec, turnsLeft}]
 let tempBarricades = [];
 // Traps: [{er, ec, owner}] — invisible after flash
 let traps = [];
-// Bulldoze state
-let bulldozePickedBarricade = null;
 // Turn counter for spawning
 let turnCount = 0;
 let nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
@@ -2800,13 +2791,9 @@ let pendingPowerup = null;
 function initPowerups() {
   boardPowerups = [];
   playerPowerups = {};
-  skipTurns = {};
-  possessionActive = false;
-  possessionTargetPlayer = null;
   shieldTurns = {};
   tempBarricades = [];
   traps = [];
-  bulldozePickedBarricade = null;
   turnCount = 0;
   doubleRollActive = false;
   nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
@@ -2885,7 +2872,7 @@ function trySpawnPowerup() {
   const cell = candidates[0];
   const types = Object.keys(POWERUP_TYPES);
   const type = types[Math.floor(Math.random() * types.length)];
-  const newPu = { er: cell.er, ec: cell.ec, type, maxAge: Math.floor(Math.random()*11)+30 };
+  const newPu = { er: cell.er, ec: cell.ec, type, maxAge: Math.floor(Math.random()*6)+10 };
   boardPowerups.push(newPu);
   nextSpawnAt = turnCount + Math.floor(Math.random()*3) + 4; // next in 4-6 turns
   glog(`✨ A ${POWERUP_TYPES[type].name} powerup appeared on the board!`, true);
@@ -2953,15 +2940,6 @@ function confirmPowerup() {
   } else if (pu.type === 'trap') {
     playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
     activateTrap();
-  } else if (pu.type === 'bulldoze') {
-    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
-    activateBulldoze();
-  } else if (pu.type === 'skip') {
-    pendingPowerup = pu;
-    showTargetModal('skip');
-  } else if (pu.type === 'possess') {
-    pendingPowerup = pu;
-    showTargetModal('possess');
   }
 }
 
@@ -2992,8 +2970,7 @@ function applyDoubleRoll() {
 
 // ── Skip Turn ───────────────────────────────────────────────────
 function showTargetModal(type) {
-  const title = type === 'skip' ? '⏭️ Skip whose turn?' :
-                type === 'possess' ? '👻 Possess whose pawn?' : 'Choose target';
+  const title = 'Choose target';
   document.getElementById('target-title').textContent = title;
   const list = document.getElementById('target-list');
   list.innerHTML = '';
@@ -3014,7 +2991,7 @@ function showTargetModal(type) {
       pendingPowerup = null;
       document.getElementById('target-modal').classList.remove('show');
       if (type === 'skip') applySkip(targetP);
-      else if (type === 'possess') applyPossession(targetP);
+
     };
     list.appendChild(btn);
   }
@@ -3030,25 +3007,13 @@ function closeTargetModal() {
 
 function applySkip(targetPlayer) {
   skipTurns[targetPlayer] = (skipTurns[targetPlayer] || 0) + 1;
-  soundSkip();
   glog(`${pnm(currentPlayer)} used ⏭️ Skip Turn on ${pnm(targetPlayer)}!`, true);
   renderAll();
 }
 
 // ── Possession ──────────────────────────────────────────────────
-function applyPossession(targetPlayer) {
-  possessionActive = true;
-  possessionTargetPlayer = targetPlayer;
-  soundPossession();
-  glog(`${pnm(currentPlayer)} activated 👻 Possession on ${pnm(targetPlayer)}!`, true);
-  renderAll();
-}
 
 // In possession mode: roll dice then pick and move TARGET player's pawn
-function endPossession() {
-  possessionActive = false;
-  possessionTargetPlayer = null;
-}
 
 // ── Temp Barricade ──────────────────────────────────────────────
 function activateTempBarricade() {
@@ -3139,14 +3104,6 @@ function checkTrap(er, ec, pawn) {
   return true;
 }
 
-// ── Bulldozer ────────────────────────────────────────────────────
-function activateBulldoze() {
-  phase = 'bulldoze-pick';
-  soundBulldoze();
-  glog(`${pnm(currentPlayer)} activated 🚜 Bulldozer — pick a barricade to move!`, true);
-  renderAll();
-}
-
 function bulldozePick(er, ec) {
   if (phase !== 'bulldoze-pick' || gameOver) return;
   // Only permanent barricades (not temp ones)
@@ -3173,7 +3130,6 @@ function bulldozePlace(er, ec) {
   barricades.push({ er, ec });
   soundBarricadePlace();
   glog(`🚜 ${pnm(currentPlayer)} moved a barricade!`);
-  bulldozePickedBarricade = null;
   phase = 'roll';
   renderAll();
 }
@@ -3244,60 +3200,6 @@ function soundShield() {
       gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.07 + 0.2);
       osc.connect(gain); gain.connect(ctx.destination);
       osc.start(t + i*0.07); osc.stop(t + i*0.07 + 0.22);
-    });
-  });
-}
-
-// ── Bulldozer (scrape) ───────────────────────────────────────────
-function soundBulldoze() {
-  playSound(ctx => {
-    const t = ctx.currentTime;
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * (1 - i/data.length) * 0.8;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const filt = ctx.createBiquadFilter();
-    filt.type = 'lowpass'; filt.frequency.value = 600;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.35, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-    src.start(t); src.stop(t + 0.21);
-  });
-}
-
-// ── Skip turn (whoosh) ───────────────────────────────────────────
-function soundSkip() {
-  playSound(ctx => {
-    const t = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, t);
-    osc.frequency.exponentialRampToValueAtTime(100, t + 0.2);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.2, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.23);
-  });
-}
-
-// ── Possession (eerie) ───────────────────────────────────────────
-function soundPossession() {
-  playSound(ctx => {
-    const t = ctx.currentTime;
-    [220, 277, 330].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, t);
-      osc.frequency.linearRampToValueAtTime(freq * 0.85, t + 0.4);
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0, t + i*0.04);
-      gain.gain.linearRampToValueAtTime(0.12, t + i*0.04 + 0.1);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(t + i*0.04); osc.stop(t + 0.5);
     });
   });
 }
@@ -3407,18 +3309,13 @@ function rollDice() {
   firstRollDone = true;
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn';
-  // In possession mode, we pick the target player's pawn instead
-  if (possessionActive) {
-    glog(`👻 ${pnm(currentPlayer)} controls ${pnm(possessionTargetPlayer)}'s pawn this turn!`, true);
-  }
   renderAll();
 }
 
 function pickPawn(pawn) {
   if (gameOver||animating) return;
   // In possession mode: can only pick target player's pawns
-  const allowedPlayer = possessionActive ? possessionTargetPlayer : currentPlayer;
-  if (pawn.player !== allowedPlayer) return;
+  if (pawn.player !== currentPlayer) return;
   // If already in move phase with a different pawn selected, auto-switch
   if (phase==='move' && selPawn !== pawn) {
     selPawn = null; reachable = []; phase = 'pick-pawn';
@@ -3426,9 +3323,7 @@ function pickPawn(pawn) {
   if (phase!=='pick-pawn') return;
   let reach;
   if (!pawn.onBoard) {
-    // For possession: use target player's entry, not current player's
-    const entryPlayer = possessionActive ? possessionTargetPlayer : currentPlayer;
-    reach = getReachableFromEntry(entryPlayer, diceVal);
+    reach = getReachableFromEntry(currentPlayer, diceVal);
   } else {
     reach = getReachable(pawn, diceVal);
   }
@@ -3520,7 +3415,6 @@ function finishMove(er, ec, bar, movingPawn) {
   // Check powerup collection
   checkPowerupCollection(er, ec);
   // End possession after move
-  if (possessionActive) endPossession();
 
   // Win check
   if (er===4 && ec===9) { gameOver=true; renderAll(); setTimeout(()=>{soundWin();showWin(currentPlayer);},300); return; }
@@ -3563,7 +3457,6 @@ function placeBarricade(er, ec) {
 function nextTurn() {
   if (gameOver) return;
   phase='roll'; diceVal=null; selPawn=null; reachable=[];
-  possessionActive = false; possessionTargetPlayer = null;
   doubleRollActive = false;
   document.getElementById('dface').textContent='⚀';
   trySpawnPowerup();
@@ -3585,11 +3478,8 @@ function nextTurn() {
       }
       renderAll();
       // In online mode, sync the resolved turn so all clients agree
-      if (mpIsOnline && mpSlot) {
-        syncAction('next-turn-resolved', {
-          currentPlayer,
-          skipTurns: JSON.parse(JSON.stringify(skipTurns))
-        });
+          if (mpIsOnline && mpSlot) {
+        syncAction('next-turn-resolved', { currentPlayer });
       }
       startPlayerTurn();
     }, 800);
@@ -3597,12 +3487,8 @@ function nextTurn() {
   }
 
   renderAll();
-  // In online mode, sync turn advancement so skip state stays consistent
   if (mpIsOnline && mpSlot) {
-    syncAction('next-turn-resolved', {
-      currentPlayer,
-      skipTurns: JSON.parse(JSON.stringify(skipTurns))
-    });
+    syncAction('next-turn-resolved', { currentPlayer });
   }
   startPlayerTurn();
 }
@@ -3977,7 +3863,7 @@ function renderBoard() {
 
     // Interactions (human only)
     if (!gameOver && human) {
-      const clickablePlayer = (possessionActive && phase==='pick-pawn') ? possessionTargetPlayer : currentPlayer;
+      const clickablePlayer = currentPlayer;
       if ((phase==='pick-pawn'||phase==='move') && occ && occ.player===clickablePlayer) {
         div.classList.add('clickable');
         div.onclick = () => pickPawn(occ.pawn);
@@ -4026,23 +3912,6 @@ function renderBoard() {
         tf.textContent = '🪤';
         div.appendChild(tf);
       }
-      // Bulldozer — pick phase: highlight permanent barricades
-      if (phase==='bulldoze-pick' && barAt(er,ec) && !tempBarricades.find(tb=>tb.er===er&&tb.ec===ec)) {
-        div.classList.add('reachable','clickable');
-        div.onclick = () => bulldozePick(er, ec);
-      }
-      // Bulldozer — place phase: highlight valid cells, and selected barricade
-      if (phase==='bulldoze-place') {
-        if (bulldozePickedBarricade && bulldozePickedBarricade.er===er && bulldozePickedBarricade.ec===ec) {
-          div.classList.add('selected-c');
-        } else {
-          const ct = getCell(er,ec);
-          if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17) {
-            div.classList.add('bplace','clickable');
-            div.onclick = () => bulldozePlace(er, ec);
-          }
-        }
-      }
     }
 
     container.appendChild(div);
@@ -4085,7 +3954,7 @@ function renderBoard() {
       pd.style.width = homePawnSize + 'px';
       pd.style.height = homePawnSize + 'px';
 
-      const homePawnPlayer = (possessionActive && phase==='pick-pawn') ? possessionTargetPlayer : currentPlayer;
+      const homePawnPlayer = currentPlayer;
       if (!gameOver && human && (phase==='pick-pawn'||phase==='move') && p===homePawnPlayer) {
         pd.classList.add('clickable');
         pd.onclick = () => pickPawn(pw);
@@ -4174,8 +4043,6 @@ function renderSidebar() {
     'place-barricade': 'Place barricade anywhere on board',
     'place-temp-barricade': '🚧 Place your temp barricade — it lasts 3 turns',
     'place-trap': '💣 Click any path cell to place your mine',
-    'bulldoze-pick': '🚜 Click a barricade to pick it up',
-    'bulldoze-place': '🚜 Now click where to place it',
   };
   document.getElementById('phbox').innerHTML = `<small>PHASE</small>${cpu?pnm(currentPlayer)+' thinking…':(msgs[phase]||'')}`;
   document.getElementById('rbtn').disabled = phase!=='roll'||gameOver||cpu;
@@ -4529,15 +4396,11 @@ function serializeGameState() {
       phase: phase,
       diceVal: diceVal,
       gameOver: gameOver,
-      skipTurns: skipTurns,
       shieldTurns: shieldTurns,
       playerPowerups: playerPowerups,
       boardPowerups: boardPowerups,
       turnCount: turnCount,
       doubleRollActive: doubleRollActive,
-      possessionActive: possessionActive,
-      possessionTargetPlayer: possessionTargetPlayer,
-      bulldozePickedBarricade: bulldozePickedBarricade,
     });
   } catch(e) { return null; }
 }
@@ -4554,15 +4417,11 @@ function applyGameState(stateStr) {
     phase = s.phase;
     diceVal = s.diceVal;
     gameOver = s.gameOver;
-    skipTurns = s.skipTurns || {};
     shieldTurns = s.shieldTurns || {};
     playerPowerups = s.playerPowerups || {};
     boardPowerups = s.boardPowerups || [];
     turnCount = s.turnCount || 0;
     doubleRollActive = s.doubleRollActive || false;
-    possessionActive = s.possessionActive || false;
-    possessionTargetPlayer = s.possessionTargetPlayer || null;
-    bulldozePickedBarricade = s.bulldozePickedBarricade || null;
     glowTurnSnapshot = '';
     selPawn = null;
     reachable = [];
@@ -4894,10 +4753,8 @@ function handleRemoteAction(action) {
   } else if (type === 'next-turn-resolved') {
     // Apply authoritative turn state from active player — prevents skip divergence
     currentPlayer = data.currentPlayer;
-    skipTurns = data.skipTurns || {};
     phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
-    possessionActive = false; possessionTargetPlayer = null;
-    doubleRollActive = false;
+      doubleRollActive = false;
     document.getElementById('dface').textContent = '⚀';
     renderAll();
     updateOnlineTurnUI();
@@ -4931,8 +4788,7 @@ function handleRemoteAction(action) {
       barricades.push({ er: data.er, ec: data.ec });
       soundBarricadePlace();
       glog(`${pnm(currentPlayer)} moved a barricade 🚜`);
-      bulldozePickedBarricade = null;
-      nextTurn(); renderAll();
+          nextTurn(); renderAll();
     }
   } else if (type === 'use-powerup') {
     // Apply powerup effect directly
@@ -4952,15 +4808,10 @@ function handleRemoteAction(action) {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
       phase = 'place-trap';
       renderAll();
-    } else if (data.puType === 'bulldoze') {
-      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
-      phase = 'bulldoze-pick';
-      renderAll();
     }
   } else if (type === 'target-action') {
     if (data.puType === 'skip') applySkip(data.target);
-    else if (data.puType === 'possess') applyPossession(data.target);
-    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
     renderAll();
   }
   updateOnlineTurnUI();
@@ -5035,20 +4886,6 @@ placeTrap = function(er, ec) {
   if (mpIsOnline) syncAction('place-trap', { er, ec });
 };
 
-const _origBulldozePick = bulldozePick;
-bulldozePick = function(er, ec) {
-  if (mpGuard()) return;
-  _origBulldozePick(er, ec);
-  if (mpIsOnline) syncAction('bulldoze-pick', { er, ec });
-};
-
-const _origBulldozePlace = bulldozePlace;
-bulldozePlace = function(er, ec) {
-  if (mpGuard()) return;
-  _origBulldozePlace(er, ec);
-  if (mpIsOnline) syncAction('bulldoze-place', { er, ec });
-};
-
 // Sync powerup use
 const _origConfirmPowerup = confirmPowerup;
 confirmPowerup = function() {
@@ -5061,18 +4898,6 @@ confirmPowerup = function() {
 };
 
 // Sync target selection (skip/possess)
-const _origApplySkip = applySkip;
-applySkip = function(target) {
-  _origApplySkip(target);
-  if (mpIsOnline) syncAction('target-action', { puType:'skip', target, puId: pendingPowerup?.id });
-};
-
-const _origApplyPossession = applyPossession;
-applyPossession = function(target) {
-  _origApplyPossession(target);
-  if (mpIsOnline) syncAction('target-action', { puType:'possess', target, puId: pendingPowerup?.id });
-};
-
 // ── Update UI based on whose turn it is ──────────────────────────
 function updateOnlineTurnUI() {
   if (!mpIsOnline) return;
