@@ -1915,6 +1915,7 @@
   <div style="display:flex;align-items:center;gap:10px;"><button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Malefiz</span></div></div>
   <div style="display:flex;align-items:center;gap:12px;">
     <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playmalefiz.com</div>
+    <div id="sync-btn" onclick="manualSync()" title="Sync game state" style="display:none;cursor:pointer;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);padding:4px 8px;border:1px solid var(--border);border-radius:6px;transition:all .13s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">↻ Sync</div>
     <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
   </div>
 </header>
@@ -3321,6 +3322,32 @@ document.addEventListener('click', (e) => {
 // Populate on load
 setTimeout(populatePowerupsDropdown, 100);
 
+
+// ── Manual sync button ────────────────────────────────────────────
+function manualSync() {
+  if (!mpIsOnline || !socket || !socket.connected) {
+    // Try to reconnect
+    if (mpRoomCode && mpSecret) {
+      socket.emit('reconnect-attempt', { code: mpRoomCode, secret: mpSecret });
+    }
+    return;
+  }
+  // Request latest state from server
+  socket.emit('request-state', { code: mpRoomCode, secret: mpSecret });
+  // Visual feedback
+  const btn = document.getElementById('sync-btn');
+  if (btn) {
+    btn.textContent = '↻ Syncing...';
+    setTimeout(() => { btn.textContent = '↻ Sync'; }, 1500);
+  }
+}
+
+// Show sync button only during online games
+function updateSyncBtn() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) btn.style.display = mpIsOnline ? 'block' : 'none';
+}
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 let anyPawnMoved = false; // track if first move happened
@@ -4692,6 +4719,7 @@ function startOnlineGame(players, mode, npOnline) {
   renderAll();
   glog('Online game started! Good luck 🎮', true);
   updateOnlineTurnUI();
+  updateSyncBtn();
 }
 
 // (sync functions defined below)
