@@ -1441,6 +1441,7 @@
   .pu-dropdown-name { font-size: .8rem; font-weight: 700; margin-bottom: 2px; }
   .pu-dropdown-desc { font-size: .7rem; color: var(--muted); line-height: 1.5; }
 
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -4046,7 +4047,9 @@ function renderSidebar() {
   };
   document.getElementById('phbox').innerHTML = `<small>PHASE</small>${cpu?pnm(currentPlayer)+' thinking…':(msgs[phase]||'')}`;
   const onlineBlock = mpIsOnline && currentPlayer !== mpSlot;
-  document.getElementById('rbtn').disabled = phase!=='roll'||gameOver||cpu||onlineBlock;
+  const rbtn2 = document.getElementById('rbtn');
+  rbtn2.disabled = phase!=='roll'||gameOver||cpu||onlineBlock;
+
   document.getElementById('dhint').textContent = diceVal?`Rolled: ${diceVal}`:'Roll to begin';
 }
 
@@ -4889,7 +4892,7 @@ moveTo = function(er, ec) {
   if (mpIsOnline && pawnId !== null) {
     // Disable roll button immediately so player can't roll again during animation
     const rbtn = document.getElementById('rbtn');
-    if (rbtn) { rbtn.disabled = true; rbtn.style.opacity = '0.4'; }
+    if (rbtn) { rbtn.disabled = true; rbtn.style.opacity = ''; }
     syncAction(fromReserve ? 'deploy-pawn' : 'move', {
       pawnId, er, ec,
       path: destPath || [{ er, ec }]
@@ -4944,7 +4947,7 @@ function updateOnlineTurnUI() {
     // Also block during animation — prevents re-enable while pawn is moving
     const canRoll = mine && phase === 'roll' && !gameOver && !animating;
     rbtn.disabled = !canRoll;
-    rbtn.style.opacity = canRoll ? '1' : '0.4';
+    rbtn.style.opacity = '';
   }
 }
 
