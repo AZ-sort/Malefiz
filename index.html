@@ -4811,11 +4811,15 @@ function handleRemoteAction(action) {
         : [{ er: pw.er, ec: pw.ec }, { er: data.er, ec: data.ec }];
       reachable = [{ er: data.er, ec: data.ec }];
       animatePawnAlongPath(pw, path, () => {
-        // Handle captures visually
+        // Handle captures visually (respects shields)
         for (let p=1; p<=numPlayers; p++) {
           if (p===currentPlayer) continue;
           const ep = (pawns[p]||[]).find(x=>x.onBoard&&x.er===data.er&&x.ec===data.ec&&x!==pw);
           if (ep) {
+            if (shieldTurns[p] > 0) {
+              glog(`${pnm(currentPlayer)} tried to capture ${pnm(p)}'s pawn — but it's shielded! 🛡️`, true);
+              continue;
+            }
             soundCapture();
             animateCapturedPawn(ep, p, () => {
               ep.onBoard=false; ep.er=-1; ep.ec=-1;
