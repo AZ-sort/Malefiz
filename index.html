@@ -4586,8 +4586,9 @@ function showWaitingRoom() {
   // Use mpCreateMode as fallback in case mpRoomMode wasn't set yet
   const displayMode = mpRoomMode || mpCreateMode;
   const displayNP = mpRoomNumPlayers || mpCreateNP;
+  const isPowerups = displayMode === 'powerups';
   document.getElementById('waiting-mode-label').textContent =
-    (displayMode === 'powerups' ? '⚡ Powerups mode · ' : 'Classic mode · ') + displayNP + ' players';
+    (isPowerups ? '⚡ Powerups mode · ' : 'Classic mode · ') + displayNP + ' players';
 
   updateWaitingPlayers(
     [{ name: mpUsername, slot: mpSlot }],
@@ -4644,7 +4645,7 @@ function startOnlineGame(players, mode, npOnline) {
   // Configure game settings from server
   numPlayers = npOnline;
   cpuMode = 'none';
-  powerupsEnabled = mode === 'powerups';
+  powerupsEnabled = (mode === 'powerups' || mode === 'powerup' || String(mode).toLowerCase().includes('power'));
 
   // Map server players to game slots
   // Our slot = mpSlot, others are opponents
@@ -4857,9 +4858,12 @@ function _bulldozePlaceInternal(er, ec) { bulldozePlace(er, ec); }
 const _origRollDice = rollDice;
 rollDice = function() {
   if (mpGuard()) return; // not your turn
+  const phaseBefore = phase;
+  const diceValBefore = diceVal;
   _origRollDice();
-  // diceVal is set inside _origRollDice if doubleRoll didn't fire
-  if (mpIsOnline && diceVal) {
+  // Only sync if the roll actually happened (phase changed from 'roll' to 'pick-pawn')
+  // This prevents syncing stale diceVal if rollDice returned early
+  if (mpIsOnline && phase === 'pick-pawn' && diceVal && diceVal !== diceValBefore) {
     syncAction('roll', { diceVal });
   }
 };
