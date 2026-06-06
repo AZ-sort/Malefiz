@@ -4314,6 +4314,9 @@ function connectSocket() {
     mpRoomCode = code;
     mpSlot = slot;
     mpSecret = secret;
+    // Set mode and player count from what the creator selected
+    mpRoomMode = mpCreateMode;
+    mpRoomNumPlayers = mpCreateNP;
     sessionStorage.setItem('mp-session', JSON.stringify({ code, secret }));
     showWaitingRoom();
   });
@@ -4719,36 +4722,44 @@ function handleRemoteAction(action) {
       selPawn = pw;
       const startEr = pw.onBoard ? pw.er : ENTRY[currentPlayer][0];
       const startEc = pw.onBoard ? pw.ec : ENTRY[currentPlayer][1];
-      // Set entry position for deploy
-      if (!pw.onBoard) {
-        pw.onBoard = true;
-        pw.er = startEr;
-        pw.ec = startEc;
-      }
-      // Use sent path for smooth animation, fallback to direct 2-point
+      if (!pw.onBoard) { pw.onBoard = true; pw.er = startEr; pw.ec = startEc; }
       const path = (data.path && data.path.length >= 2)
         ? data.path
         : [{ er: pw.er, ec: pw.ec }, { er: data.er, ec: data.ec }];
-      // Use finishMove after animation for consistent logic
       reachable = [{ er: data.er, ec: data.ec }];
       animatePawnAlongPath(pw, path, () => {
-        // Check captures
-        let capturedPawn = null, capturedPlayer = null;
+        // Handle captures visually
         for (let p=1; p<=numPlayers; p++) {
           if (p===currentPlayer) continue;
           const ep = (pawns[p]||[]).find(x=>x.onBoard&&x.er===data.er&&x.ec===data.ec&&x!==pw);
-          if (ep) { capturedPawn=ep; capturedPlayer=p; break; }
+          if (ep) {
+            soundCapture();
+            animateCapturedPawn(ep, p, () => {
+              ep.onBoard=false; ep.er=-1; ep.ec=-1;
+              glog(`${pnm(currentPlayer)} captured ${pnm(p)}'s pawn!`,true);
+              renderAll();
+            });
+          }
         }
-        if (capturedPawn) {
-          soundCapture();
-          animateCapturedPawn(capturedPawn, capturedPlayer, () => {
-            capturedPawn.onBoard=false; capturedPawn.er=-1; capturedPawn.ec=-1;
-            glog(`${pnm(currentPlayer)} captured ${pnm(capturedPlayer)}'s pawn!`,true);
-            finishMove(data.er, data.ec, barAt(data.er,data.ec), pw);
-          });
-        } else {
-          finishMove(data.er, data.ec, barAt(data.er,data.ec), pw);
+        // Handle barricade removal visually
+        const bar = barAt(data.er, data.ec);
+        if (bar) {
+          barricades = barricades.filter(b=>!(b.er===data.er&&b.ec===data.ec));
+          soundBarricadePlace();
         }
+        // Check powerup collection
+        checkPowerupCollection(data.er, data.ec);
+        // Check mine
+        const mineIdx = traps.findIndex(t=>t.er===data.er&&t.ec===data.ec);
+        if (mineIdx !== -1) {
+          traps.splice(mineIdx,1);
+          soundTrapTrigger();
+          pw.onBoard=false; pw.er=-1; pw.ec=-1;
+          glog(`💥 ${pnm(currentPlayer)} hit a mine!`,true);
+        }
+        // DON'T call nextTurn() — wait for next-turn-resolved from active player
+        selPawn = null; reachable = [];
+        renderAll();
       });
     }
   } else if (type === 'place-barricade') {
