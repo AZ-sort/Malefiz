@@ -3326,20 +3326,34 @@ setTimeout(populatePowerupsDropdown, 100);
 
 // ── Manual sync button ────────────────────────────────────────────
 function manualSync() {
-  if (!mpIsOnline || !socket || !socket.connected) {
-    // Try to reconnect
-    if (mpRoomCode && mpSecret) {
-      socket.emit('reconnect-attempt', { code: mpRoomCode, secret: mpSecret });
-    }
+  const btn = document.getElementById('sync-btn');
+  if (btn) { btn.textContent = '↻ Syncing...'; setTimeout(() => { btn.textContent = '↻ Sync'; }, 2000); }
+
+  if (!mpIsOnline) return;
+
+  if (!socket || !socket.connected) {
+    // Reconnect first, then sync
+    if (socket) { try { socket.removeAllListeners(); socket.disconnect(); } catch(e){} socket = null; }
+    connectSocket();
+    setTimeout(() => {
+      if (socket && socket.connected && mpRoomCode && mpSecret) {
+        socket.emit('reconnect-attempt', { code: mpRoomCode, secret: mpSecret });
+      }
+    }, 1500);
     return;
   }
-  // Request latest state from server
-  socket.emit('request-state', { code: mpRoomCode, secret: mpSecret });
-  // Visual feedback
-  const btn = document.getElementById('sync-btn');
-  if (btn) {
-    btn.textContent = '↻ Syncing...';
-    setTimeout(() => { btn.textContent = '↻ Sync'; }, 1500);
+
+  // If it's our turn, broadcast full state to all other players
+  // If it's not our turn, request state from server
+  if (currentPlayer === mpSlot) {
+    // We're the active player — push our state to everyone
+    syncAction('force-sync', { state: serializeGameState(), currentPlayer });
+    // Also apply locally to ensure consistency
+    renderAll();
+    updateOnlineTurnUI();
+  } else {
+    // Request latest state from server
+    socket.emit('request-state', { code: mpRoomCode, secret: mpSecret });
   }
 }
 
@@ -4468,6 +4482,9 @@ function connectSocket() {
   socket.on('state-update', ({ gameState }) => {
     if (gameState && mpIsOnline) {
       applyGameState(gameState);
+      glowTurnSnapshot = '';
+      renderAll();
+      updateOnlineTurnUI();
     }
   });
 }
@@ -4894,6 +4911,18 @@ function handleRemoteAction(action) {
     gameOver = true;
     renderAll();
     setTimeout(() => { soundWin(); showWin(data.winner); }, 300);
+    return;
+  } else if (type === 'force-sync') {
+    // Active player is pushing their authoritative state to us
+    if (data.state) applyGameState(data.state);
+    currentPlayer = data.currentPlayer;
+    phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
+    doubleRollActive = false; animating = false;
+    document.getElementById('dface').textContent = '⚀';
+    glowTurnSnapshot = '';
+    renderAll();
+    updateOnlineTurnUI();
+    startPlayerTurn();
     return;
   } else if (type === 'temp-bar-expired') {
     // Remove temp barricade on remote
