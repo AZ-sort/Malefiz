@@ -1875,7 +1875,8 @@
     <!-- Room code (only shown for private rooms) -->
     <div id="waiting-code-section" style="display:none;width:100%;">
       <div class="slbl" style="text-align:center;margin-bottom:8px;">Share this code</div>
-      <div class="room-code-display" id="waiting-code" onclick="copyRoomCode()">------</div>
+      <div class="room-code-display" id="waiting-code" onclick="copyRoomCode()" title="Click to copy link">------</div>
+      <div style="font-size:.65rem;font-family:'DM Mono',monospace;color:var(--muted);text-align:center;margin-top:4px;">Click to copy shareable link</div>
       <div id="copy-confirm" style="font-size:.7rem;color:#3cc45a;font-family:'DM Mono',monospace;margin-top:6px;display:none;">Copied!</div>
     </div>
 
@@ -3363,6 +3364,54 @@ function updateSyncBtn() {
   if (btn) btn.style.display = mpIsOnline ? 'block' : 'none';
 }
 
+
+// ── URL Room Routing ─────────────────────────────────────────────
+// Handles playmalefiz.com/ROOMCODE links
+function handleUrlRouting() {
+  const path = window.location.pathname.replace('/', '').trim().toUpperCase();
+  if (!path || path.length < 4) return; // no room code in URL
+
+  // Valid room code — try to join or reconnect
+  const saved = sessionStorage.getItem('mp-session');
+  if (saved) {
+    try {
+      const { code, secret } = JSON.parse(saved);
+      if (code === path) {
+        // We were in this room — attempt reconnect
+        connectSocket();
+        setTimeout(() => {
+          if (socket && socket.connected) {
+            socket.emit('reconnect-attempt', { code, secret });
+          }
+        }, 800);
+        return;
+      }
+    } catch(e) {}
+  }
+
+  // New join — connect and join with our username
+  connectSocket();
+  setTimeout(() => {
+    if (socket && socket.connected) {
+      socket.emit('join-room', { code: path, playerName: mpUsername });
+    }
+  }, 800);
+}
+
+// ── Update URL when joining/creating a room ───────────────────────
+function setRoomUrl(code) {
+  if (code) {
+    window.history.pushState({}, '', '/' + code);
+  } else {
+    window.history.pushState({}, '', '/');
+  }
+}
+
+// Clear URL when leaving a room
+function clearRoomUrl() {
+  window.history.pushState({}, '', '/');
+}
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 let lastDiceVal = 0;
@@ -4408,10 +4457,10 @@ function connectSocket() {
     mpRoomCode = code;
     mpSlot = slot;
     mpSecret = secret;
-    // Set mode and player count from what the creator selected
     mpRoomMode = mpCreateMode;
     mpRoomNumPlayers = mpCreateNP;
     sessionStorage.setItem('mp-session', JSON.stringify({ code, secret }));
+    setRoomUrl(code);
     showWaitingRoom();
   });
 
@@ -4422,6 +4471,7 @@ function connectSocket() {
     mpRoomMode = mode;
     mpRoomNumPlayers = numPlayers;
     sessionStorage.setItem('mp-session', JSON.stringify({ code, secret }));
+    setRoomUrl(code);
     updateWaitingPlayers(players, numPlayers);
     showWaitingRoom();
   });
@@ -4716,7 +4766,8 @@ function updateWaitingPlayers(players, numPlayers) {
 }
 
 function copyRoomCode() {
-  navigator.clipboard.writeText(mpRoomCode).then(() => {
+  const url = window.location.origin + '/' + mpRoomCode;
+  navigator.clipboard.writeText(url).then(() => {
     const cc = document.getElementById('copy-confirm');
     cc.style.display = 'block';
     setTimeout(() => cc.style.display = 'none', 2000);
@@ -5224,6 +5275,8 @@ function updateHomepageStats(rooms, onlineCount) {
 
 // Hide old setup screen — homepage replaces it
 document.getElementById('setup').style.display = 'none';
+// Handle room code in URL
+setTimeout(handleUrlRouting, 400);
 // Re-render lobby if we already have cached data
 setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms); }, 400);
 
