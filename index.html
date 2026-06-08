@@ -3371,27 +3371,46 @@ function handleUrlRouting() {
   const path = window.location.pathname.replace('/', '').trim().toUpperCase();
   if (!path || path.length < 4) return; // no room code in URL
 
+  // Check saved session before connecting
+  const saved = sessionStorage.getItem('mp-session');
+  let savedCode = null, savedSecret = null;
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed.code === path) {
+        savedCode = parsed.code;
+        savedSecret = parsed.secret;
+      }
+    } catch(e) {}
+  }
+
+  // Connect and fire the right event once connected
   connectSocket();
 
-  setTimeout(() => {
-    if (!socket || !socket.connected) return;
-
-    // Check if we have a saved session for this exact room
-    const saved = sessionStorage.getItem('mp-session');
-    if (saved) {
-      try {
-        const { code, secret } = JSON.parse(saved);
-        if (code === path) {
-          // Reconnect to existing game — bypasses "game in progress" check
-          socket.emit('reconnect-attempt', { code, secret });
-          return;
-        }
-      } catch(e) {}
+  // Use connect event to ensure socket is ready
+  const onConnect = () => {
+    if (savedCode && savedSecret) {
+      // Reconnect to existing session
+      socket.emit('reconnect-attempt', { code: savedCode, secret: savedSecret });
+    } else {
+      // New join
+      socket.emit('join-room', { code: path, playerName: mpUsername });
     }
+  };
 
-    // No saved session — try joining as new player
-    socket.emit('join-room', { code: path, playerName: mpUsername });
-  }, 800);
+  if (socket && socket.connected) {
+    onConnect();
+  } else {
+    // Wait for connect event
+    socket.once('connect', onConnect);
+    // Safety fallback after 3s
+    setTimeout(() => {
+      if (socket && socket.connected && !socket._urlRouteHandled) {
+        socket._urlRouteHandled = true;
+        onConnect();
+      }
+    }, 3000);
+  }
 }
 
 // ── Update URL when joining/creating a room ───────────────────────
