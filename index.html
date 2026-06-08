@@ -1442,6 +1442,88 @@
   .pu-dropdown-desc { font-size: .7rem; color: var(--muted); line-height: 1.5; }
 
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── In-game Chat ── */
+  .chat-panel {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+    padding-top: 8px;
+    gap: 6px;
+  }
+  .chat-panel h3 {
+    font-size: .65rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .chat-log {
+    flex: 1;
+    min-height: 80px;
+    max-height: 140px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: .72rem;
+    line-height: 1.5;
+  }
+  .chat-log::-webkit-scrollbar { width: 3px; }
+  .chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .chat-msg {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .chat-msg-name {
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    font-size: .65rem;
+    flex-shrink: 0;
+  }
+  .chat-msg-text {
+    color: var(--text);
+    word-break: break-word;
+  }
+  .chat-input-row {
+    display: flex;
+    gap: 6px;
+  }
+  .chat-input {
+    flex: 1;
+    padding: 7px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: .75rem;
+    outline: none;
+    transition: border .13s;
+    min-width: 0;
+  }
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--muted); }
+  .chat-send-btn {
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: .75rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .12s;
+  }
+  .chat-send-btn:hover { background: var(--accent-h); }
+  /* Hide chat in local games */
+  .chat-panel.hidden { display: none; }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -1955,7 +2037,19 @@
       <div style="margin-top:8px"><button class="btn bg" onclick="showHomepage()" style="font-size:.72rem">New Game</button></div>
     </div>
 
-    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;"><h3>Log</h3><div class="glog" id="glog" style="flex:1;min-height:0;"></div></div>
+    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+      <h3>Log</h3>
+      <div class="glog" id="glog" style="flex:1;min-height:0;"></div>
+      <div class="chat-panel hidden" id="chat-panel">
+        <h3>Chat</h3>
+        <div class="chat-log" id="chat-log"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chat-input" placeholder="Message..." maxlength="120"
+            onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="chat-send-btn" onclick="sendChat()">↑</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div></div></div>
 
@@ -3476,6 +3570,50 @@ function showRematchBtn() {
   rematchVotes = {};
 }
 
+
+// ── In-game Chat ─────────────────────────────────────────────────
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+  const msg = input.value.trim();
+  if (!msg || !mpIsOnline || !socket) return;
+  input.value = '';
+  // Add to own log immediately
+  addChatMessage(mpUsername, msg, true);
+  // Send to others
+  socket.emit('game-action', { type: 'chat', data: { name: mpUsername, msg }, slot: mpSlot });
+}
+
+function addChatMessage(name, msg, isOwn) {
+  const log = document.getElementById('chat-log');
+  if (!log) return;
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  // Color name by player slot
+  const slot = Object.entries(PNMS).find(([k,v]) => v === name);
+  const color = slot ? `var(--p${slot[0]})` : 'var(--accent)';
+  div.innerHTML = `<span class="chat-msg-name" style="color:${color}">${name}:</span><span class="chat-msg-text">${escapeHtml(msg)}</span>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showChat() {
+  const panel = document.getElementById('chat-panel');
+  if (panel) panel.classList.remove('hidden');
+}
+
+function hideChat() {
+  const panel = document.getElementById('chat-panel');
+  if (panel) panel.classList.add('hidden');
+  // Clear log
+  const log = document.getElementById('chat-log');
+  if (log) log.innerHTML = '';
+}
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 let lastDiceVal = 0;
@@ -4632,6 +4770,7 @@ function connectSocket() {
     updateOnlineTurnUI();
     updateSyncBtn();
     glog('Reconnected!', true);
+    showChat();
   });
 
   socket.on('state-update', ({ gameState }) => {
@@ -4913,6 +5052,7 @@ function startOnlineGame(players, mode, npOnline) {
   glog('Online game started! Good luck 🎮', true);
   updateOnlineTurnUI();
   updateSyncBtn();
+  showChat();
   // Push initial state to server immediately
   setTimeout(() => syncAction('state-init', {}), 500);
 }
@@ -5069,6 +5209,9 @@ function handleRemoteAction(action) {
       glog(`💥 ${pnm(data.player)} hit a bomb!`, true);
     }
     renderAll();
+  } else if (type === 'chat') {
+    addChatMessage(data.name, data.msg, false);
+    return;
   } else if (type === 'game-over') {
     gameOver = true;
     renderAll();
@@ -5314,6 +5457,7 @@ function showHomepage() {
     mpRoomCode = null;
     mpSecret = null;
     localStorage.removeItem('mp-session');
+    hideChat();
   }
   document.getElementById('homepage').classList.add('show');
   document.getElementById('setup').style.display = 'none';
