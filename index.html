@@ -1908,7 +1908,11 @@
     <div class="wi">🏆</div>
     <div class="wt" id="wmsg">Player 1 Wins!</div>
     <div class="ws">First pawn to reach the goal</div>
-    <button class="btn bp" style="width:180px;margin-top:3px" onclick="resetGame()">Play Again</button>
+    <div id="win-buttons" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;width:180px;">
+      <button class="btn bp" id="rematch-btn" style="display:none;" onclick="requestRematch()">🔄 Rematch</button>
+      <div id="rematch-status" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted);text-align:center;display:none;"></div>
+      <button class="btn bg" onclick="showHomepage()">← Home</button>
+    </div>
   </div>
 </div>
 
@@ -3421,6 +3425,57 @@ function clearRoomUrl() {
   window.history.pushState({}, '', '/');
 }
 
+
+// ── Rematch ───────────────────────────────────────────────────────
+let rematchVotes = {}; // {slot: true} tracking who wants rematch
+
+function requestRematch() {
+  if (!mpIsOnline || !socket) return;
+  const btn = document.getElementById('rematch-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Waiting...'; }
+  syncAction('rematch-request', { slot: mpSlot });
+  rematchVotes[mpSlot] = true;
+  updateRematchStatus();
+}
+
+function updateRematchStatus() {
+  const votes = Object.keys(rematchVotes).length;
+  const status = document.getElementById('rematch-status');
+  if (status) {
+    status.style.display = 'block';
+    status.textContent = `${votes}/${mpRoomNumPlayers} want rematch`;
+  }
+  // All players voted — active player broadcasts rematch-start
+  if (votes >= mpRoomNumPlayers) {
+    if (mpSlot === 1 || Object.keys(rematchVotes)[0] === String(mpSlot)) {
+      syncAction('rematch-start', {});
+    }
+    startRematch();
+  }
+}
+
+function startRematch() {
+  rematchVotes = {};
+  document.getElementById('win').classList.remove('show');
+  // Reset game with same settings
+  gameOver = false;
+  localStorage.removeItem('mp-session'); // will get new session from re-init
+  initGame();
+  renderAll();
+  glog('Rematch started! Good luck! 🎮', true);
+  updateOnlineTurnUI();
+  // Re-save session with same room code
+  localStorage.setItem('mp-session', JSON.stringify({ code: mpRoomCode, secret: mpSecret }));
+}
+
+function showRematchBtn() {
+  const btn = document.getElementById('rematch-btn');
+  const status = document.getElementById('rematch-status');
+  if (btn) btn.style.display = 'block';
+  if (status) status.style.display = 'none';
+  rematchVotes = {};
+}
+
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 let lastDiceVal = 0;
@@ -4207,7 +4262,13 @@ const FACES = ['⚀','⚁','⚂','⚃','⚄','⚅'];
 function animDice(v) { const el=document.getElementById('dface'); el.classList.remove('spin'); void el.offsetWidth; el.classList.add('spin'); el.textContent=FACES[v-1]; }
 function pnm(p) { return isCPU(p)?`CPU ${p}`:PNMS[p]; }
 function glog(msg,hi=false) { const g=document.getElementById('glog'); const d=document.createElement('div'); d.className='gli'+(hi?' hi':''); d.textContent=msg; g.insertBefore(d,g.firstChild); }
-function showWin(p) { document.getElementById('wmsg').textContent=`${pnm(p)} Wins! 🎉`; document.getElementById('win').classList.add('show'); glog(`🏆 ${pnm(p)} wins!`,true); }
+function showWin(p) {
+  document.getElementById('wmsg').textContent=`${pnm(p)} Wins! 🎉`;
+  document.getElementById('win').classList.add('show');
+  glog(`🏆 ${pnm(p)} wins!`,true);
+  // Show rematch button in online games
+  if (mpIsOnline) showRematchBtn();
+}
 
 
 // ================================================================
@@ -5012,6 +5073,14 @@ function handleRemoteAction(action) {
     gameOver = true;
     renderAll();
     setTimeout(() => { soundWin(); showWin(data.winner); }, 300);
+    return;
+  } else if (type === 'rematch-request') {
+    rematchVotes[data.slot] = true;
+    updateRematchStatus();
+    glog(`${pnm(data.slot)} wants a rematch!`, true);
+    return;
+  } else if (type === 'rematch-start') {
+    startRematch();
     return;
   } else if (type === 'force-sync') {
     // Active player is pushing their authoritative state to us
