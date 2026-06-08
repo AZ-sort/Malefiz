@@ -3388,12 +3388,14 @@ function handleUrlRouting() {
   connectSocket();
 
   // Use connect event to ensure socket is ready
+  let routeHandled = false;
   const onConnect = () => {
+    if (routeHandled) return;
+    routeHandled = true;
+    socket._reconnectSent = true; // prevent connect handler from also reconnecting
     if (savedCode && savedSecret) {
-      // Reconnect to existing session
       socket.emit('reconnect-attempt', { code: savedCode, secret: savedSecret });
     } else {
-      // New join
       socket.emit('join-room', { code: path, playerName: mpUsername });
     }
   };
@@ -3401,15 +3403,7 @@ function handleUrlRouting() {
   if (socket && socket.connected) {
     onConnect();
   } else {
-    // Wait for connect event
     socket.once('connect', onConnect);
-    // Safety fallback after 3s
-    setTimeout(() => {
-      if (socket && socket.connected && !socket._urlRouteHandled) {
-        socket._urlRouteHandled = true;
-        onConnect();
-      }
-    }, 3000);
   }
 }
 
@@ -4451,11 +4445,15 @@ function connectSocket() {
     socket.emit('get-lobby');
     setTimeout(() => socket && socket.emit('get-lobby'), 500);
     setTimeout(() => socket && socket.emit('get-lobby'), 1500);
-    // Try reconnect if we have a saved session
-    const saved = localStorage.getItem('mp-session');
-    if (saved) {
-      const { code, secret } = JSON.parse(saved);
-      socket.emit('reconnect-attempt', { code, secret });
+    // Don't auto-reconnect here — handleUrlRouting handles it for URL-based reconnects
+    // Only auto-reconnect if we're NOT on the homepage (i.e. game was in progress)
+    if (!document.getElementById('homepage').classList.contains('show')) {
+      const saved = localStorage.getItem('mp-session');
+      if (saved && !socket._reconnectSent) {
+        socket._reconnectSent = true;
+        const { code, secret } = JSON.parse(saved);
+        socket.emit('reconnect-attempt', { code, secret });
+      }
     }
   });
 
@@ -4542,19 +4540,29 @@ function connectSocket() {
     mpSlot = slot;
     mpIsOnline = true;
     hideDcOverlay();
-    // Hide homepage/waiting screens, show game
+    // Hide all other screens
     document.getElementById('homepage').classList.remove('show');
     document.getElementById('waiting-screen').classList.remove('show');
     document.getElementById('setup').style.display = 'none';
-    // Restore player names from room data
-    if (players) players.forEach(p => { PNMS[p.slot] = p.name; });
-    // Apply saved game state
-    if (gameState) applyGameState(gameState);
+    // Restore player names
+    if (players) {
+      players.forEach(p => { PNMS[p.slot] = p.name; });
+      mpRoomNumPlayers = players.length;
+      numPlayers = players.length;
+    }
+    // Apply full game state
+    if (gameState) {
+      applyGameState(gameState);
+    }
+    // Always re-render everything
     glowTurnSnapshot = '';
+    selPawn = null;
+    reachable = [];
+    animating = false;
     renderAll();
     updateOnlineTurnUI();
     updateSyncBtn();
-    glog('Reconnected! Welcome back.', true);
+    glog('Reconnected!', true);
   });
 
   socket.on('state-update', ({ gameState }) => {
