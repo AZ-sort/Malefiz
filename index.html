@@ -1524,6 +1524,130 @@
   /* Hide chat in local games */
   .chat-panel.hidden { display: none; }
 
+
+  /* ── Auth Modal ── */
+  #auth-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    backdrop-filter: blur(6px);
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+  }
+  #auth-modal.show { display: flex; }
+  .auth-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: pop .25s cubic-bezier(.34,1.4,.64,1);
+  }
+  .auth-box h2 { font-size: 1.2rem; font-weight: 700; text-align: center; }
+  .auth-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .auth-tab {
+    flex: 1;
+    padding: 7px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Sora', sans-serif;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .13s;
+    text-align: center;
+  }
+  .auth-tab.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,.2);
+  }
+  .auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .auth-field label {
+    font-size: .7rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .auth-input {
+    padding: 10px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: .88rem;
+    outline: none;
+    transition: border .13s;
+  }
+  .auth-input:focus { border-color: var(--accent); }
+  .auth-error {
+    font-size: .75rem;
+    color: #FF4040;
+    font-family: 'DM Mono', monospace;
+    text-align: center;
+    min-height: 18px;
+  }
+  .auth-submit {
+    padding: 11px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Sora', sans-serif;
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .13s;
+  }
+  .auth-submit:hover { background: var(--accent-h); }
+  .auth-submit:disabled { opacity: .5; cursor: default; }
+  .auth-guest {
+    text-align: center;
+    font-size: .72rem;
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .auth-guest:hover { color: var(--text); }
+
+  /* Account button in nav */
+  .hp-account-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .13s;
+  }
+  .hp-account-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .hp-account-btn.logged-in { border-color: var(--accent); color: var(--accent); }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -1592,6 +1716,7 @@
     <div class="hp-logo">Play <span>Malefiz</span></div>
     <div class="hp-nav-links">
       <button class="hp-nav-btn" onclick="openHTP()">How to Play</button>
+      <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()">👤 Log In</button>
       <div class="hp-nav-dropdown">
         <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')">⚡ Powerups ▾</button>
         <div class="hp-nav-dropdown-menu" id="pu-dropdown">
@@ -1740,6 +1865,31 @@
 
   </div>
 
+</div>
+
+
+<!-- ── AUTH MODAL ── -->
+<div id="auth-modal">
+  <div class="auth-box">
+    <h2>Play Malefiz</h2>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Log In</div>
+      <div class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Sign Up</div>
+    </div>
+    <div class="auth-field">
+      <label>Username</label>
+      <input class="auth-input" id="auth-username" type="text" placeholder="Enter username" maxlength="20"
+        onkeydown="if(event.key==='Enter')submitAuth()">
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input class="auth-input" id="auth-password" type="password" placeholder="Enter password"
+        onkeydown="if(event.key==='Enter')submitAuth()">
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+    <button class="auth-submit" id="auth-submit" onclick="submitAuth()">Log In</button>
+    <div class="auth-guest" onclick="continueAsGuest()">Continue as guest</div>
+  </div>
 </div>
 
 <!-- SETTINGS MODAL -->
@@ -2044,7 +2194,7 @@
         <h3>Chat</h3>
         <div class="chat-log" id="chat-log"></div>
         <div class="chat-input-row">
-          <input class="chat-input" id="chat-input" placeholder="Message..." maxlength="120"
+          <input class="chat-input" id="chat-input" placeholder="Log in to chat..." maxlength="120"
             onkeydown="if(event.key==='Enter')sendChat()">
           <button class="chat-send-btn" onclick="sendChat()">↑</button>
         </div>
@@ -3573,6 +3723,11 @@ function showRematchBtn() {
 
 // ── In-game Chat ─────────────────────────────────────────────────
 function sendChat() {
+  if (!canChat()) {
+    document.getElementById('auth-error') && (document.getElementById('auth-error').textContent = '');
+    showAuthModal();
+    return;
+  }
   const input = document.getElementById('chat-input');
   if (!input) return;
   const msg = input.value.trim();
@@ -3604,6 +3759,8 @@ function escapeHtml(str) {
 function showChat() {
   const panel = document.getElementById('chat-panel');
   if (panel) panel.classList.remove('hidden');
+  const input = document.getElementById('chat-input');
+  if (input) input.placeholder = loggedInUser ? 'Message...' : 'Log in to chat...';
 }
 
 function hideChat() {
@@ -3612,6 +3769,136 @@ function hideChat() {
   // Clear log
   const log = document.getElementById('chat-log');
   if (log) log.innerHTML = '';
+}
+
+
+// ── Auth System ───────────────────────────────────────────────────
+const API = 'https://malefiz-production.up.railway.app';
+let authToken = localStorage.getItem('auth-token') || null;
+let loggedInUser = null;
+let authTab = 'login';
+
+// Check token on load
+async function checkAuth() {
+  const token = localStorage.getItem('auth-token');
+  if (!token) {
+    showAuthModal();
+    return;
+  }
+  try {
+    const res = await fetch(API + '/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setLoggedIn(data.username, token);
+    } else {
+      localStorage.removeItem('auth-token');
+      showAuthModal();
+    }
+  } catch(e) {
+    // Server unreachable — continue as guest
+    continueAsGuest();
+  }
+}
+
+function showAuthModal() {
+  document.getElementById('auth-modal').classList.add('show');
+  setTimeout(() => document.getElementById('auth-username').focus(), 100);
+}
+
+function hideAuthModal() {
+  document.getElementById('auth-modal').classList.remove('show');
+  document.getElementById('auth-error').textContent = '';
+}
+
+function switchAuthTab(tab) {
+  authTab = tab;
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  document.getElementById('auth-submit').textContent = tab === 'login' ? 'Log In' : 'Sign Up';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function submitAuth() {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-submit');
+
+  if (!username || !password) { errEl.textContent = 'Please fill in all fields'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  errEl.textContent = '';
+
+  try {
+    const endpoint = authTab === 'login' ? '/auth/login' : '/auth/register';
+    const res = await fetch(API + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Something went wrong';
+      btn.disabled = false;
+      btn.textContent = authTab === 'login' ? 'Log In' : 'Sign Up';
+      return;
+    }
+    localStorage.setItem('auth-token', data.token);
+    setLoggedIn(data.username, data.token);
+    hideAuthModal();
+  } catch(e) {
+    errEl.textContent = 'Could not connect to server';
+    btn.disabled = false;
+    btn.textContent = authTab === 'login' ? 'Log In' : 'Sign Up';
+  }
+}
+
+function setLoggedIn(username, token) {
+  loggedInUser = username;
+  authToken = token;
+  mpUsername = username; // use account name in multiplayer
+  // Update account button
+  const btn = document.getElementById('account-btn');
+  if (btn) {
+    btn.textContent = '👤 ' + username;
+    btn.classList.add('logged-in');
+  }
+  // Update username display in lobby
+  const mpUser = document.getElementById('mp-username');
+  if (mpUser) mpUser.textContent = username;
+}
+
+function continueAsGuest() {
+  hideAuthModal();
+  // mpUsername stays as the randomly generated guest name
+  const btn = document.getElementById('account-btn');
+  if (btn) btn.textContent = '👤 Log In';
+}
+
+function handleAccountBtn() {
+  if (loggedInUser) {
+    // Show logout option
+    if (confirm(`Logged in as ${loggedInUser}. Log out?`)) {
+      localStorage.removeItem('auth-token');
+      loggedInUser = null;
+      authToken = null;
+      mpUsername = genUsername(); // reset to random name
+      const btn = document.getElementById('account-btn');
+      if (btn) { btn.textContent = '👤 Log In'; btn.classList.remove('logged-in'); }
+      const mpUser = document.getElementById('mp-username');
+      if (mpUser) mpUser.textContent = mpUsername;
+    }
+  } else {
+    showAuthModal();
+  }
+}
+
+// Gate chat on login
+function canChat() {
+  return !!loggedInUser;
 }
 
 // ── Auto-roll ──────────────────────────────────────────────────
@@ -5537,6 +5824,8 @@ function updateHomepageStats(rooms, onlineCount) {
 document.getElementById('setup').style.display = 'none';
 // Handle room code in URL
 setTimeout(handleUrlRouting, 400);
+// Check auth on load
+setTimeout(checkAuth, 200);
 // Re-render lobby if we already have cached data
 setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms); }, 400);
 
