@@ -2788,7 +2788,7 @@ let tempBarricades = [];
 let traps = [];
 // Turn counter for spawning
 let turnCount = 0;
-let nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
+let nextSpawnAt = Math.floor(Math.random()*2)+2; // first spawn 2-3 turns
 // Active powerup being confirmed
 let pendingPowerup = null;
 
@@ -2800,7 +2800,7 @@ function initPowerups() {
   traps = [];
   turnCount = 0;
   doubleRollActive = false;
-  nextSpawnAt = Math.floor(Math.random()*3)+4; // first spawn 4-6 turns
+  nextSpawnAt = Math.floor(Math.random()*2)+2; // first spawn 2-3 turns
   pendingPowerup = null;
   for (let p = 1; p <= numPlayers; p++) playerPowerups[p] = [];
 }
@@ -2850,7 +2850,7 @@ function trySpawnPowerup() {
 
   // Spawn check: every 4-6 turns
   if (turnCount < nextSpawnAt) return;
-  if (boardPowerups.length >= 4) return; // max 4 on board
+  if (boardPowerups.length >= 8) return; // max 8 on board
 
   // Pick a random empty path cell with min 9 Manhattan distance from other powerups
   const MIN_DIST = 9;
@@ -2878,7 +2878,7 @@ function trySpawnPowerup() {
   const type = types[Math.floor(Math.random() * types.length)];
   const newPu = { er: cell.er, ec: cell.ec, type, maxAge: Math.floor(Math.random()*6)+10 };
   boardPowerups.push(newPu);
-  nextSpawnAt = turnCount + Math.floor(Math.random()*3) + 4; // next in 4-6 turns
+  nextSpawnAt = turnCount + Math.floor(Math.random()*2) + 2; // next in 2-3 turns
   glog(`✨ A ${POWERUP_TYPES[type].name} powerup appeared on the board!`, true);
   // Sync powerup spawn to all players (only active player generates, others receive)
   if (mpIsOnline) {
