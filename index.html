@@ -4559,6 +4559,10 @@ function connectSocket() {
       console.log('[RECONNECT] currentPlayer:', s.currentPlayer);
       console.log('[RECONNECT] numPlayers:', numPlayers);
       applyGameState(gameState);
+      console.log('[RECONNECT] after apply - pawns[1]:', pawns[1] ? pawns[1].length + ' pawns' : 'MISSING');
+      console.log('[RECONNECT] after apply - barricades:', barricades.length);
+      console.log('[RECONNECT] CELL_MAP size:', Object.keys(CELL_MAP).length);
+      console.log('[RECONNECT] board element:', document.getElementById('board') ? 'EXISTS' : 'MISSING');
     } else {
       console.log('[RECONNECT] No gameState from server!');
     }
