@@ -4601,8 +4601,8 @@ function applyGameState(stateStr) {
   if (!stateStr) return;
   try {
     const s = typeof stateStr === 'string' ? JSON.parse(stateStr) : stateStr;
-    if (s.pawns) pawns = s.pawns;
-    if (s.barricades) barricades = s.barricades;
+    if (s.pawns && Object.keys(s.pawns).length > 0) pawns = s.pawns;
+    if (s.barricades && s.barricades.length >= 0) barricades = s.barricades;
     tempBarricades = s.tempBarricades || [];
     traps = s.traps || [];
     if (s.currentPlayer) currentPlayer = s.currentPlayer;
@@ -4840,6 +4840,8 @@ function startOnlineGame(players, mode, npOnline) {
   glog('Online game started! Good luck 🎮', true);
   updateOnlineTurnUI();
   updateSyncBtn();
+  // Push initial state to server immediately
+  setTimeout(() => syncAction('state-init', {}), 500);
 }
 
 // (sync functions defined below)
@@ -4884,8 +4886,8 @@ function syncAction(type, data) {
   if (!mpIsOnline || !socket || !socket.connected) return;
   // Only attach state to turn-ending actions (accurate post-action state)
   // Move actions carry pre-move state which is stale — don't attach it
-  const stateTypes = ['next-turn-resolved', 'place-barricade', 'collect-powerup'];
-  const state = stateTypes.includes(type) ? serializeGameState() : null;
+  // Always send state so server always has latest for reconnects
+  const state = serializeGameState();
   socket.emit('game-action', { type, data, slot: mpSlot, state });
 }
 
