@@ -4601,6 +4601,8 @@ function serializeGameState() {
       boardPowerups: boardPowerups,
       turnCount: turnCount,
       doubleRollActive: doubleRollActive,
+      powerupsEnabled: powerupsEnabled,
+      numPlayers: numPlayers,
     });
   } catch(e) { return null; }
 }
@@ -4614,6 +4616,8 @@ function applyGameState(stateStr) {
     tempBarricades = s.tempBarricades || [];
     traps = s.traps || [];
     if (s.currentPlayer) currentPlayer = s.currentPlayer;
+    if (s.numPlayers) numPlayers = s.numPlayers;
+    if (typeof s.powerupsEnabled === 'boolean') powerupsEnabled = s.powerupsEnabled;
     gameOver = s.gameOver || false;
     shieldTurns = s.shieldTurns || {};
     playerPowerups = s.playerPowerups || {};
