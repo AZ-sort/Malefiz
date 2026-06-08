@@ -3371,30 +3371,26 @@ function handleUrlRouting() {
   const path = window.location.pathname.replace('/', '').trim().toUpperCase();
   if (!path || path.length < 4) return; // no room code in URL
 
-  // Valid room code — try to join or reconnect
-  const saved = sessionStorage.getItem('mp-session');
-  if (saved) {
-    try {
-      const { code, secret } = JSON.parse(saved);
-      if (code === path) {
-        // We were in this room — attempt reconnect
-        connectSocket();
-        setTimeout(() => {
-          if (socket && socket.connected) {
-            socket.emit('reconnect-attempt', { code, secret });
-          }
-        }, 800);
-        return;
-      }
-    } catch(e) {}
-  }
-
-  // New join — connect and join with our username
   connectSocket();
+
   setTimeout(() => {
-    if (socket && socket.connected) {
-      socket.emit('join-room', { code: path, playerName: mpUsername });
+    if (!socket || !socket.connected) return;
+
+    // Check if we have a saved session for this exact room
+    const saved = sessionStorage.getItem('mp-session');
+    if (saved) {
+      try {
+        const { code, secret } = JSON.parse(saved);
+        if (code === path) {
+          // Reconnect to existing game — bypasses "game in progress" check
+          socket.emit('reconnect-attempt', { code, secret });
+          return;
+        }
+      } catch(e) {}
     }
+
+    // No saved session — try joining as new player
+    socket.emit('join-room', { code: path, playerName: mpUsername });
   }, 800);
 }
 
@@ -4524,9 +4520,21 @@ function connectSocket() {
 
   socket.on('reconnected', ({ slot, players, gameState }) => {
     mpSlot = slot;
+    mpIsOnline = true;
     hideDcOverlay();
-    glog('Reconnected!', true);
+    // Hide homepage/waiting screens, show game
+    document.getElementById('homepage').classList.remove('show');
+    document.getElementById('waiting-screen').classList.remove('show');
+    document.getElementById('setup').style.display = 'none';
+    // Restore player names from room data
+    if (players) players.forEach(p => { PNMS[p.slot] = p.name; });
+    // Apply saved game state
     if (gameState) applyGameState(gameState);
+    glowTurnSnapshot = '';
+    renderAll();
+    updateOnlineTurnUI();
+    updateSyncBtn();
+    glog('Reconnected! Welcome back.', true);
   });
 
   socket.on('state-update', ({ gameState }) => {
