@@ -5222,10 +5222,7 @@ startPlayerTurn = function() {
 };
 
 // ── State sync for reconnects ─────────────────────────────────────
-function applyGameState(state) {
-  if (!state) return;
-  try { Object.assign(window, state); renderAll(); } catch(e) {}
-}
+// applyGameState defined above
 
 
 // ── Homepage ─────────────────────────────────────────────────────
