@@ -1648,6 +1648,36 @@
   .hp-account-btn:hover { border-color: var(--accent); color: var(--accent); }
   .hp-account-btn.logged-in { border-color: var(--accent); color: var(--accent); }
 
+
+  /* ── Pawn Icon Picker ── */
+  .pawn-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .pawn-icon-option {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    cursor: pointer;
+    transition: all .13s;
+  }
+  .pawn-icon-option:hover { border-color: var(--accent); transform: scale(1.1); }
+  .pawn-icon-option.selected { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 2px var(--accent); }
+  .pawn-icon-none {
+    font-size: .6rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .03em;
+  }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -1717,6 +1747,7 @@
     <div class="hp-nav-links">
       <button class="hp-nav-btn" onclick="openHTP()">How to Play</button>
       <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()">👤 Log In</button>
+      <button class="hp-account-btn" id="pawn-btn" onclick="openPawnModal()" style="display:none;" title="Change pawn icon">🎭</button>
       <div class="hp-nav-dropdown">
         <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')">⚡ Powerups ▾</button>
         <div class="hp-nav-dropdown-menu" id="pu-dropdown">
@@ -1889,6 +1920,17 @@
     <div class="auth-error" id="auth-error"></div>
     <button class="auth-submit" id="auth-submit" onclick="submitAuth()">Log In</button>
     <div class="auth-guest" onclick="continueAsGuest()">Continue as guest</div>
+  </div>
+</div>
+
+<!-- ── PAWN PICKER MODAL ── -->
+<div id="pawn-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);align-items:center;justify-content:center;z-index:600;">
+  <div class="auth-box" style="width:320px;">
+    <h2>Choose Your Pawn</h2>
+    <div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:-8px;">Pick an icon for your pawns</div>
+    <div class="pawn-picker-grid" id="pawn-picker-grid"></div>
+    <button class="auth-submit" onclick="savePawnIcon()">Save</button>
+    <div class="auth-guest" onclick="closePawnModal()">Maybe later</div>
   </div>
 </div>
 
@@ -3648,7 +3690,7 @@ function handleUrlRouting() {
     if (savedCode && savedSecret) {
       socket.emit('reconnect-attempt', { code: savedCode, secret: savedSecret });
     } else {
-      socket.emit('join-room', { code: path, playerName: mpUsername });
+      socket.emit('join-room', { code: path, playerName: mpUsername, pawnIcon: myPawnIcon });
     }
   };
 
@@ -3873,6 +3915,10 @@ function setLoggedIn(username, token) {
     btn.textContent = '👤 ' + username;
     btn.classList.add('logged-in');
   }
+  // Show pawn picker button
+  const pawnBtn = document.getElementById('pawn-btn');
+  if (pawnBtn) pawnBtn.style.display = 'flex';
+  updatePawnBtn();
   // Update username display in lobby
   const mpUser = document.getElementById('mp-username');
   if (mpUser) mpUser.textContent = username;
@@ -3895,6 +3941,8 @@ function handleAccountBtn() {
       mpUsername = genUsername(); // reset to random name
       const btn = document.getElementById('account-btn');
       if (btn) { btn.textContent = '👤 Log In'; btn.classList.remove('logged-in'); }
+      const pawnBtn = document.getElementById('pawn-btn');
+      if (pawnBtn) pawnBtn.style.display = 'none';
       const mpUser = document.getElementById('mp-username');
       if (mpUser) mpUser.textContent = mpUsername;
     }
@@ -3906,6 +3954,61 @@ function handleAccountBtn() {
 // Gate chat on login
 function canChat() {
   return !!loggedInUser;
+}
+
+
+// ── Pawn Customisation ────────────────────────────────────────────
+const PAWN_ICONS = ['🦊','🐺','🦅','🐉','🦁','🐯','🦈','🐻','🐒','🐱','⭐','👑','🔥','⚡','💎','🌙','☠️','🍀'];
+let myPawnIcon = localStorage.getItem('pawn-icon') || '';
+let selectedPawnIcon = myPawnIcon;
+
+// Map of slot -> pawn icon for current game
+let gamePawnIcons = {};
+
+function openPawnModal() {
+  selectedPawnIcon = myPawnIcon;
+  buildPawnGrid();
+  document.getElementById('pawn-modal').style.display = 'flex';
+}
+
+function closePawnModal() {
+  document.getElementById('pawn-modal').style.display = 'none';
+}
+
+function buildPawnGrid() {
+  const grid = document.getElementById('pawn-picker-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  // No icon option
+  const none = document.createElement('div');
+  none.className = 'pawn-icon-option' + (!selectedPawnIcon ? ' selected' : '');
+  none.innerHTML = '<span class="pawn-icon-none">None</span>';
+  none.onclick = () => { selectedPawnIcon = ''; grid.querySelectorAll('.pawn-icon-option').forEach(el => el.classList.remove('selected')); none.classList.add('selected'); };
+  grid.appendChild(none);
+  PAWN_ICONS.forEach(icon => {
+    const el = document.createElement('div');
+    el.className = 'pawn-icon-option' + (selectedPawnIcon === icon ? ' selected' : '');
+    el.textContent = icon;
+    el.onclick = () => {
+      selectedPawnIcon = icon;
+      grid.querySelectorAll('.pawn-icon-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    };
+    grid.appendChild(el);
+  });
+}
+
+function savePawnIcon() {
+  myPawnIcon = selectedPawnIcon;
+  localStorage.setItem('pawn-icon', myPawnIcon);
+  closePawnModal();
+  // Update account button to show current icon
+  updatePawnBtn();
+}
+
+function updatePawnBtn() {
+  const btn = document.getElementById('pawn-btn');
+  if (btn) btn.textContent = myPawnIcon || '🎭';
 }
 
 // ── Auto-roll ──────────────────────────────────────────────────
@@ -5235,13 +5338,14 @@ function createRoom() {
     playerName: mpUsername,
     numPlayers: mpCreateNP,
     mode: mpCreateMode,
-    isPublic: mpCreatePublic
+    isPublic: mpCreatePublic,
+    pawnIcon: myPawnIcon
   });
 }
 
 function joinRoom(code) {
   if (!socket || !socket.connected) { alert('Not connected to server.'); return; }
-  socket.emit('join-room', { code, playerName: mpUsername });
+  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
 }
 
 function joinByCode() {
@@ -5840,7 +5944,7 @@ setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobb
 // ── Homepage multiplayer actions ─────────────────────────────────
 function hpJoinRoom(code) {
   if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 1500); return; }
-  socket.emit('join-room', { code, playerName: mpUsername });
+  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
 }
 
 function hpJoinByCode() {
@@ -5871,7 +5975,8 @@ function hpCreateRoom() {
     playerName: mpUsername,
     numPlayers: mpCreateNP,
     mode: mpCreateMode,
-    isPublic: mpCreatePublic
+    isPublic: mpCreatePublic,
+    pawnIcon: myPawnIcon
   });
 }
 
