@@ -5058,14 +5058,15 @@ function connectSocket() {
     socket.emit('get-lobby');
     setTimeout(() => socket && socket.emit('get-lobby'), 500);
     setTimeout(() => socket && socket.emit('get-lobby'), 1500);
-    // Don't auto-reconnect here — handleUrlRouting handles it for URL-based reconnects
-    // Only auto-reconnect if we're NOT on the homepage (i.e. game was in progress)
+    // Auto-reconnect if we have a saved session and NOT on homepage
     if (!document.getElementById('homepage').classList.contains('show')) {
       const saved = localStorage.getItem('mp-session');
       if (saved && !socket._reconnectSent) {
         socket._reconnectSent = true;
-        const { code, secret } = JSON.parse(saved);
-        socket.emit('reconnect-attempt', { code, secret });
+        try {
+          const { code, secret } = JSON.parse(saved);
+          socket.emit('reconnect-attempt', { code, secret });
+        } catch(e) {}
       }
     }
   });
@@ -5950,6 +5951,8 @@ function updateHomepageStats(rooms, onlineCount) {
 
 // Hide old setup screen — homepage replaces it
 document.getElementById('setup').style.display = 'none';
+// Connect to server IMMEDIATELY on load — never wait for auth
+connectSocket();
 // Handle room code in URL
 setTimeout(handleUrlRouting, 400);
 // Check auth on load
