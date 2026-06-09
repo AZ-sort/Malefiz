@@ -4597,7 +4597,7 @@ function renderBoard() {
         const pIcon = mpIsOnline ? (gamePawnIcons[occ.player] || '') : (occ.player === 1 ? myPawnIcon : '');
         if (pIcon) {
           const iconEl = document.createElement('div');
-          iconEl.style.cssText = 'position:absolute;font-size:.6rem;line-height:1;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;';
+          iconEl.style.cssText = `position:absolute;font-size:${Math.round(pw * 0.6)}px;line-height:1;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;`;
           iconEl.textContent = pIcon;
           div.appendChild(iconEl);
         }
