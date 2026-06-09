@@ -32,7 +32,7 @@
   /* ── Layout ── */
   .main{
     display:flex;gap:16px;padding:16px;
-    align-items:flex-start;width:100%;max-width:1180px;
+    align-items:stretch;width:100%;max-width:1180px;
     flex:1;min-height:0;
   }
 
@@ -174,7 +174,7 @@
   .home-pawn.sel{box-shadow:0 0 0 3px rgba(124,106,255,.55);transform:scale(1.22);}
 
   /* ── Sidebar ── */
-  .sidebar{display:flex;flex-direction:column;gap:10px;width:224px;flex-shrink:0;overflow:hidden;}
+  .sidebar{display:flex;flex-direction:column;gap:6px;width:224px;flex-shrink:0;overflow:hidden;align-self:stretch;}
   .panel{
     background:var(--surface);border:1px solid var(--border);
     border-radius:var(--radius);padding:14px;
@@ -245,7 +245,7 @@
   .phbox small{display:block;color:var(--muted);font-size:.62rem;margin-bottom:3px;letter-spacing:.08em;}
 
   /* Log */
-  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;overflow-y:auto;}
+  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;max-height:100%;overflow-y:auto;}
   .glog::-webkit-scrollbar{width:3px;}
   .glog::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
   .gli{
@@ -1462,15 +1462,16 @@
     margin: 0;
   }
   .chat-log {
-    height: 110px;
-    min-height: 110px;
-    max-height: 110px;
+    height: 100px;
+    min-height: 100px;
+    max-height: 100px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
     font-size: .72rem;
     line-height: 1.5;
+    flex-shrink: 0;
   }
   .chat-log::-webkit-scrollbar { width: 3px; }
   .chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -2230,7 +2231,7 @@
       <div style="margin-top:8px"><button class="btn bg" onclick="showHomepage()" style="font-size:.72rem">New Game</button></div>
     </div>
 
-    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;gap:0;">
+    <div class="panel" style="flex:1;min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;gap:0;">
       <!-- Chat above log, only shown in online games -->
       <div class="chat-panel hidden" id="chat-panel" style="flex-shrink:0;">
         <h3>Chat</h3>
@@ -5159,9 +5160,12 @@ function connectSocket() {
     document.getElementById('homepage').classList.remove('show');
     document.getElementById('waiting-screen').classList.remove('show');
     document.getElementById('setup').style.display = 'none';
-    // Restore player names
+    // Restore player names and pawn icons
     if (players) {
-      players.forEach(p => { PNMS[p.slot] = p.name; });
+      players.forEach(p => {
+        PNMS[p.slot] = p.name;
+        gamePawnIcons[p.slot] = p.pawnIcon || '';
+      });
       mpRoomNumPlayers = players.length;
       numPlayers = players.length;
     }
