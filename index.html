@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Play Malefiz</title>
+<title>Play Sabotage</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♟️</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -1695,7 +1696,7 @@
   <div class="sbox">
     <div class="setup-header">
       <button class="btn bg" onclick="showHomepage()" style="width:auto;padding:7px 14px;font-size:.76rem;">← Home</button>
-      <h1>Play <span>Malefiz</span></h1>
+      <h1>Play <span>Sabotage</span></h1>
       <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
     </div>
     <p style="font-size:.82rem;color:var(--muted);line-height:1.65;margin-top:-8px">Race any pawn to the goal. Block opponents. Capture pieces to send them home.</p>
@@ -1743,7 +1744,7 @@
 
   <!-- Nav -->
   <nav class="hp-nav">
-    <div class="hp-logo">Play <span>Malefiz</span></div>
+    <div class="hp-logo">Play <span>Sabotage</span></div>
     <div class="hp-nav-links">
       <button class="hp-nav-btn" onclick="openHTP()">How to Play</button>
       <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()">👤 Log In</button>
@@ -1902,7 +1903,7 @@
 <!-- ── AUTH MODAL ── -->
 <div id="auth-modal">
   <div class="auth-box">
-    <h2>Play Malefiz</h2>
+    <h2>Play Sabotage</h2>
     <div class="auth-tabs">
       <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Log In</div>
       <div class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Sign Up</div>
@@ -1965,7 +1966,7 @@
     <div class="settings-section">
       <div class="settings-section-label">ℹ️ About</div>
       <div style="font-size:.75rem;color:var(--muted);line-height:1.65;margin-bottom:8px;">
-        Play Malefiz — a free online version of the classic Ravensburger board game.
+        Play Sabotage — a free online multiplayer board game.
       </div>
       <button class="btn bg" onclick="closeSettings();openHTP();" style="font-size:.78rem;">📖 How to Play</button>
     </div>
@@ -2191,9 +2192,9 @@
 </div>
 
 <header>
-  <div style="display:flex;align-items:center;gap:10px;"><button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Malefiz</span></div></div>
+  <div style="display:flex;align-items:center;gap:10px;"><button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Sabotage</span></div></div>
   <div style="display:flex;align-items:center;gap:12px;">
-    <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playmalefiz.com</div>
+    <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playsabotage.com</div>
     <div id="sync-btn" onclick="manualSync()" title="Sync game state" style="display:none;cursor:pointer;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);padding:4px 8px;border:1px solid var(--border);border-radius:6px;transition:all .13s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">↻ Sync</div>
     <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
   </div>
@@ -2251,7 +2252,7 @@
 <script src="https://malefiz-production.up.railway.app/socket.io/socket.io.js"></script>
 <script>
 // ================================================================
-// MALEFIZ.GG — Board mapped precisely from Excel spreadsheet
+// PLAYSABOTAGE.COM — Board mapped precisely from Excel spreadsheet
 //
 // Excel grid (1-indexed rows/cols) maps to game rows/cols:
 // The spreadsheet uses rows 4-18, cols 1-17
@@ -3660,7 +3661,7 @@ function updateSyncBtn() {
 
 
 // ── URL Room Routing ─────────────────────────────────────────────
-// Handles playmalefiz.com/ROOMCODE links
+// Handles playsabotage.com/ROOMCODE links
 function handleUrlRouting() {
   const path = window.location.pathname.replace('/', '').trim().toUpperCase();
   if (!path || path.length < 4) return; // no room code in URL
