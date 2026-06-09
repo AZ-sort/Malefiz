@@ -16,7 +16,7 @@
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;
-    height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;}
+    height:100vh;max-height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;}
 
   /* ── Header ── */
   header{
@@ -33,7 +33,7 @@
   .main{
     display:flex;gap:16px;padding:16px;
     align-items:stretch;width:100%;max-width:1180px;
-    flex:1;min-height:0;
+    flex:1;min-height:0;overflow:hidden;
   }
 
 
@@ -46,6 +46,7 @@
   #scaler-inner{
     transform-origin:top center;
     display:flex;
+    overflow:hidden;
   }
 
   /* ── Board ── */
@@ -245,7 +246,7 @@
   .phbox small{display:block;color:var(--muted);font-size:.62rem;margin-bottom:3px;letter-spacing:.08em;}
 
   /* Log */
-  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;max-height:100%;overflow-y:auto;}
+  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;max-height:180px;overflow-y:auto;}
   .glog::-webkit-scrollbar{width:3px;}
   .glog::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
   .gli{
