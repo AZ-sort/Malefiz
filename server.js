@@ -175,11 +175,11 @@ io.on('connection', (socket) => {
 
   socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
 
-  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic }) => {
+  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic, pawnIcon }) => {
     if (!checkRate(ip, 'create', MAX_ROOMS_PER_IP)) { socket.emit('join-error', 'Too many rooms created. Please wait.'); return; }
     const code = generateRoomCode();
     const secret = Math.random().toString(36).substring(2, 12);
-    const player = { id: socket.id, name: playerName, slot: 1, secret, connected: true };
+    const player = { id: socket.id, name: playerName, slot: 1, secret, connected: true, pawnIcon: pawnIcon || '' };
     rooms[code] = { code, host: playerName, players: [player], numPlayers, mode, isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
     socket.join(code);
     socketRooms[socket.id] = code;
@@ -187,7 +187,7 @@ io.on('connection', (socket) => {
     broadcastLobby();
   });
 
-  socket.on('join-room', ({ code, playerName }) => {
+  socket.on('join-room', ({ code, playerName, pawnIcon }) => {
     if (!checkRate(ip, 'join', MAX_JOINS_PER_IP)) { socket.emit('join-error', 'Too many join attempts.'); return; }
     const room = rooms[code?.toUpperCase()];
     if (!room) { socket.emit('join-error', 'Room not found.'); return; }
@@ -195,7 +195,7 @@ io.on('connection', (socket) => {
     if (room.players.length >= room.numPlayers) { socket.emit('join-error', 'Room is full.'); return; }
     const secret = Math.random().toString(36).substring(2, 12);
     const slot = room.players.length + 1;
-    room.players.push({ id: socket.id, name: playerName, slot, secret, connected: true });
+    room.players.push({ id: socket.id, name: playerName, slot, secret, connected: true, pawnIcon: pawnIcon || '' });
     room.lastActivity = Date.now();
     socket.join(code.toUpperCase());
     socketRooms[socket.id] = code.toUpperCase();
