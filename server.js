@@ -142,7 +142,7 @@ setInterval(() => {
 // ── Room storage ──────────────────────────────────────────────────
 const rooms = {};
 const socketRooms = {};
-const ROOM_MAX_AGE_MS = 30 * 60 * 1000;
+const ROOM_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 function getRoomList() {
   return Object.values(rooms)
