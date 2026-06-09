@@ -244,7 +244,7 @@
   .phbox small{display:block;color:var(--muted);font-size:.62rem;margin-bottom:3px;letter-spacing:.08em;}
 
   /* Log */
-  .glog{display:flex;flex-direction:column;gap:0;max-height:148px;overflow-y:auto;}
+  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;overflow-y:auto;}
   .glog::-webkit-scrollbar{width:3px;}
   .glog::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
   .gli{
@@ -1461,9 +1461,9 @@
     margin: 0;
   }
   .chat-log {
-    flex: 1;
-    min-height: 80px;
-    max-height: 140px;
+    height: 110px;
+    min-height: 110px;
+    max-height: 110px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -2187,10 +2187,9 @@
       <div style="margin-top:8px"><button class="btn bg" onclick="showHomepage()" style="font-size:.72rem">New Game</button></div>
     </div>
 
-    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
-      <h3>Log</h3>
-      <div class="glog" id="glog" style="flex:1;min-height:0;"></div>
-      <div class="chat-panel hidden" id="chat-panel">
+    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;gap:0;">
+      <!-- Chat above log, only shown in online games -->
+      <div class="chat-panel hidden" id="chat-panel" style="flex-shrink:0;">
         <h3>Chat</h3>
         <div class="chat-log" id="chat-log"></div>
         <div class="chat-input-row">
@@ -2199,6 +2198,10 @@
           <button class="chat-send-btn" onclick="sendChat()">↑</button>
         </div>
       </div>
+      <!-- Divider shown when chat is open -->
+      <div id="log-divider" style="display:none;height:1px;background:var(--border);margin:8px 0;flex-shrink:0;"></div>
+      <h3 style="flex-shrink:0;">Log</h3>
+      <div class="glog" id="glog" style="flex:1;min-height:0;overflow-y:auto;"></div>
     </div>
   </div>
 </div></div></div>
@@ -2433,6 +2436,7 @@ function getReachableWithPaths(startEr, startEc, steps, player) {
     if (rem === 0) {
       const occ = pawnAt(er, ec);
       if (occ && occ.player === player) return;
+      if (occ && shieldTurns[occ.player] > 0) return; // shielded pawn is impassable
       // Cannot land on temp barricades at all
       if (tempBarricades.find(tb => tb.er === er && tb.ec === ec)) return;
       const key = `${er},${ec}`;
@@ -3759,6 +3763,8 @@ function escapeHtml(str) {
 function showChat() {
   const panel = document.getElementById('chat-panel');
   if (panel) panel.classList.remove('hidden');
+  const divider = document.getElementById('log-divider');
+  if (divider) divider.style.display = 'block';
   const input = document.getElementById('chat-input');
   if (input) input.placeholder = loggedInUser ? 'Message...' : 'Log in to chat...';
 }
@@ -3766,7 +3772,8 @@ function showChat() {
 function hideChat() {
   const panel = document.getElementById('chat-panel');
   if (panel) panel.classList.add('hidden');
-  // Clear log
+  const divider = document.getElementById('log-divider');
+  if (divider) divider.style.display = 'none';
   const log = document.getElementById('chat-log');
   if (log) log.innerHTML = '';
 }
