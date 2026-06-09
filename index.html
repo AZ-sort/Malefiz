@@ -4701,6 +4701,15 @@ function renderBoard() {
       pd.className = `home-pawn p${p}${selPawn===pw?' sel':''}`;
       pd.style.width = homePawnSize + 'px';
       pd.style.height = homePawnSize + 'px';
+      pd.style.position = 'relative';
+      // Pawn icon on home pawns too
+      const hIcon = mpIsOnline ? (gamePawnIcons[p] || '') : (p === 1 ? myPawnIcon : '');
+      if (hIcon) {
+        const hIconEl = document.createElement('div');
+        hIconEl.style.cssText = 'position:absolute;font-size:1rem;line-height:1;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;';
+        hIconEl.textContent = hIcon;
+        pd.appendChild(hIconEl);
+      }
 
       const homePawnPlayer = currentPlayer;
       if (!gameOver && human && (phase==='pick-pawn'||phase==='move') && p===homePawnPlayer) {
