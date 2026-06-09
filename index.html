@@ -5500,6 +5500,7 @@ function startOnlineGame(players, mode, npOnline) {
   // Override PNMS with actual player names
   players.forEach(p => {
     PNMS[p.slot] = p.name;
+    gamePawnIcons[p.slot] = p.pawnIcon || '';
   });
 
   document.getElementById('glog').innerHTML = '';
