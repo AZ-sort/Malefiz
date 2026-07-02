@@ -2,8 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+  if (window.location.hostname.includes('railway.app')) {
+    window.location.replace('https://playsabotage.com' + window.location.pathname);
+  }
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Play Malefiz</title>
+<title>Play Sabotage</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♟️</text></svg>">
+<link rel="canonical" href="https://playsabotage.com">
+<meta name="description" content="Play Sabotage online — a free multiplayer board game inspired by Malefiz and Barricade. Race your pawns, block opponents with barricades, and use powerups. Play with friends, your partner, or challenge the AI. No download required.">
+<meta name="keywords" content="malefiz online, barricade board game online, play malefiz, malefiz free, barricade game, online board game couples, multiplayer board game, play with friends online, free board game no download, sabotage board game">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Play Sabotage — Free Online Multiplayer Board Game">
+<meta property="og:description" content="Race your pawns to the goal, block opponents with barricades, and sabotage your way to victory. Free to play with friends, your partner, or vs AI. Inspired by Malefiz and Barricade.">
+<meta property="og:url" content="https://playsabotage.com">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://playsabotage.com/preview.png">
+<meta name="twitter:image" content="https://playsabotage.com/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Play Sabotage — Free Online Multiplayer Board Game">
+<meta name="twitter:description" content="Free online board game. Play with friends, partner, or vs AI. Inspired by Malefiz/Barricade.">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -15,7 +35,7 @@
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;
-    height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;}
+    height:100vh;max-height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;}
 
   /* ── Header ── */
   header{
@@ -31,8 +51,8 @@
   /* ── Layout ── */
   .main{
     display:flex;gap:16px;padding:16px;
-    align-items:flex-start;width:100%;max-width:1180px;
-    flex:1;min-height:0;
+    align-items:stretch;width:100%;max-width:1180px;
+    flex:1;min-height:0;overflow:hidden;
   }
 
 
@@ -45,6 +65,7 @@
   #scaler-inner{
     transform-origin:top center;
     display:flex;
+    overflow:hidden;
   }
 
   /* ── Board ── */
@@ -173,7 +194,7 @@
   .home-pawn.sel{box-shadow:0 0 0 3px rgba(124,106,255,.55);transform:scale(1.22);}
 
   /* ── Sidebar ── */
-  .sidebar{display:flex;flex-direction:column;gap:10px;width:224px;flex-shrink:0;overflow:hidden;}
+  .sidebar{display:flex;flex-direction:column;gap:6px;width:224px;flex-shrink:0;overflow:hidden;align-self:stretch;}
   .panel{
     background:var(--surface);border:1px solid var(--border);
     border-radius:var(--radius);padding:14px;
@@ -244,7 +265,7 @@
   .phbox small{display:block;color:var(--muted);font-size:.62rem;margin-bottom:3px;letter-spacing:.08em;}
 
   /* Log */
-  .glog{display:flex;flex-direction:column;gap:0;max-height:148px;overflow-y:auto;}
+  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;max-height:180px;overflow-y:auto;}
   .glog::-webkit-scrollbar{width:3px;}
   .glog::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
   .gli{
@@ -1461,15 +1482,16 @@
     margin: 0;
   }
   .chat-log {
-    flex: 1;
-    min-height: 80px;
-    max-height: 140px;
+    height: 100px;
+    min-height: 100px;
+    max-height: 100px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
     font-size: .72rem;
     line-height: 1.5;
+    flex-shrink: 0;
   }
   .chat-log::-webkit-scrollbar { width: 3px; }
   .chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -1648,6 +1670,36 @@
   .hp-account-btn:hover { border-color: var(--accent); color: var(--accent); }
   .hp-account-btn.logged-in { border-color: var(--accent); color: var(--accent); }
 
+
+  /* ── Pawn Icon Picker ── */
+  .pawn-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .pawn-icon-option {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    cursor: pointer;
+    transition: all .13s;
+  }
+  .pawn-icon-option:hover { border-color: var(--accent); transform: scale(1.1); }
+  .pawn-icon-option.selected { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 2px var(--accent); }
+  .pawn-icon-none {
+    font-size: .6rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    letter-spacing: .03em;
+  }
+
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
@@ -1658,6 +1710,30 @@
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
 <script defer src="/_vercel/insights/script.js"></script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "Play Sabotage",
+  "description": "A free online multiplayer board game inspired by Malefiz and Barricade. Race your pawns to the goal while blocking opponents with barricades. Play with friends, your partner, or challenge the AI.",
+  "url": "https://playsabotage.com",
+  "genre": ["Board Game", "Strategy", "Multiplayer"],
+  "numberOfPlayers": {
+    "@type": "QuantitativeValue",
+    "minValue": 1,
+    "maxValue": 4
+  },
+  "playMode": ["MultiPlayer", "SinglePlayer"],
+  "applicationCategory": "Game",
+  "operatingSystem": "Web Browser",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
 </head>
 <body>
 
@@ -1665,7 +1741,7 @@
   <div class="sbox">
     <div class="setup-header">
       <button class="btn bg" onclick="showHomepage()" style="width:auto;padding:7px 14px;font-size:.76rem;">← Home</button>
-      <h1>Play <span>Malefiz</span></h1>
+      <h1>Play <span>Sabotage</span></h1>
       <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
     </div>
     <p style="font-size:.82rem;color:var(--muted);line-height:1.65;margin-top:-8px">Race any pawn to the goal. Block opponents. Capture pieces to send them home.</p>
@@ -1713,10 +1789,11 @@
 
   <!-- Nav -->
   <nav class="hp-nav">
-    <div class="hp-logo">Play <span>Malefiz</span></div>
+    <div class="hp-logo">Play <span>Sabotage</span></div>
     <div class="hp-nav-links">
       <button class="hp-nav-btn" onclick="openHTP()">How to Play</button>
       <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()">👤 Log In</button>
+      <button class="hp-account-btn" id="pawn-btn" onclick="openPawnModal()" style="display:none;" title="Change pawn icon">🎭</button>
       <div class="hp-nav-dropdown">
         <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')">⚡ Powerups ▾</button>
         <div class="hp-nav-dropdown-menu" id="pu-dropdown">
@@ -1867,11 +1944,21 @@
 
 </div>
 
+<!-- SEO text — outside game, only visible on homepage -->
+<div id="seo-text" style="max-width:700px;margin:16px auto 0;padding:0 24px 24px;text-align:center;">
+  <p style="font-size:.68rem;color:var(--muted);line-height:1.8;font-family:'Sora',sans-serif;">
+    Play Sabotage is a free online multiplayer board game inspired by Malefiz and Barricade. Race your pawns to the goal, block opponents with barricades, and use powerups to sabotage your way to victory. Play with 1–4 players online, challenge a friend, play with your partner, or test yourself against the AI. No download required — play instantly in your browser.
+  </p>
+  <p style="font-size:.65rem;color:var(--muted);opacity:0.6;line-height:1.6;font-family:'DM Mono',monospace;margin-top:8px;">
+    Free • No download • 1–4 players • Online multiplayer • vs AI • Malefiz • Barricade
+  </p>
+</div>
+
 
 <!-- ── AUTH MODAL ── -->
 <div id="auth-modal">
   <div class="auth-box">
-    <h2>Play Malefiz</h2>
+    <h2>Play Sabotage</h2>
     <div class="auth-tabs">
       <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Log In</div>
       <div class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Sign Up</div>
@@ -1889,6 +1976,17 @@
     <div class="auth-error" id="auth-error"></div>
     <button class="auth-submit" id="auth-submit" onclick="submitAuth()">Log In</button>
     <div class="auth-guest" onclick="continueAsGuest()">Continue as guest</div>
+  </div>
+</div>
+
+<!-- ── PAWN PICKER MODAL ── -->
+<div id="pawn-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);align-items:center;justify-content:center;z-index:600;">
+  <div class="auth-box" style="width:320px;">
+    <h2>Choose Your Pawn</h2>
+    <div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:-8px;">Pick an icon for your pawns</div>
+    <div class="pawn-picker-grid" id="pawn-picker-grid"></div>
+    <button class="auth-submit" onclick="savePawnIcon()">Save</button>
+    <div class="auth-guest" onclick="closePawnModal()">Maybe later</div>
   </div>
 </div>
 
@@ -1923,7 +2021,7 @@
     <div class="settings-section">
       <div class="settings-section-label">ℹ️ About</div>
       <div style="font-size:.75rem;color:var(--muted);line-height:1.65;margin-bottom:8px;">
-        Play Malefiz — a free online version of the classic Ravensburger board game.
+        Play Sabotage — a free online multiplayer board game.
       </div>
       <button class="btn bg" onclick="closeSettings();openHTP();" style="font-size:.78rem;">📖 How to Play</button>
     </div>
@@ -1997,6 +2095,30 @@
       <div class="htp-rule">
         <span class="htp-icon">🔄</span>
         <span>Captured pawns return to your home base and can be redeployed on a future turn.</span>
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-section-title">⚡ Powerups Mode</div>
+      <div class="htp-rule">
+        <span class="htp-icon">🎲</span>
+        <span><b>Double Roll</b> — Roll the dice twice and move the total.</span>
+      </div>
+      <div class="htp-rule">
+        <span class="htp-icon">🚧</span>
+        <span><b>Temp Barricade</b> — Place an orange barricade that disappears after a few turns.</span>
+      </div>
+      <div class="htp-rule">
+        <span class="htp-icon">🛡️</span>
+        <span><b>Shield</b> — Your pawns cannot be captured for several turns. Shielded pawns are also impassable.</span>
+      </div>
+      <div class="htp-rule">
+        <span class="htp-icon">💣</span>
+        <span><b>Bomb</b> — Place a hidden mine on any cell. The next pawn that lands on it is sent home.</span>
+      </div>
+      <div class="htp-rule">
+        <span class="htp-icon">✨</span>
+        <span>Powerups appear on the board automatically. <b>Land on one to collect it</b> — you can hold up to 2 at a time. Use them before rolling.</span>
       </div>
     </div>
 
@@ -2149,9 +2271,9 @@
 </div>
 
 <header>
-  <div style="display:flex;align-items:center;gap:10px;"><button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Malefiz</span></div></div>
+  <div style="display:flex;align-items:center;gap:10px;"><button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Sabotage</span></div></div>
   <div style="display:flex;align-items:center;gap:12px;">
-    <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playmalefiz.com</div>
+    <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playsabotage.com</div>
     <div id="sync-btn" onclick="manualSync()" title="Sync game state" style="display:none;cursor:pointer;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);padding:4px 8px;border:1px solid var(--border);border-radius:6px;transition:all .13s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">↻ Sync</div>
     <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
   </div>
@@ -2187,10 +2309,9 @@
       <div style="margin-top:8px"><button class="btn bg" onclick="showHomepage()" style="font-size:.72rem">New Game</button></div>
     </div>
 
-    <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
-      <h3>Log</h3>
-      <div class="glog" id="glog" style="flex:1;min-height:0;"></div>
-      <div class="chat-panel hidden" id="chat-panel">
+    <div class="panel" style="flex:1;min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;gap:0;">
+      <!-- Chat above log, only shown in online games -->
+      <div class="chat-panel hidden" id="chat-panel" style="flex-shrink:0;">
         <h3>Chat</h3>
         <div class="chat-log" id="chat-log"></div>
         <div class="chat-input-row">
@@ -2199,6 +2320,9 @@
           <button class="chat-send-btn" onclick="sendChat()">↑</button>
         </div>
       </div>
+      <!-- Divider shown when chat is open -->
+      <div id="log-divider" style="display:none;height:1px;background:var(--border);margin:8px 0;flex-shrink:0;"></div>
+      <div class="glog" id="glog" style="display:none;"></div>
     </div>
   </div>
 </div></div></div>
@@ -2206,7 +2330,7 @@
 <script src="https://malefiz-production.up.railway.app/socket.io/socket.io.js"></script>
 <script>
 // ================================================================
-// MALEFIZ.GG — Board mapped precisely from Excel spreadsheet
+// PLAYSABOTAGE.COM — Board mapped precisely from Excel spreadsheet
 //
 // Excel grid (1-indexed rows/cols) maps to game rows/cols:
 // The spreadsheet uses rows 4-18, cols 1-17
@@ -2433,6 +2557,7 @@ function getReachableWithPaths(startEr, startEc, steps, player) {
     if (rem === 0) {
       const occ = pawnAt(er, ec);
       if (occ && occ.player === player) return;
+      if (occ && shieldTurns[occ.player] > 0) return; // shielded pawn is impassable
       // Cannot land on temp barricades at all
       if (tempBarricades.find(tb => tb.er === er && tb.ec === ec)) return;
       const key = `${er},${ec}`;
@@ -3614,7 +3739,7 @@ function updateSyncBtn() {
 
 
 // ── URL Room Routing ─────────────────────────────────────────────
-// Handles playmalefiz.com/ROOMCODE links
+// Handles playsabotage.com/ROOMCODE links
 function handleUrlRouting() {
   const path = window.location.pathname.replace('/', '').trim().toUpperCase();
   if (!path || path.length < 4) return; // no room code in URL
@@ -3644,7 +3769,7 @@ function handleUrlRouting() {
     if (savedCode && savedSecret) {
       socket.emit('reconnect-attempt', { code: savedCode, secret: savedSecret });
     } else {
-      socket.emit('join-room', { code: path, playerName: mpUsername });
+      socket.emit('join-room', { code: path, playerName: mpUsername, pawnIcon: myPawnIcon });
     }
   };
 
@@ -3753,12 +3878,14 @@ function addChatMessage(name, msg, isOwn) {
 }
 
 function escapeHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function showChat() {
   const panel = document.getElementById('chat-panel');
   if (panel) panel.classList.remove('hidden');
+  const divider = document.getElementById('log-divider');
+  if (divider) divider.style.display = 'block';
   const input = document.getElementById('chat-input');
   if (input) input.placeholder = loggedInUser ? 'Message...' : 'Log in to chat...';
 }
@@ -3766,7 +3893,8 @@ function showChat() {
 function hideChat() {
   const panel = document.getElementById('chat-panel');
   if (panel) panel.classList.add('hidden');
-  // Clear log
+  const divider = document.getElementById('log-divider');
+  if (divider) divider.style.display = 'none';
   const log = document.getElementById('chat-log');
   if (log) log.innerHTML = '';
 }
@@ -3866,6 +3994,10 @@ function setLoggedIn(username, token) {
     btn.textContent = '👤 ' + username;
     btn.classList.add('logged-in');
   }
+  // Show pawn picker button
+  const pawnBtn = document.getElementById('pawn-btn');
+  if (pawnBtn) pawnBtn.style.display = 'flex';
+  updatePawnBtn();
   // Update username display in lobby
   const mpUser = document.getElementById('mp-username');
   if (mpUser) mpUser.textContent = username;
@@ -3888,6 +4020,8 @@ function handleAccountBtn() {
       mpUsername = genUsername(); // reset to random name
       const btn = document.getElementById('account-btn');
       if (btn) { btn.textContent = '👤 Log In'; btn.classList.remove('logged-in'); }
+      const pawnBtn = document.getElementById('pawn-btn');
+      if (pawnBtn) pawnBtn.style.display = 'none';
       const mpUser = document.getElementById('mp-username');
       if (mpUser) mpUser.textContent = mpUsername;
     }
@@ -3899,6 +4033,61 @@ function handleAccountBtn() {
 // Gate chat on login
 function canChat() {
   return !!loggedInUser;
+}
+
+
+// ── Pawn Customisation ────────────────────────────────────────────
+const PAWN_ICONS = ['🦊','🐺','🦅','🐉','🦁','🐯','🦈','🐻','🐒','🐱','⭐','👑','🔥','⚡','💎','🌙','☠️','🍀'];
+let myPawnIcon = localStorage.getItem('pawn-icon') || '';
+let selectedPawnIcon = myPawnIcon;
+
+// Map of slot -> pawn icon for current game
+let gamePawnIcons = {};
+
+function openPawnModal() {
+  selectedPawnIcon = myPawnIcon;
+  buildPawnGrid();
+  document.getElementById('pawn-modal').style.display = 'flex';
+}
+
+function closePawnModal() {
+  document.getElementById('pawn-modal').style.display = 'none';
+}
+
+function buildPawnGrid() {
+  const grid = document.getElementById('pawn-picker-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  // No icon option
+  const none = document.createElement('div');
+  none.className = 'pawn-icon-option' + (!selectedPawnIcon ? ' selected' : '');
+  none.innerHTML = '<span class="pawn-icon-none">None</span>';
+  none.onclick = () => { selectedPawnIcon = ''; grid.querySelectorAll('.pawn-icon-option').forEach(el => el.classList.remove('selected')); none.classList.add('selected'); };
+  grid.appendChild(none);
+  PAWN_ICONS.forEach(icon => {
+    const el = document.createElement('div');
+    el.className = 'pawn-icon-option' + (selectedPawnIcon === icon ? ' selected' : '');
+    el.textContent = icon;
+    el.onclick = () => {
+      selectedPawnIcon = icon;
+      grid.querySelectorAll('.pawn-icon-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    };
+    grid.appendChild(el);
+  });
+}
+
+function savePawnIcon() {
+  myPawnIcon = selectedPawnIcon;
+  localStorage.setItem('pawn-icon', myPawnIcon);
+  closePawnModal();
+  // Update account button to show current icon
+  updatePawnBtn();
+}
+
+function updatePawnBtn() {
+  const btn = document.getElementById('pawn-btn');
+  if (btn) btn.textContent = myPawnIcon || '🎭';
 }
 
 // ── Auto-roll ──────────────────────────────────────────────────
@@ -4482,6 +4671,14 @@ function renderBoard() {
         pd.className = `pawn p${occ.player}${selPawn===occ.pawn?' sel':''}`;
         pd.style.width = pw + 'px'; pd.style.height = pw + 'px';
         div.innerHTML = ''; div.appendChild(pd);
+        // Pawn icon overlay
+        const pIcon = mpIsOnline ? (gamePawnIcons[occ.player] || '') : (occ.player === 1 ? myPawnIcon : '');
+        if (pIcon) {
+          const iconEl = document.createElement('div');
+          iconEl.style.cssText = `position:absolute;font-size:${Math.round(pw * 0.6)}px;line-height:1;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;`;
+          iconEl.textContent = pIcon;
+          div.appendChild(iconEl);
+        }
       }
     }
 
@@ -4583,6 +4780,15 @@ function renderBoard() {
       pd.className = `home-pawn p${p}${selPawn===pw?' sel':''}`;
       pd.style.width = homePawnSize + 'px';
       pd.style.height = homePawnSize + 'px';
+      pd.style.position = 'relative';
+      // Pawn icon on home pawns too
+      const hIcon = mpIsOnline ? (gamePawnIcons[p] || '') : (p === 1 ? myPawnIcon : '');
+      if (hIcon) {
+        const hIconEl = document.createElement('div');
+        hIconEl.style.cssText = 'position:absolute;font-size:1rem;line-height:1;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;';
+        hIconEl.textContent = hIcon;
+        pd.appendChild(hIconEl);
+      }
 
       const homePawnPlayer = currentPlayer;
       if (!gameOver && human && (phase==='pick-pawn'||phase==='move') && p===homePawnPlayer) {
@@ -4658,7 +4864,7 @@ function renderSidebar() {
     const shielded = shieldTurns[p] > 0;
     h += `<div class="prow${act?' active':''}">
       <div class="pdot" style="background:${PCOLS[p]}"></div>
-      <div class="pnm">${cpu?'CPU '+p:PNMS[p]}</div>
+      <div class="pnm">${cpu?'CPU '+p:escapeHtml(PNMS[p]||'')}</div>
       <div class="ptg">${reserve}/5 home</div>
       ${shielded?'<span class="ptg">🛡️</span>':''}
       ${act?'<div class="pbdg">TURN</div>':''}
@@ -4931,14 +5137,15 @@ function connectSocket() {
     socket.emit('get-lobby');
     setTimeout(() => socket && socket.emit('get-lobby'), 500);
     setTimeout(() => socket && socket.emit('get-lobby'), 1500);
-    // Don't auto-reconnect here — handleUrlRouting handles it for URL-based reconnects
-    // Only auto-reconnect if we're NOT on the homepage (i.e. game was in progress)
+    // Auto-reconnect if we have a saved session and NOT on homepage
     if (!document.getElementById('homepage').classList.contains('show')) {
       const saved = localStorage.getItem('mp-session');
       if (saved && !socket._reconnectSent) {
         socket._reconnectSent = true;
-        const { code, secret } = JSON.parse(saved);
-        socket.emit('reconnect-attempt', { code, secret });
+        try {
+          const { code, secret } = JSON.parse(saved);
+          socket.emit('reconnect-attempt', { code, secret });
+        } catch(e) {}
       }
     }
   });
@@ -5022,17 +5229,35 @@ function connectSocket() {
     showHomepage();
   });
 
+  socket.on('reconnect-failed', (msg) => {
+    // Stale/expired session — clear it and recover gracefully
+    localStorage.removeItem('mp-session');
+    if (socket) socket._reconnectSent = false;
+    const path = window.location.pathname.replace('/', '').trim().toUpperCase();
+    if (path && path.length >= 4) {
+      // Try joining fresh as a new player
+      socket.emit('join-room', { code: path, playerName: mpUsername, pawnIcon: myPawnIcon });
+    } else {
+      // No room in URL — return to homepage
+      if (typeof showHomepage === 'function') showHomepage();
+    }
+  });
+
   socket.on('reconnected', ({ slot, players, gameState }) => {
     mpSlot = slot;
     mpIsOnline = true;
     hideDcOverlay();
     // Hide all other screens
     document.getElementById('homepage').classList.remove('show');
+  const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'none';
     document.getElementById('waiting-screen').classList.remove('show');
     document.getElementById('setup').style.display = 'none';
-    // Restore player names
+    // Restore player names and pawn icons
     if (players) {
-      players.forEach(p => { PNMS[p.slot] = p.name; });
+      players.forEach(p => {
+        PNMS[p.slot] = p.name;
+        gamePawnIcons[p.slot] = p.pawnIcon || '';
+      });
       mpRoomNumPlayers = players.length;
       numPlayers = players.length;
     }
@@ -5168,7 +5393,7 @@ function updateLobbyList(rooms) {
         row.className = 'hp-room-row';
         const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
         row.innerHTML = `
-          <div class="hp-room-host">${room.host}<small>${room.players}/${room.numPlayers} · ${modeLabel}</small></div>
+          <div class="hp-room-host">${escapeHtml(room.host||'')}<small>${room.players}/${room.numPlayers} · ${modeLabel}</small></div>
           <button class="hp-room-join" onclick="joinRoom('${room.code}')">Join</button>
         `;
         hpList.appendChild(row);
@@ -5192,7 +5417,7 @@ function updateLobbyList(rooms) {
         const modeClass = room.mode === 'powerups' ? 'badge-powerups' : 'badge-classic';
         const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
         row.innerHTML = `
-          <div class="room-host">${room.host}<small>${room.players}/${room.numPlayers} players</small></div>
+          <div class="room-host">${escapeHtml(room.host||'')}<small>${room.players}/${room.numPlayers} players</small></div>
           <span class="room-badge ${modeClass}">${modeLabel}</span>
           <button class="room-join-btn" onclick="joinRoom('${room.code}')">Join</button>
         `;
@@ -5228,13 +5453,14 @@ function createRoom() {
     playerName: mpUsername,
     numPlayers: mpCreateNP,
     mode: mpCreateMode,
-    isPublic: mpCreatePublic
+    isPublic: mpCreatePublic,
+    pawnIcon: myPawnIcon
   });
 }
 
 function joinRoom(code) {
   if (!socket || !socket.connected) { alert('Not connected to server.'); return; }
-  socket.emit('join-room', { code, playerName: mpUsername });
+  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
 }
 
 function joinByCode() {
@@ -5252,6 +5478,7 @@ function showWaitingRoom() {
   // Hide all screens
   document.getElementById('mp-screen').classList.remove('show');
   document.getElementById('homepage').classList.remove('show');
+  const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'none';
   document.getElementById('setup').style.display = 'none';
   const ws = document.getElementById('waiting-screen');
   ws.classList.add('show');
@@ -5287,7 +5514,7 @@ function updateWaitingPlayers(players, numPlayers) {
       const isYou = player.slot === mpSlot;
       div.innerHTML = `
         <div class="wp-dot" style="background:${colors[i-1]}"></div>
-        <div class="wp-name">${player.name}</div>
+        <div class="wp-name">${escapeHtml(player.name||'')}</div>
         ${isYou ? '<span class="wp-you">YOU</span>' : ''}
       `;
     } else {
@@ -5331,6 +5558,7 @@ function startOnlineGame(players, mode, npOnline) {
   // Override PNMS with actual player names
   players.forEach(p => {
     PNMS[p.slot] = p.name;
+    gamePawnIcons[p.slot] = p.pawnIcon || '';
   });
 
   document.getElementById('glog').innerHTML = '';
@@ -5732,6 +5960,7 @@ let hpDiff = 'easy';
 
 function hideHomepage() {
   document.getElementById('homepage').classList.remove('show');
+  const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'none';
 }
 
 function showHomepage() {
@@ -5747,6 +5976,7 @@ function showHomepage() {
     hideChat();
   }
   document.getElementById('homepage').classList.add('show');
+  const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'block';
   document.getElementById('setup').style.display = 'none';
   document.getElementById('mp-screen').classList.remove('show');
   document.getElementById('waiting-screen').classList.remove('show');
@@ -5791,8 +6021,7 @@ function setHpCPU(mode) {
 
 function setHpDiff(d) {
   hpDiff = d;
-  ['easy','med','hard'].forEach(x => document.getElementById('hp-diff-'+x).classList.toggle('on', x===d || (x==='med'&&d==='medium')));
-  document.getElementById('hp-diff-med').classList.toggle('on', d==='medium');
+  ['easy','med','hard'].forEach(x => { const el = document.getElementById('hp-diff-'+x); if (el) el.classList.toggle('on', x===d || (x==='med'&&d==='medium')); });
 }
 
 function refreshLobby() {
@@ -5822,6 +6051,8 @@ function updateHomepageStats(rooms, onlineCount) {
 
 // Hide old setup screen — homepage replaces it
 document.getElementById('setup').style.display = 'none';
+// Connect to server IMMEDIATELY on load — never wait for auth
+connectSocket();
 // Handle room code in URL
 setTimeout(handleUrlRouting, 400);
 // Check auth on load
@@ -5833,7 +6064,7 @@ setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobb
 // ── Homepage multiplayer actions ─────────────────────────────────
 function hpJoinRoom(code) {
   if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 1500); return; }
-  socket.emit('join-room', { code, playerName: mpUsername });
+  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
 }
 
 function hpJoinByCode() {
@@ -5864,7 +6095,8 @@ function hpCreateRoom() {
     playerName: mpUsername,
     numPlayers: mpCreateNP,
     mode: mpCreateMode,
-    isPublic: mpCreatePublic
+    isPublic: mpCreatePublic,
+    pawnIcon: myPawnIcon
   });
 }
 

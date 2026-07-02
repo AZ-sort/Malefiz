@@ -22,7 +22,19 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
-app.use(express.static(path.join(__dirname)));
+// Only serve safe static assets — never .js/.env/source files
+app.use(express.static(path.join(__dirname), {
+  setHeaders: (res, filePath) => {
+    if (/\.(js|json|env|md|lock)$/i.test(filePath) && !filePath.endsWith('socket.io.js')) {
+      res.status(403).end();
+    }
+  }
+}));
+// Explicitly block sensitive files
+app.get(/.*\.(js|json|env|md|lock)$/i, (req, res, next) => {
+  if (req.path.includes('socket.io')) return next();
+  res.status(403).send('Forbidden');
+});
 
 // ── Database ─────────────────────────────────────────────────────
 const pool = new Pool({
@@ -112,8 +124,31 @@ app.get('/auth/me', verifyToken, (req, res) => {
 const ADJECTIVES = ['Swift','Brave','Mighty','Shadow','Crimson','Golden','Silver','Iron','Wild','Frost','Storm','Thunder','Blazing','Silent','Cosmic','Neon','Phantom','Rogue','Savage','Stealth'];
 const NOUNS = ['Fox','Wolf','Eagle','Tiger','Dragon','Falcon','Viper','Panda','Cobra','Hawk','Bear','Lynx','Raven','Shark','Panther','Jaguar','Manta','Raptor','Phoenix','Bison'];
 
+
+// ── Input sanitization ────────────────────────────────────────────
+function cleanName(name) {
+  if (typeof name !== 'string') return 'Player';
+  // Strip angle brackets/quotes to prevent stored XSS in clients, cap length
+  const cleaned = name.replace(/[<>"'`]/g, '').trim().slice(0, 20);
+  return cleaned.length >= 1 ? cleaned : 'Player';
+}
+function validNumPlayers(n) {
+  const v = parseInt(n, 10);
+  return (v >= 2 && v <= 4) ? v : 2;
+}
+function cleanIcon(icon) {
+  if (typeof icon !== 'string') return '';
+  return icon.slice(0, 8);
+}
+
 function generateRoomCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  let code;
+  let attempts = 0;
+  do {
+    code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    attempts++;
+  } while (rooms[code] && attempts < 20);
+  return code;
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────
@@ -142,7 +177,7 @@ setInterval(() => {
 // ── Room storage ──────────────────────────────────────────────────
 const rooms = {};
 const socketRooms = {};
-const ROOM_MAX_AGE_MS = 30 * 60 * 1000;
+const ROOM_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 function getRoomList() {
   return Object.values(rooms)
@@ -161,7 +196,7 @@ setInterval(() => {
   let cleaned = 0;
   for (const [code, room] of Object.entries(rooms)) {
     if (now - room.createdAt > ROOM_MAX_AGE_MS) {
-      io.to(code).emit('room-expired', { message: 'Room closed after 30 minutes.' });
+      io.to(code).emit('room-expired', { message: 'Room closed after 3 hours of inactivity.' });
       delete rooms[code]; cleaned++;
     } else if (room.started && room.players.every(p => !p.connected) && now - (room.lastActivity || room.createdAt) > 5 * 60 * 1000) {
       delete rooms[code]; cleaned++;
@@ -175,19 +210,21 @@ io.on('connection', (socket) => {
 
   socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
 
-  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic }) => {
+  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic, pawnIcon }) => {
     if (!checkRate(ip, 'create', MAX_ROOMS_PER_IP)) { socket.emit('join-error', 'Too many rooms created. Please wait.'); return; }
+    const name = cleanName(playerName);
+    const np = validNumPlayers(numPlayers);
     const code = generateRoomCode();
     const secret = Math.random().toString(36).substring(2, 12);
-    const player = { id: socket.id, name: playerName, slot: 1, secret, connected: true };
-    rooms[code] = { code, host: playerName, players: [player], numPlayers, mode, isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
+    const player = { id: socket.id, name, slot: 1, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) };
+    rooms[code] = { code, host: name, players: [player], numPlayers: np, mode, isPublic: !!isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
     socket.join(code);
     socketRooms[socket.id] = code;
     socket.emit('room-created', { code, slot: 1, secret });
     broadcastLobby();
   });
 
-  socket.on('join-room', ({ code, playerName }) => {
+  socket.on('join-room', ({ code, playerName, pawnIcon }) => {
     if (!checkRate(ip, 'join', MAX_JOINS_PER_IP)) { socket.emit('join-error', 'Too many join attempts.'); return; }
     const room = rooms[code?.toUpperCase()];
     if (!room) { socket.emit('join-error', 'Room not found.'); return; }
@@ -195,7 +232,7 @@ io.on('connection', (socket) => {
     if (room.players.length >= room.numPlayers) { socket.emit('join-error', 'Room is full.'); return; }
     const secret = Math.random().toString(36).substring(2, 12);
     const slot = room.players.length + 1;
-    room.players.push({ id: socket.id, name: playerName, slot, secret, connected: true });
+    room.players.push({ id: socket.id, name: cleanName(playerName), slot, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) });
     room.lastActivity = Date.now();
     socket.join(code.toUpperCase());
     socketRooms[socket.id] = code.toUpperCase();
@@ -237,7 +274,11 @@ io.on('connection', (socket) => {
     if (!code || !rooms[code]) return;
     const room = rooms[code];
     room.lastActivity = Date.now();
-    if (action.state) room.gameState = action.state;
+    if (action.state) {
+      // Cap serialized state size (~200KB) to prevent memory abuse
+      const size = JSON.stringify(action.state).length;
+      if (size < 200000) room.gameState = action.state;
+    }
     room.actionLog.push({ type: action.type, ts: Date.now() });
     if (room.actionLog.length > 200) room.actionLog.shift();
     socket.to(code).emit('game-action', action);
