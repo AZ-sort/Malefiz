@@ -10,8 +10,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
-  pingTimeout: 60000,
-  pingInterval: 10000
+  pingTimeout: 90000,      // tolerate longer network stalls before dropping
+  pingInterval: 25000,     // fewer pings = less sensitive to brief hiccups
+  connectionStateRecovery: {
+    // Socket.io recovers session + missed events on brief drops (up to 2 min)
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true
+  }
 });
 
 app.use(express.json());

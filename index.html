@@ -3660,8 +3660,8 @@ document.addEventListener('visibilitychange', () => {
     if (socket && socket.connected) {
       socket.emit('request-state', { code: mpRoomCode, secret: mpSecret });
     } else {
-      // Socket dropped while tab was hidden — reconnect
-      socket.emit('reconnect-attempt', { code: mpRoomCode, secret: mpSecret });
+      // Socket dropped/died while tab was hidden — rebuild it; connect handler re-verifies us
+      connectSocket();
     }
   }
 });
@@ -5133,24 +5133,37 @@ function connectSocket() {
 
   socket.on('connect', () => {
     setConnStatus(true);
-    // Request lobby immediately and again after short delays to ensure it renders
     socket.emit('get-lobby');
     setTimeout(() => socket && socket.emit('get-lobby'), 500);
     setTimeout(() => socket && socket.emit('get-lobby'), 1500);
-    // Auto-reconnect if we have a saved session and NOT on homepage
-    if (!document.getElementById('homepage').classList.contains('show')) {
-      const saved = localStorage.getItem('mp-session');
-      if (saved && !socket._reconnectSent) {
-        socket._reconnectSent = true;
-        try {
-          const { code, secret } = JSON.parse(saved);
-          socket.emit('reconnect-attempt', { code, secret });
-        } catch(e) {}
+    // If we're in an active game, ALWAYS re-verify into the room on (re)connect.
+    // Prefer live in-memory session; fall back to saved localStorage session.
+    if (mpIsOnline && mpRoomCode && mpSecret) {
+      socket.emit('reconnect-attempt', { code: mpRoomCode, secret: mpSecret });
+    } else {
+      const onHome = document.getElementById('homepage').classList.contains('show');
+      if (!onHome) {
+        const saved = localStorage.getItem('mp-session');
+        if (saved) {
+          try {
+            const { code, secret } = JSON.parse(saved);
+            socket.emit('reconnect-attempt', { code, secret });
+          } catch(e) {}
+        }
       }
     }
   });
 
-  socket.on('disconnect', () => setConnStatus(false));
+  socket.on('disconnect', (reason) => {
+    setConnStatus(false);
+    // Allow the next connect to re-verify us into our room
+    if (socket) socket._reconnectSent = false;
+    // Socket.io auto-reconnects on all reasons EXCEPT an explicit server-side disconnect.
+    // Only in that one case do we reconnect manually.
+    if (reason === 'io server disconnect') {
+      setTimeout(() => { if (socket && !socket.connected) socket.connect(); }, 800);
+    }
+  });
   socket.on('connect_error', () => setConnStatus(false));
 
   socket.on('lobby-update', (data) => {
