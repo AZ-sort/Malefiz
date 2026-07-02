@@ -971,6 +971,27 @@
   }
   #homepage.show { display: flex; }
 
+  /* ── Drifting pawns background (homepage only) ── */
+  #hp-bg-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.55;
+  }
+  #hp-grain {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* Homepage content must sit above the background layers */
+  .hp-nav, .hp-main, #seo-text { position: relative; z-index: 2; }
+
   .hp-nav {
     width: 100%;
     max-width: 1100px;
@@ -1786,6 +1807,8 @@
 <!--  HOMEPAGE                                             -->
 <!-- ═══════════════════════════════════════════════════════ -->
 <div id="homepage" class="show">
+  <canvas id="hp-bg-canvas"></canvas>
+  <div id="hp-grain"></div>
 
   <!-- Nav -->
   <nav class="hp-nav">
@@ -4999,6 +5022,8 @@ function applyTheme(themeId) {
   });
   // Re-render board to pick up new pawn colors
   if (typeof renderAll === 'function') renderAll();
+  // Recolor homepage background pawns to match theme
+  if (typeof refreshHpBgColors === 'function') refreshHpBgColors();
   // Save preference
   try { localStorage.setItem('malefiz-theme', themeId); } catch(e){}
 }
@@ -6118,6 +6143,114 @@ function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggl
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
 function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
 function resetGame() { document.getElementById('win').classList.remove('show'); showHomepage(); }
+
+// ── Drifting pawns background (homepage only) ─────────────────────
+(function() {
+  const canvas = document.getElementById('hp-bg-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, pawns = [], raf = null, running = false;
+
+  const COUNT = 14;           // few, so it stays classy
+  const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function themeColors() {
+    const s = getComputedStyle(document.documentElement);
+    return [
+      s.getPropertyValue('--p1').trim() || '#FF4040',
+      s.getPropertyValue('--p2').trim() || '#40D9A0',
+      s.getPropertyValue('--p3').trim() || '#FFD700',
+      s.getPropertyValue('--p4').trim() || '#5BAAFF'
+    ];
+  }
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function makePawn(cols) {
+    const r = 14 + Math.random() * 34;         // large, soft
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r,
+      color: cols[Math.floor(Math.random() * cols.length)],
+      vy: -(0.08 + Math.random() * 0.22),      // slow upward drift
+      vx: (Math.random() - 0.5) * 0.12,        // gentle sideways
+      alpha: 0.05 + Math.random() * 0.10       // very faint
+    };
+  }
+
+  function init() {
+    resize();
+    const cols = themeColors();
+    pawns = Array.from({ length: COUNT }, () => makePawn(cols));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (const p of pawns) {
+      p.x += p.vx;
+      p.y += p.vy;
+      // wrap around edges
+      if (p.y + p.r < 0) { p.y = H + p.r; p.x = Math.random() * W; }
+      if (p.x + p.r < 0) p.x = W + p.r;
+      if (p.x - p.r > W) p.x = -p.r;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.alpha;
+      ctx.fill();
+      // soft ring for a "pawn" feel
+      ctx.globalAlpha = p.alpha * 1.6;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = p.color;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    raf = requestAnimationFrame(draw);
+  }
+
+  function start() {
+    if (running) return;
+    running = true;
+    init();
+    if (prefersReduced) { draw(); cancelAnimationFrame(raf); return; } // draw one static frame
+    draw();
+  }
+  function stop() {
+    running = false;
+    if (raf) cancelAnimationFrame(raf);
+  }
+
+  // Recolor when theme changes (re-init keeps positions fresh)
+  window.refreshHpBgColors = function() {
+    const cols = themeColors();
+    for (const p of pawns) p.color = cols[Math.floor(Math.random() * cols.length)];
+  };
+
+  window.addEventListener('resize', () => { if (running) resize(); });
+
+  // Only animate while homepage is visible
+  function syncToHomepage() {
+    const hp = document.getElementById('homepage');
+    if (hp && hp.classList.contains('show')) start(); else stop();
+  }
+  // Observe homepage show/hide
+  const hp = document.getElementById('homepage');
+  if (hp) {
+    new MutationObserver(syncToHomepage).observe(hp, { attributes: true, attributeFilter: ['class'] });
+  }
+  // Pause when tab hidden (saves battery)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop(); else syncToHomepage();
+  });
+
+  syncToHomepage();
+})();
+
 </script>
 </body>
 </html>
