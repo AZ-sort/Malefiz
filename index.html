@@ -6152,6 +6152,11 @@ function resetGame() { document.getElementById('win').classList.remove('show'); 
   let W = 0, H = 0, pawns = [], raf = null, running = false;
 
   const COUNT = 14;           // few, so it stays classy
+  const REPEL_RADIUS = 140;   // how close the cursor gets before pawns react
+  const REPEL_FORCE = 0.9;    // push strength
+  const PUSH_DECAY = 0.90;    // how quickly the push eases back to normal drift
+  const hasMouse = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  let mouseX = -9999, mouseY = -9999;
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function themeColors() {
@@ -6169,6 +6174,11 @@ function resetGame() { document.getElementById('win').classList.remove('show'); 
     H = canvas.height = window.innerHeight;
   }
 
+  if (hasMouse) {
+    window.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; }, { passive: true });
+    window.addEventListener('mouseleave', () => { mouseX = -9999; mouseY = -9999; });
+  }
+
   function makePawn(cols) {
     const r = 14 + Math.random() * 34;         // large, soft
     return {
@@ -6178,6 +6188,7 @@ function resetGame() { document.getElementById('win').classList.remove('show'); 
       color: cols[Math.floor(Math.random() * cols.length)],
       vy: -(0.08 + Math.random() * 0.22),      // slow upward drift
       vx: (Math.random() - 0.5) * 0.12,        // gentle sideways
+      px: 0, py: 0,                            // mouse-push velocity (decays)
       alpha: 0.05 + Math.random() * 0.10       // very faint
     };
   }
@@ -6191,8 +6202,23 @@ function resetGame() { document.getElementById('win').classList.remove('show'); 
   function draw() {
     ctx.clearRect(0, 0, W, H);
     for (const p of pawns) {
-      p.x += p.vx;
-      p.y += p.vy;
+      // Mouse repulsion — push away from cursor within radius
+      if (hasMouse) {
+        const dx = p.x - mouseX;
+        const dy = p.y - mouseY;
+        const dist = Math.hypot(dx, dy);
+        if (dist < REPEL_RADIUS && dist > 0.01) {
+          const strength = (1 - dist / REPEL_RADIUS) * REPEL_FORCE;
+          p.px += (dx / dist) * strength;
+          p.py += (dy / dist) * strength;
+        }
+      }
+      // Push velocity decays smoothly back toward normal drift
+      p.px *= PUSH_DECAY;
+      p.py *= PUSH_DECAY;
+
+      p.x += p.vx + p.px;
+      p.y += p.vy + p.py;
       // wrap around edges
       if (p.y + p.r < 0) { p.y = H + p.r; p.x = Math.random() * W; }
       if (p.x + p.r < 0) p.x = W + p.r;
