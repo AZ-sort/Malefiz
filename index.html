@@ -4360,7 +4360,7 @@ function doCPU() {
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn'; renderAll();
   setTimeout(() => {
-    const mv = bestMove();
+    const mv = (cpuDiff === 'hard') ? bestMoveHard() : bestMove();
     if (!mv) { nextTurn(); renderAll(); return; }
     selPawn = mv.pawn; reachable = mv.reach; phase = 'move'; renderAll();
     setTimeout(() => {
@@ -4478,6 +4478,161 @@ function scoreTarget(er, ec, movingPawn) {
   return s;
 }
 
+
+// ================================================================
+// HARD AI — deeper strategy: danger avoidance + opponent look-ahead
+// ================================================================
+
+// Can any enemy pawn reach (er,ec) on their next turn with ANY roll 1..6?
+// Used to avoid landing where we'd be captured.
+function cellUnderThreat(er, ec, byPlayers) {
+  for (const p of byPlayers) {
+    for (const pw of (pawns[p] || [])) {
+      if (!pw.onBoard) continue;
+      // quick prune: manhattan distance must be <= 6
+      if (Math.abs(pw.er - er) + Math.abs(pw.ec - ec) > 6) continue;
+      for (let d = 1; d <= 6; d++) {
+        const reach = getReachable(pw, d);
+        if (reach.some(t => t.er === er && t.ec === ec)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Enemy players list (everyone but current)
+function enemyPlayers() {
+  const out = [];
+  for (let p = 1; p <= numPlayers; p++) if (p !== currentPlayer) out.push(p);
+  return out;
+}
+
+// Deep score for the HARD tier. Builds on scoreTarget but adds:
+//  - heavy penalty for landing on a cell an enemy can capture next turn
+//  - shielded pawns ignore threat
+//  - stronger reward for captures near goal & barricade grabs that clear our path
+
+// ── Staggered-cluster value: reward spreading pawns across DIFFERENT
+// distance-bands so any roll advances someone and barricades don't hard-stop us.
+// Returns a bonus for the resulting formation if movingPawn lands at (er,ec).
+function clusterValueHard(er, ec, movingPawn) {
+  const mine = (pawns[currentPlayer] || []).filter(p => p.onBoard && p !== movingPawn);
+  // Distance band of each pawn (bucketed) — we want VARIED bands, not duplicates.
+  const bands = new Set();
+  for (const p of mine) bands.add(Math.floor(distToGoal(p.er, p.ec) / 4));
+  const myBand = Math.floor(distToGoal(er, ec) / 4);
+  const activeCount = mine.length + 1;
+
+  let s = 0;
+  // Reward having 2-3 pawns active in DIFFERENT bands (optionality vs barricades)
+  if (activeCount >= 2 && activeCount <= 3) s += 10;
+  if (!bands.has(myBand)) s += 12;         // this pawn adds a new band = more roll coverage
+  else s -= 4;                              // stacking same band = redundant, minor penalty
+  // Too many pawns out = just capture-bait; discourage a 4th/5th unless near goal
+  if (activeCount >= 4 && distToGoal(er, ec) > 6) s -= 14;
+  return s;
+}
+
+// ── Sacrifice evaluation: is deliberately exposing THIS pawn worth it?
+// Conservative + math-gated: only positive if the follow-up concretely hurts
+// the opponent more than losing our pawn costs us.
+function sacrificeValueHard(er, ec, movingPawn) {
+  const enemies = enemyPlayers();
+  const shielded = (shieldTurns[currentPlayer] || 0) > 0;
+  if (shielded) return 0;                      // can't be captured, not a sacrifice
+  if (!cellUnderThreat(er, ec, enemies)) return 0; // safe cell, not a sacrifice
+
+  const myLoss = Math.max(0, 40 - distToGoal(er, ec)); // losing an advanced pawn hurts more
+  let bestGain = 0;
+
+  // For each enemy that COULD capture us here, what does capturing cost THEM?
+  for (const p of enemies) {
+    for (const pw of (pawns[p] || [])) {
+      if (!pw.onBoard) continue;
+      if (Math.abs(pw.er - er) + Math.abs(pw.ec - ec) > 6) continue;
+      let canCapture = false;
+      for (let d = 1; d <= 6 && !canCapture; d++) {
+        if (getReachable(pw, d).some(t => t.er === er && t.ec === ec)) canCapture = true;
+      }
+      if (!canCapture) continue;
+      // Gain = how far this enemy pawn would be PULLED BACK to capture us.
+      // If they're near the goal and must divert here, that's a big tempo swing.
+      const enemyDist = distToGoal(pw.er, pw.ec);
+      const hereDist = distToGoal(er, ec);
+      const pullBack = hereDist - enemyDist;      // >0 means they retreat to grab us
+      if (pullBack > 0) {
+        let gain = pullBack * 4;
+        if (enemyDist <= 8) gain += 30;           // baiting their near-goal leader backward = huge
+        bestGain = Math.max(bestGain, gain);
+      }
+    }
+  }
+  // Only a real sacrifice if the concrete gain outweighs our loss (with margin).
+  const net = bestGain - myLoss;
+  return net > 10 ? net : 0;
+}
+
+function scoreTargetHard(er, ec, movingPawn) {
+  let s = scoreTarget(er, ec, movingPawn); // reuse base heuristics
+
+  if (er === 4 && ec === 9) return 100000; // guaranteed win dominates
+
+  const enemies = enemyPlayers();
+
+  // Evaluate deliberate-sacrifice value first so danger logic can defer to it.
+  const sacVal = sacrificeValueHard(er, ec, movingPawn);
+
+  // Danger: will we be capturable here next turn? (unless shielded or a worthwhile sacrifice)
+  const shielded = (shieldTurns[currentPlayer] || 0) > 0;
+  if (!shielded && sacVal === 0 && cellUnderThreat(er, ec, enemies)) {
+    // The closer this pawn is to goal, the more we hate losing it
+    const d = distToGoal(er, ec);
+    s -= 60 + Math.max(0, 30 - d) * 4;
+  }
+
+  // Reward safe progress: landing where NO enemy can reach us is valuable
+  if (!cellUnderThreat(er, ec, enemies)) s += 12;
+
+  // Extra: capturing a near-goal enemy is match-defining
+  const occ = pawnAt(er, ec);
+  if (occ && occ.player !== currentPlayer) {
+    const ed = distToGoal(occ.pawn.er, occ.pawn.ec);
+    if (ed <= 6) s += 40; // send back a pawn that was about to win
+  }
+
+  // ── Formation: staggered cluster for roll-coverage & barricade flexibility ──
+  // Only while no pawn is close enough to sprint in; once we can nearly win, commit.
+  const myClosest = Math.min(999, ...(pawns[currentPlayer]||[]).filter(p=>p.onBoard).map(p=>distToGoal(p.er,p.ec)));
+  const commitPhase = myClosest <= 7; // someone is close — switch to sprint mode
+  if (!commitPhase) {
+    s += clusterValueHard(er, ec, movingPawn);
+  } else {
+    // Commit: pour dice into the lead pawn, ignore spreading
+    if (movingPawn.onBoard && distToGoal(movingPawn.er, movingPawn.ec) === myClosest) s += 18;
+  }
+
+  // ── Conservative, math-gated sacrifice ──
+  // If landing here gets us captured but pulls an enemy (esp. their leader) back, it can be worth it.
+  s += sacVal;
+
+  return s;
+}
+
+function bestMoveHard() {
+  let cands = [];
+  for (const pw of (pawns[currentPlayer] || [])) {
+    let reach;
+    if (!pw.onBoard) reach = getReachableFromEntry(currentPlayer, diceVal);
+    else reach = getReachable(pw, diceVal);
+    for (const t of reach) {
+      cands.push({ pawn: pw, reach, target: t, score: scoreTargetHard(t.er, t.ec, pw) });
+    }
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.score - a.score);
+  return cands[0];
+}
+
 function bestMove() {
   let cands = [];
   for (const pw of (pawns[currentPlayer]||[])) {
@@ -4501,7 +4656,7 @@ function bestMove() {
     const pool = cands.slice(0, Math.max(1, Math.floor(cands.length * 0.3)));
     return pool[Math.floor(Math.random() * pool.length)];
   }
-  // Hard: always picks the best move
+  // Hard handled separately in doCPU via bestMoveHard()
   return cands[0];
 }
 
@@ -4568,6 +4723,20 @@ function bestBarricade() {
 
     // Slight preference for cells near the goal area
     if (hereToGoal <= 8) score += 10;
+
+    // ── HARD tier: reward true chokepoints just ahead of enemy leader ──
+    if (cpuDiff === 'hard') {
+      for (const threat of threats) {
+        const threatDist = distToGoal(threat.er, threat.ec);
+        const aheadBy = threatDist - hereToGoal; // >0 = this cell is ahead of them
+        // Sweet spot: 1-4 cells directly ahead of their leader
+        if (aheadBy >= 1 && aheadBy <= 4) {
+          score += 35 + (5 - aheadBy) * 6;   // closer ahead = better
+          if (isNarrow) score += 30;         // corridor they can't route around
+          if (threatDist <= 10) score += 20; // block someone near winning
+        }
+      }
+    }
 
     cands.push({er, ec, score});
   });
