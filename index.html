@@ -539,6 +539,11 @@
       flex-shrink: 0 !important;
       margin-bottom: 0 !important;
     }
+    /* Duel board is 9 cols (~416px natural) — nearly full-size on phones */
+    body.board-duel #board-wrap {
+      zoom: 0.9 !important;
+      -moz-transform: scale(0.9) !important;
+    }
 
     /* Sidebar: full width below board */
     .sidebar {
@@ -611,6 +616,7 @@
 
   @media (max-width: 380px) {
     #board-wrap { zoom: 0.44 !important; }
+    body.board-duel #board-wrap { zoom: 0.8 !important; -moz-transform: scale(0.8) !important; }
     .sidebar .panel { min-width: 120px !important; }
   }
     .main { padding: 6px; gap: 6px; }
@@ -1883,10 +1889,19 @@
 
           <div class="hp-field">
             <div class="hp-field-label">Game Mode</div>
-            <select class="hp-select" id="mp-mode-select" onchange="setMpMode(this.value)">
+            <select class="hp-select" id="mp-mode-select" onchange="setMpBoard(this.value)">
               <option value="classic">Classic</option>
-              <option value="powerups">⚡ Powerups</option>
+              <option value="duel">2 Player Duel</option>
             </select>
+          </div>
+
+          <div class="hp-private-row">
+            <label class="toggle" style="flex-shrink:0;">
+              <input type="checkbox" id="mp-powerups-toggle" onchange="setMpPowerups(this.checked)">
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+            <span class="hp-private-label">⚡ Powerups</span>
           </div>
 
           <div class="hp-private-row">
@@ -1922,15 +1937,24 @@
 
           <div class="hp-field">
             <div class="hp-field-label">Game Mode</div>
-            <select class="hp-select" onchange="setHpMode(this.value)">
+            <select class="hp-select" id="hp-mode-select" onchange="setHpBoard(this.value)">
               <option value="classic">Classic</option>
-              <option value="powerups">⚡ Powerups</option>
+              <option value="duel">💑 2P Duel — quick head-to-head</option>
             </select>
+          </div>
+
+          <div class="hp-private-row">
+            <label class="toggle" style="flex-shrink:0;">
+              <input type="checkbox" id="hp-powerups-toggle" onchange="setHpPowerups(this.checked)">
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+            <span class="hp-private-label">⚡ Powerups</span>
           </div>
 
           <div class="hp-field">
             <div class="hp-field-label">Players</div>
-            <select class="hp-select" onchange="setHpNP(parseInt(this.value))">
+            <select class="hp-select" id="hp-np-select" onchange="setHpNP(parseInt(this.value))">
               <option value="2">2 Players</option>
               <option value="3">3 Players</option>
               <option value="4">4 Players</option>
@@ -2225,8 +2249,15 @@
           <div>
             <div class="slbl">Game Mode</div>
             <div class="rbs">
-              <div class="rb on" id="mp-classic" onclick="setMpMode('classic')">Classic</div>
-              <div class="rb" id="mp-powerups" onclick="setMpMode('powerups')">⚡ Powerups</div>
+              <div class="rb on" id="mp-classic" onclick="setMpBoard('classic')">Classic</div>
+              <div class="rb" id="mp-duel" onclick="setMpBoard('duel')">💑 Duel</div>
+            </div>
+          </div>
+          <div>
+            <div class="slbl">Powerups</div>
+            <div class="rbs">
+              <div class="rb on" id="mp-pu-off" onclick="setMpPowerups(false)">Off</div>
+              <div class="rb" id="mp-pu-on" onclick="setMpPowerups(true)">⚡ On</div>
             </div>
           </div>
           <div>
@@ -2395,12 +2426,22 @@ const SZ = 40; // cell size px
 const GAP = 4;
 const ST = SZ + GAP; // step = 44px
 
+// ================================================================
+// BOARD REGISTRY — multiple boards, same engine.
+// Each board is defined in "excel coordinates" (the spreadsheet it
+// was designed in). setBoard() rebuilds all board-dependent state.
+//
+// classic: the original 17-wide, 4-player board (rows 4-17)
+// duel:    dedicated 2-player board (rows 5-14, cols 3-11),
+//          3 pawns each, 9 starting barricades, ~20 steps to goal.
+// ================================================================
+
 // Board cells defined from Excel data
 // Format: [excelRow, excelCol, type]
 // type: 'path' | 'goal' | 'barricade-start' | 'entry-1'..'entry-4'
 // We'll store as game coords directly.
-// Display: excelRow maps to y = (excelRow - 4) * ST  (row4=top, row18=bottom)
-// excelCol maps to x = (excelCol - 1) * ST
+// Display: excelRow maps to y = (excelRow - minRow) * ST
+// excelCol maps to x = (excelCol - minCol) * ST
 
 // Parse excel data into cell definitions
 // Grey cells (path):
@@ -2455,59 +2496,113 @@ const BARRICADE_STARTS = [
   // That's 11 — perfect!
 ];
 
-// Redefine cleanly:
-const BARRICADE_INIT_CELLS = [
-  [5,9],
-  [7,9],
-  [8,9],
-  [9,9],
-  [11,7],[11,11],
-  [15,1],[15,5],[15,9],[15,13],[15,17],
+// ── DUEL BOARD (2-player) — mapped from PlaySabotage_mini.xlsx ──
+// Excel rows 5-15, cols 3-11. Row 15 = home plates (off-board).
+// Path rows: 6-14. Goal at R5C7. Entries: R14C5 (P1), R14C9 (P2).
+const GREY_DUEL = [
+  // R6 — 5 cells (C7 has starting barricade, still a path cell)
+  [6,5],[6,6],[6,7],[6,8],[6,9],
+  // R7 — connectors
+  [7,5],[7,9],
+  // R8 — 5 cells
+  [8,5],[8,6],[8,7],[8,8],[8,9],
+  // R9 — single mandatory choke cell
+  [9,7],
+  // R10 — 5 cells
+  [10,5],[10,6],[10,7],[10,8],[10,9],
+  // R11 — connectors
+  [11,5],[11,9],
+  // R12 — 9 cells
+  [12,3],[12,4],[12,5],[12,6],[12,7],[12,8],[12,9],[12,10],[12,11],
+  // R13 — connectors
+  [13,3],[13,7],[13,11],
+  // R14 — full bottom row, 9 cells (entry row — no barricades allowed)
+  [14,3],[14,4],[14,5],[14,6],[14,7],[14,8],[14,9],[14,10],[14,11],
 ];
 
-// Entry points — row 17 (the 17-space bottom path row)
-// Evenly spaced: cols 3, 7, 11, 15
-const ENTRY = {
-  1: [17,3],
-  2: [17,7],
-  3: [17,11],
-  4: [17,15],
+// ── BOARD REGISTRY ───────────────────────────────────────────────
+const BOARDS = {
+  classic: {
+    grey: GREY,
+    barricadeInit: [
+      [5,9],
+      [7,9],
+      [8,9],
+      [9,9],
+      [11,7],[11,11],
+      [15,1],[15,5],[15,9],[15,13],[15,17],
+    ],
+    entries: { 1:[17,3], 2:[17,7], 3:[17,11], 4:[17,15] },
+    goal: [4,9],
+    minRow: 4, minCol: 1, numCols: 17, numRows: 15,
+    bottomRow: 17,           // barricades forbidden here and below
+    pawnsPerPlayer: 5,
+    maxPlayers: 4,
+  },
+  duel: {
+    grey: GREY_DUEL,
+    barricadeInit: [
+      [6,7],
+      [8,7],
+      [9,7],
+      [10,5],[10,7],[10,9],
+      [12,3],[12,7],[12,11],
+    ],
+    entries: { 1:[14,5], 2:[14,9] },
+    goal: [5,7],
+    minRow: 5, minCol: 3, numCols: 9, numRows: 11,
+    bottomRow: 14,           // barricades forbidden here and below
+    pawnsPerPlayer: 3,
+    maxPlayers: 2,
+  },
 };
 
-// Goal
-const GOAL = [4,9];
-
-// Build cell map — [excelRow, excelCol] → type
-const CELL_MAP = {};
+// ── Active board state (rebuilt by setBoard) ─────────────────────
+let activeBoard = 'classic';
+let CELL_MAP = {};
+let ENTRY = {};
+let GOAL = [4,9];
+let BARRICADE_INIT_CELLS = [];
+let MIN_ROW = 4, MIN_COL = 1, BOTTOM_ROW = 17, PAWNS_PER_PLAYER = 5;
+let BOARD_W = 17 * ST;
+let BOARD_H = 15 * ST + SZ;
 
 function addCell(er, ec, type) {
   CELL_MAP[`${er},${ec}`] = { er, ec, type };
 }
 
-// Goal
-addCell(4, 9, 'goal');
+function setBoard(id) {
+  const b = BOARDS[id] || BOARDS.classic;
+  activeBoard = BOARDS[id] ? id : 'classic';
+  CELL_MAP = {};
+  ENTRY = b.entries;
+  GOAL = b.goal;
+  BARRICADE_INIT_CELLS = b.barricadeInit;
+  MIN_ROW = b.minRow; MIN_COL = b.minCol;
+  BOTTOM_ROW = b.bottomRow;
+  PAWNS_PER_PLAYER = b.pawnsPerPlayer;
+  BOARD_W = b.numCols * ST;
+  BOARD_H = b.numRows * ST + SZ;
 
-// All grey path cells
-GREY.forEach(([er,ec]) => addCell(er, ec, 'path'));
+  addCell(b.goal[0], b.goal[1], 'goal');
+  b.grey.forEach(([er,ec]) => addCell(er, ec, 'path'));
+  b.barricadeInit.forEach(([er,ec]) => {
+    if (!CELL_MAP[`${er},${ec}`]) addCell(er, ec, 'path');
+  });
+  Object.values(ENTRY).forEach(([er,ec]) => addCell(er, ec, 'path'));
 
-// Barricade start cells are also path cells
-BARRICADE_INIT_CELLS.forEach(([er,ec]) => {
-  if (!CELL_MAP[`${er},${ec}`]) addCell(er, ec, 'path');
-});
+  // Mobile CSS sizing hook (duel board is much narrower)
+  document.body.classList.toggle('board-duel', activeBoard === 'duel');
+}
 
-// Entry cells (these are path cells that connect home to board)
-Object.values(ENTRY).forEach(([er,ec]) => addCell(er, ec, 'path'));
+setBoard('classic');
 
 function getCell(er, ec) { return CELL_MAP[`${er},${ec}`] || null; }
 function isWalkable(er, ec) { return !!getCell(er, ec); }
 
-// Pixel position: excel row 4 = top, row 18 = bottom
-function cellX(ec) { return (ec - 1) * ST; }
-function cellY(er) { return (er - 4) * ST; }
-
-// Board pixel size
-const BOARD_W = 17 * ST;
-const BOARD_H = 15 * ST + SZ; // rows 4-18 = 15 rows
+// Pixel position: top row of active board = y 0
+function cellX(ec) { return (ec - MIN_COL) * ST; }
+function cellY(er) { return (er - MIN_ROW) * ST; }
 
 // ================================================================
 // HOME AREAS — visual only, off to the side of entry points
@@ -2543,8 +2638,8 @@ function pawnAt(er, ec) {
 function initGame() {
   pawns = {};
   for (let p=1; p<=numPlayers; p++) {
-    // All 5 pawns start in reserve
-    pawns[p] = Array.from({length:5}, (_,i) => ({id:i, player:p, er:-1, ec:-1, onBoard:false}));
+    // All pawns start in reserve (5 on classic, 3 on duel)
+    pawns[p] = Array.from({length:PAWNS_PER_PLAYER}, (_,i) => ({id:i, player:p, er:-1, ec:-1, onBoard:false}));
   }
   barricades = BARRICADE_INIT_CELLS.map(([er,ec]) => ({er,ec}));
   currentPlayer=1; diceVal=null; phase='roll'; selPawn=null; reachable=[]; gameOver=false;
@@ -3247,13 +3342,15 @@ function trySpawnPowerup() {
 
   // Spawn check: every 4-6 turns
   if (turnCount < nextSpawnAt) return;
-  if (boardPowerups.length >= 8) return; // max 8 on board
+  const PU_MAX = activeBoard === 'duel' ? 3 : 8;
+  if (boardPowerups.length >= PU_MAX) return; // cap scales with board size
 
-  // Pick a random empty path cell with min 9 Manhattan distance from other powerups
-  const MIN_DIST = 9;
+  // Pick a random empty path cell, spaced out from other powerups.
+  // Spacing and cap scale with board size (duel board is ~1/3 the cells).
+  const MIN_DIST = activeBoard === 'duel' ? 4 : 9;
   const candidates = Object.values(CELL_MAP).filter(({er, ec, type}) => {
     if (type === 'goal') return false;
-    if (er >= 14) return false; // not on bottom rows
+    if (er >= BOTTOM_ROW - 3) return false; // not on bottom rows
     if (barAt(er, ec)) return false;
     if (pawnAt(er, ec)) return false;
     if (boardPowerups.find(p => p.er === er && p.ec === ec)) return false;
@@ -3460,7 +3557,7 @@ function placeTempBarricade(er, ec) {
   if (!cell || cell.type === 'goal') return;
   if (barAt(er,ec) || pawnAt(er,ec)) return;
   if (traps.find(t => t.er === er && t.ec === ec)) return; // can't place on a mine
-  if (er >= 17) return;
+  if (er >= BOTTOM_ROW) return;
   barricades.push({er, ec});
   tempBarricades.push({er, ec, turnsLeft: 3 * numPlayers}); // 3 turns per player
   soundBarricadePlace();
@@ -3492,7 +3589,7 @@ function placeTrap(er, ec) {
   const cell = getCell(er, ec);
   if (!cell || cell.type === 'goal') return;
   if (barAt(er,ec) || pawnAt(er,ec)) return;
-  if (er >= 17) return;
+  if (er >= BOTTOM_ROW) return;
   if (traps.find(t => t.er === er && t.ec === ec)) return;
 
   traps.push({ er, ec, owner: currentPlayer });
@@ -3557,7 +3654,7 @@ function bulldozePlace(er, ec) {
   const cell = getCell(er, ec);
   if (!cell || cell.type === 'goal') return;
   if (barAt(er,ec) || pawnAt(er,ec)) return;
-  if (er >= 17) return;
+  if (er >= BOTTOM_ROW) return;
   // Remove from old position
   barricades = barricades.filter(b => !(b.er === bulldozePickedBarricade.er && b.ec === bulldozePickedBarricade.ec));
   // Place at new position
@@ -4248,7 +4345,7 @@ function finishMove(er, ec, bar, movingPawn) {
   // End possession after move
 
   // Win check
-  if (er===4 && ec===9) {
+  if (er===GOAL[0] && ec===GOAL[1]) {
     gameOver=true;
     renderAll();
     setTimeout(()=>{soundWin();showWin(currentPlayer);},300);
@@ -4285,7 +4382,7 @@ function placeBarricade(er, ec) {
   if (barAt(er,ec)||pawnAt(er,ec)) return;
   if (traps.find(t => t.er === er && t.ec === ec)) return; // can't place on a mine
   // Cannot place on row 17 (bottom path row) or below
-  if (er >= 17) return; // row 17 is bottom path row
+  if (er >= BOTTOM_ROW) return; // bottom path row — no barricades
   barricades.push({er, ec});
   soundBarricadePlace();
   glog(`${pnm(currentPlayer)} placed barricade`);
@@ -4380,7 +4477,7 @@ function doCPU() {
 // How many steps does it take to reach the goal from (er,ec)?
 // Uses BFS ignoring barricades (best-case path length)
 function distToGoal(er, ec) {
-  const GOAL_ER = 4, GOAL_EC = 9;
+  const GOAL_ER = GOAL[0], GOAL_EC = GOAL[1];
   if (er === GOAL_ER && ec === GOAL_EC) return 0;
   const visited = new Set();
   const queue = [[er, ec, 0]];
@@ -4402,7 +4499,7 @@ function distToGoal(er, ec) {
 
 // Count barricades blocking the most direct path from (er,ec) to goal
 function barricadesOnPath(er, ec) {
-  const GOAL_ER = 4, GOAL_EC = 9;
+  const GOAL_ER = GOAL[0], GOAL_EC = GOAL[1];
   const visited = new Set();
   // BFS tracking barricades encountered
   const queue = [[er, ec, 0]];
@@ -4428,7 +4525,7 @@ function scoreTarget(er, ec, movingPawn) {
   let s = 0;
 
   // ── Win immediately ──────────────────────────────────────────
-  if (er===4 && ec===9) return 10000;
+  if (er===GOAL[0] && ec===GOAL[1]) return 10000;
 
   // ── Distance to goal (primary driver) ───────────────────────
   // How far is this cell from the goal?
@@ -4575,7 +4672,7 @@ function sacrificeValueHard(er, ec, movingPawn) {
 function scoreTargetHard(er, ec, movingPawn) {
   let s = scoreTarget(er, ec, movingPawn); // reuse base heuristics
 
-  if (er === 4 && ec === 9) return 100000; // guaranteed win dominates
+  if (er === GOAL[0] && ec === GOAL[1]) return 100000; // guaranteed win dominates
 
   const enemies = enemyPlayers();
 
@@ -4684,7 +4781,7 @@ function bestBarricade() {
   let cands = [];
   Object.values(CELL_MAP).forEach(({er, ec, type}) => {
     if (type === 'goal') return;
-    if (er >= 17) return;
+    if (er >= BOTTOM_ROW) return;
     if (barAt(er,ec) || pawnAt(er,ec)) return;
 
     let score = 0;
@@ -4898,7 +4995,7 @@ function renderBoard() {
       }
       if (phase==='place-barricade') {
         const ct = getCell(er,ec);
-        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17 && !traps.find(t=>t.er===er&&t.ec===ec)) {
+        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<BOTTOM_ROW && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
           div.onclick = () => placeBarricade(er, ec);
           const ghost = document.createElement('div');
@@ -4908,7 +5005,7 @@ function renderBoard() {
       }
       if (phase==='place-temp-barricade') {
         const ct = getCell(er,ec);
-        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17 && !traps.find(t=>t.er===er&&t.ec===ec)) {
+        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<BOTTOM_ROW && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
           div.onclick = () => placeTempBarricade(er, ec);
           const ghost = document.createElement('div');
@@ -4919,7 +5016,7 @@ function renderBoard() {
       // Trap placement
       if (phase==='place-trap') {
         const ct = getCell(er,ec);
-        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<17 && !traps.find(t=>t.er===er&&t.ec===ec)) {
+        if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<BOTTOM_ROW && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
           div.onclick = () => placeTrap(er, ec);
         }
@@ -4946,7 +5043,7 @@ function renderBoard() {
   // Render 4 home areas below the board, centered on their entry columns
   // Entry cols: P1=C3, P2=C7, P3=C11, P4=C15
   // Row 17 is the last board row. cellY(17) = (17-4)*ST = 13*ST
-  const homeY = 13 * ST + SZ + 6;
+  const homeY = cellY(BOTTOM_ROW) + SZ + 6;
   const homeSize = ST * 4; // wider home box
   const homePawnSize = SZ - 8; // slightly larger pawns
 
@@ -5315,7 +5412,11 @@ let mpRoomMode = 'classic';
 let mpRoomNumPlayers = 2;
 let mpIsOnline = false;
 let mpCreateNP = 2;
-let mpCreateMode = 'classic';
+let mpCreateBoard = 'classic';   // 'classic' | 'duel'
+let mpCreatePowerups = false;
+// mode string sent to server (composite, e.g. 'duel-powerups') — server relays it untouched
+function mpModeString() { return mpCreateBoard + (mpCreatePowerups ? '-powerups' : ''); }
+let mpCreateMode = 'classic'; // kept in sync for legacy fallbacks
 let mpCreatePublic = true;
 let dcTimer = null;
 
@@ -5371,7 +5472,7 @@ function connectSocket() {
     mpRoomCode = code;
     mpSlot = slot;
     mpSecret = secret;
-    mpRoomMode = mpCreateMode;
+    mpRoomMode = mpModeString();
     mpRoomNumPlayers = mpCreateNP;
     localStorage.setItem('mp-session', JSON.stringify({ code, secret }));
     setRoomUrl(code);
@@ -5522,6 +5623,7 @@ function serializeGameState() {
       doubleRollActive: doubleRollActive,
       powerupsEnabled: powerupsEnabled,
       numPlayers: numPlayers,
+      boardId: activeBoard,
     });
   } catch(e) { return null; }
 }
@@ -5530,6 +5632,7 @@ function applyGameState(stateStr) {
   if (!stateStr) return;
   try {
     const s = typeof stateStr === 'string' ? JSON.parse(stateStr) : stateStr;
+    if (s.boardId && s.boardId !== activeBoard) setBoard(s.boardId);
     if (s.pawns && Object.keys(s.pawns).length > 0) pawns = s.pawns;
     if (s.barricades && s.barricades.length >= 0) barricades = s.barricades;
     tempBarricades = s.tempBarricades || [];
@@ -5598,7 +5701,7 @@ function updateLobbyList(rooms) {
       rooms.forEach(room => {
         const row = document.createElement('div');
         row.className = 'hp-room-row';
-        const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
+        const modeLabel = (String(room.mode).includes('duel') ? '💑 Duel' : 'Classic') + (String(room.mode).includes('power') ? ' ⚡' : '');
         row.innerHTML = `
           <div class="hp-room-host">${escapeHtml(room.host||'')}<small>${room.players}/${room.numPlayers} · ${modeLabel}</small></div>
           <button class="hp-room-join" onclick="joinRoom('${room.code}')">Join</button>
@@ -5621,8 +5724,8 @@ function updateLobbyList(rooms) {
       rooms.forEach(room => {
         const row = document.createElement('div');
         row.className = 'room-row';
-        const modeClass = room.mode === 'powerups' ? 'badge-powerups' : 'badge-classic';
-        const modeLabel = room.mode === 'powerups' ? '⚡ Powerups' : 'Classic';
+        const modeClass = String(room.mode).includes('power') ? 'badge-powerups' : 'badge-classic';
+        const modeLabel = (String(room.mode).includes('duel') ? '💑 Duel' : 'Classic') + (String(room.mode).includes('power') ? ' ⚡' : '');
         row.innerHTML = `
           <div class="room-host">${escapeHtml(room.host||'')}<small>${room.players}/${room.numPlayers} players</small></div>
           <span class="room-badge ${modeClass}">${modeLabel}</span>
@@ -5640,10 +5743,25 @@ function setMpNP(n) {
   [2,3,4].forEach(x => { const el = document.getElementById('mp-np'+x); if(el) el.classList.toggle('on', x===n); });
 }
 
-function setMpMode(m) {
-  mpCreateMode = m;
-  const c = document.getElementById('mp-classic'); if(c) c.classList.toggle('on', m==='classic');
-  const p = document.getElementById('mp-powerups'); if(p) p.classList.toggle('on', m==='powerups');
+function setMpBoard(b) {
+  mpCreateBoard = b === 'duel' ? 'duel' : 'classic';
+  mpCreateMode = mpModeString();
+  const c = document.getElementById('mp-classic'); if(c) c.classList.toggle('on', b==='classic');
+  const d = document.getElementById('mp-duel'); if(d) d.classList.toggle('on', b==='duel');
+  // Duel is strictly 2 players — lock the player count
+  const isDuel = b === 'duel';
+  if (isDuel) setMpNP(2);
+  const npSel = document.getElementById('mp-np-select');
+  if (npSel) { if (isDuel) npSel.value = '2'; npSel.disabled = isDuel; }
+  [3,4].forEach(x => { const el = document.getElementById('mp-np'+x); if(el) el.style.opacity = isDuel ? '.35' : '', el.style.pointerEvents = isDuel ? 'none' : ''; });
+}
+
+function setMpPowerups(on) {
+  mpCreatePowerups = !!on;
+  mpCreateMode = mpModeString();
+  const off = document.getElementById('mp-pu-off'); if(off) off.classList.toggle('on', !on);
+  const puOn = document.getElementById('mp-pu-on'); if(puOn) puOn.classList.toggle('on', !!on);
+  const tgl = document.getElementById('mp-powerups-toggle'); if(tgl) tgl.checked = !!on;
 }
 
 function setMpVisibility(pub) {
@@ -5654,12 +5772,13 @@ function setMpVisibility(pub) {
 
 function createRoom() {
   if (!socket || !socket.connected) { alert('Not connected to server. Please wait.'); return; }
+  if (mpCreateBoard === 'duel') mpCreateNP = 2;
   mpRoomNumPlayers = mpCreateNP;
-  mpRoomMode = mpCreateMode;
+  mpRoomMode = mpModeString();
   socket.emit('create-room', {
     playerName: mpUsername,
     numPlayers: mpCreateNP,
-    mode: mpCreateMode,
+    mode: mpModeString(),
     isPublic: mpCreatePublic,
     pawnIcon: myPawnIcon
   });
@@ -5698,9 +5817,9 @@ function showWaitingRoom() {
   // Use mpCreateMode as fallback in case mpRoomMode wasn't set yet
   const displayMode = mpRoomMode || mpCreateMode;
   const displayNP = mpRoomNumPlayers || mpCreateNP;
-  const isPowerups = displayMode === 'powerups';
-  document.getElementById('waiting-mode-label').textContent =
-    (isPowerups ? '⚡ Powerups mode · ' : 'Classic mode · ') + displayNP + ' players';
+  const dm = String(displayMode || '');
+  const modeTxt = (dm.includes('duel') ? '💑 Duel' : 'Classic') + (dm.includes('power') ? ' ⚡ Powerups' : '') + ' · ';
+  document.getElementById('waiting-mode-label').textContent = modeTxt + displayNP + ' players';
 
   updateWaitingPlayers(
     [{ name: mpUsername, slot: mpSlot }],
@@ -5758,7 +5877,11 @@ function startOnlineGame(players, mode, npOnline) {
   // Configure game settings from server
   numPlayers = npOnline;
   cpuMode = 'none';
-  powerupsEnabled = (mode === 'powerups' || mode === 'powerup' || String(mode).toLowerCase().includes('power'));
+  powerupsEnabled = String(mode).toLowerCase().includes('power');
+  // Board follows mode: duel rooms use the 2-player duel board
+  const isDuel = String(mode).toLowerCase().includes('duel');
+  setBoard(isDuel ? 'duel' : 'classic');
+  if (isDuel) numPlayers = 2;
 
   // Map server players to game slots
   // Our slot = mpSlot, others are opponents
@@ -6160,7 +6283,8 @@ startPlayerTurn = function() {
 
 
 // ── Homepage ─────────────────────────────────────────────────────
-let hpMode = 'classic';
+let hpBoard = 'classic';   // 'classic' | 'duel'
+let hpPowerups = false;
 let hpNP = 2;
 let hpCPU = 'none';
 let hpDiff = 'easy';
@@ -6202,10 +6326,11 @@ function showHomepage() {
 
 function startFromHomepage() {
   hideHomepage();
-  numPlayers = hpNP;
+  setBoard(hpBoard);
+  numPlayers = hpBoard === 'duel' ? 2 : hpNP;
   cpuMode = hpCPU;
   cpuDiff = hpDiff;
-  powerupsEnabled = hpMode === 'powerups';
+  powerupsEnabled = hpPowerups;
   document.getElementById('glog').innerHTML = '';
   initGame();
   renderAll();
@@ -6213,8 +6338,16 @@ function startFromHomepage() {
   if (isCPU(currentPlayer)) setTimeout(doCPU, 700);
 }
 
-function setHpMode(mode) {
-  hpMode = mode;
+function setHpBoard(b) {
+  hpBoard = b === 'duel' ? 'duel' : 'classic';
+  const isDuel = hpBoard === 'duel';
+  if (isDuel) hpNP = 2;
+  const npSel = document.getElementById('hp-np-select');
+  if (npSel) { if (isDuel) npSel.value = '2'; npSel.disabled = isDuel; }
+}
+
+function setHpPowerups(on) {
+  hpPowerups = !!on;
 }
 
 function setHpNP(n) {
@@ -6298,10 +6431,11 @@ function hpCreateRoom() {
     }, 1500);
     return;
   }
+  if (mpCreateBoard === 'duel') mpCreateNP = 2;
   socket.emit('create-room', {
     playerName: mpUsername,
     numPlayers: mpCreateNP,
-    mode: mpCreateMode,
+    mode: mpModeString(),
     isPublic: mpCreatePublic,
     pawnIcon: myPawnIcon
   });
