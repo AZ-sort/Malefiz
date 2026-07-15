@@ -1173,7 +1173,7 @@
   .hp-mode-title { font-size: .82rem; font-weight: 700; margin-bottom: 1px; }
   .hp-mode-desc { font-size: .68rem; color: var(--muted); line-height: 1.4; }
 
-  .hp-quick-play { display: flex; flex-direction: column; gap: 10px; }
+  .hp--play { display: flex; flex-direction: column; gap: 10px; }
   .hp-quick-play label {
     font-size: .65rem;
     font-family: 'DM Mono', monospace;
@@ -1939,7 +1939,7 @@
             <div class="hp-field-label">Game Mode</div>
             <select class="hp-select" id="hp-mode-select" onchange="setHpBoard(this.value)">
               <option value="classic">Classic</option>
-              <option value="duel">💑 2P Duel — quick head-to-head</option>
+              <option value="duel">2 Player Duel</option>
             </select>
           </div>
 
