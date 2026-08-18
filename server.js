@@ -65,7 +65,14 @@ async function initDB() {
 }
 initDB();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'malefiz-secret-key-change-in-prod';
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: JWT_SECRET is not set. Refusing to start with a guessable fallback secret in production.');
+  process.exit(1);
+}
+if (!process.env.JWT_SECRET) {
+  console.warn('JWT_SECRET is not set — using an ephemeral development secret. Set JWT_SECRET before deploying.');
+}
+const JWT_SECRET = process.env.JWT_SECRET || require('crypto').randomBytes(32).toString('hex');
 const SALT_ROUNDS = 10;
 
 // ── Auth middleware ───────────────────────────────────────────────
