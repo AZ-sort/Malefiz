@@ -1,5 +1,5 @@
 User-agent: *
 Allow: /
 
-# Tell search engines the canonical home is playsabotage.com
-Sitemap: https://playsabotage.com/sitemap.xml
+# Tell search engines the canonical home is www.playsabotage.com
+Sitemap: https://www.playsabotage.com/sitemap.xml
