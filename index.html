@@ -4001,7 +4001,7 @@ function addChatMessage(name, msg, isOwn) {
   // Color name by player slot
   const slot = Object.entries(PNMS).find(([k,v]) => v === name);
   const color = slot ? `var(--p${slot[0]})` : 'var(--accent)';
-  div.innerHTML = `<span class="chat-msg-name" style="color:${color}">${name}:</span><span class="chat-msg-text">${escapeHtml(msg)}</span>`;
+  div.innerHTML = `<span class="chat-msg-name" style="color:${color}">${escapeHtml(name)}:</span><span class="chat-msg-text">${escapeHtml(msg)}</span>`;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }

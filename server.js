@@ -65,7 +65,14 @@ async function initDB() {
 }
 initDB();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'malefiz-secret-key-change-in-prod';
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: JWT_SECRET is not set. Refusing to start with a guessable fallback secret in production.');
+  process.exit(1);
+}
+if (!process.env.JWT_SECRET) {
+  console.warn('JWT_SECRET is not set — using an ephemeral development secret. Set JWT_SECRET before deploying.');
+}
+const JWT_SECRET = process.env.JWT_SECRET || require('crypto').randomBytes(32).toString('hex');
 const SALT_ROUNDS = 10;
 
 // ── Auth middleware ───────────────────────────────────────────────
@@ -144,6 +151,12 @@ function validNumPlayers(n) {
 function cleanIcon(icon) {
   if (typeof icon !== 'string') return '';
   return icon.slice(0, 8);
+}
+
+// Strip reconnect secrets before a players array is broadcast to a room —
+// `secret` is a credential and must only ever be sent to the player it belongs to.
+function publicPlayers(players) {
+  return players.map(({ secret, ...rest }) => rest);
 }
 
 function generateRoomCode() {
@@ -241,13 +254,13 @@ io.on('connection', (socket) => {
     room.lastActivity = Date.now();
     socket.join(code.toUpperCase());
     socketRooms[socket.id] = code.toUpperCase();
-    socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: room.players, mode: room.mode, numPlayers: room.numPlayers });
-    io.to(code.toUpperCase()).emit('player-joined', { players: room.players });
+    socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: publicPlayers(room.players), mode: room.mode, numPlayers: room.numPlayers });
+    io.to(code.toUpperCase()).emit('player-joined', { players: publicPlayers(room.players) });
     broadcastLobby();
     if (room.players.length === room.numPlayers) {
       room.started = true;
       broadcastLobby();
-      setTimeout(() => io.to(code.toUpperCase()).emit('game-start', { players: room.players, mode: room.mode, numPlayers: room.numPlayers }), 1000);
+      setTimeout(() => io.to(code.toUpperCase()).emit('game-start', { players: publicPlayers(room.players), mode: room.mode, numPlayers: room.numPlayers }), 1000);
     }
   });
 
@@ -261,7 +274,7 @@ io.on('connection', (socket) => {
     room.lastActivity = Date.now();
     socket.join(code);
     socketRooms[socket.id] = code;
-    socket.emit('reconnected', { slot: player.slot, players: room.players, gameState: room.gameState });
+    socket.emit('reconnected', { slot: player.slot, players: publicPlayers(room.players), gameState: room.gameState });
     socket.to(code).emit('player-reconnected', { slot: player.slot, name: player.name });
   });
 
@@ -286,6 +299,12 @@ io.on('connection', (socket) => {
     }
     room.actionLog.push({ type: action.type, ts: Date.now() });
     if (room.actionLog.length > 200) room.actionLog.shift();
+    if (action.type === 'chat' && action.data) {
+      // Never trust a client-supplied chat name — stamp the sender's own
+      // server-sanitized name to prevent stored XSS and name spoofing.
+      const sender = room.players.find(p => p.id === socket.id);
+      action = { ...action, data: { ...action.data, name: sender ? sender.name : 'Player' } };
+    }
     socket.to(code).emit('game-action', action);
   });
 
@@ -307,7 +326,7 @@ io.on('connection', (socket) => {
         } else {
           room.players = room.players.filter(p => p.id !== socket.id);
           if (room.players.length === 0) delete rooms[code];
-          else io.to(code).emit('player-joined', { players: room.players });
+          else io.to(code).emit('player-joined', { players: publicPlayers(room.players) });
           broadcastLobby();
         }
       }
