@@ -272,10 +272,17 @@ setInterval(() => {
   const now = Date.now();
   let cleaned = 0;
   for (const [code, room] of Object.entries(rooms)) {
-    if (now - room.createdAt > ROOM_MAX_AGE_MS) {
+    // "3 hours of inactivity" should mean inactivity, not age — measure from
+    // lastActivity (refreshed on every game-action) so a long-running live
+    // game isn't reaped mid-play.
+    if (now - (room.lastActivity || room.createdAt) > ROOM_MAX_AGE_MS) {
       io.to(code).emit('room-expired', { message: 'Room closed after 3 hours of inactivity.' });
       delete rooms[code]; cleaned++;
     } else if (room.started && room.players.every(p => !p.connected) && now - (room.lastActivity || room.createdAt) > 5 * 60 * 1000) {
+      // `departed` (below) is only ever set while a player is already
+      // disconnected, and is cleared the instant they reconnect — so it's
+      // always a subset of !connected and doesn't need checking separately
+      // here; "every player disconnected" already covers departed players.
       delete rooms[code]; cleaned++;
     }
   }
@@ -330,6 +337,7 @@ io.on('connection', (socket) => {
     if (!player) { socket.emit('reconnect-failed', 'Could not verify identity.'); return; }
     player.id = socket.id;
     player.connected = true;
+    player.departed = false;
     room.lastActivity = Date.now();
     socket.join(code);
     socketRooms[socket.id] = code;
@@ -376,10 +384,17 @@ io.on('connection', (socket) => {
         player.connected = false;
         if (room.started) {
           io.to(code).emit('player-disconnected', { slot: player.slot, name: player.name });
+          // Capture this socket's id so a disconnect->reconnect->disconnect
+          // sequence inside the 60s window doesn't let the *first*
+          // disconnect's stale timer mark the player departed early — only
+          // the timer belonging to the player's current (still-connected-at-
+          // schedule-time) socket should ever fire.
+          const disconnectedSocketId = socket.id;
           setTimeout(() => {
-            if (!player.connected && rooms[code]) {
+            if (rooms[code] && player.id === disconnectedSocketId && !player.connected) {
+              player.departed = true;
               io.to(code).emit('player-left', { slot: player.slot, name: player.name });
-              if (room.players.filter(p => p.connected).length === 0) delete rooms[code];
+              if (room.players.every(p => !p.connected)) delete rooms[code];
             }
           }, 60000);
         } else {

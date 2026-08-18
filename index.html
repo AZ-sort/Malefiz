@@ -4409,13 +4409,27 @@ function placeBarricade(er, ec) {
   nextTurn(); renderAll();
 }
 
+// Advance from a slot to the next one in rotation, skipping any slot marked
+// departed (index.html: departedSlots). Bounded to numPlayers steps so a
+// room where every slot has departed can't spin forever — that case is
+// expected to already have ended the game via handleAbandonment before this
+// runs, so the bound is just a defensive fallback, not the normal path.
+function advanceSlot(from) {
+  let next = from;
+  for (let i = 0; i < numPlayers; i++) {
+    next = (next % numPlayers) + 1;
+    if (!departedSlots[next]) return next;
+  }
+  return (from % numPlayers) + 1;
+}
+
 function nextTurn() {
   if (gameOver) return;
   phase='roll'; diceVal=null; selPawn=null; reachable=[];
   doubleRollActive = false;
   document.getElementById('dface').textContent='⚀';
   trySpawnPowerup();
-  currentPlayer = (currentPlayer % numPlayers) + 1;
+  currentPlayer = advanceSlot(currentPlayer);
 
   // Handle skip
   if (!gameOver && skipTurns[currentPlayer] > 0) {
@@ -4424,12 +4438,12 @@ function nextTurn() {
     renderAll();
     setTimeout(() => {
       if (gameOver) return;
-      currentPlayer = (currentPlayer % numPlayers) + 1;
+      currentPlayer = advanceSlot(currentPlayer);
       // Check if that player is also skipped
       if (!gameOver && skipTurns[currentPlayer] > 0) {
         skipTurns[currentPlayer]--;
         glog(`${pnm(currentPlayer)}'s turn was also skipped! ⏭️`, true);
-        currentPlayer = (currentPlayer % numPlayers) + 1;
+        currentPlayer = advanceSlot(currentPlayer);
       }
       renderAll();
       // In online mode, sync the resolved turn so all clients agree
@@ -5439,6 +5453,11 @@ function mpModeString() { return mpCreateBoard + (mpCreatePowerups ? '-powerups'
 let mpCreateMode = 'classic'; // kept in sync for legacy fallbacks
 let mpCreatePublic = true;
 let dcTimer = null;
+// Slots permanently vacated (disconnected past the server's 60s grace
+// period), keyed by slot number -> true. Turn rotation skips these slots;
+// cleared if the player reconnects. Carried through applyGameState so a
+// reconnecting client learns about departures that happened while it was gone.
+let departedSlots = {};
 
 // ── Connection ───────────────────────────────────────────────────
 function connectSocket() {
@@ -5511,6 +5530,7 @@ function connectSocket() {
     mpSecret = secret;
     mpRoomMode = mpModeString();
     mpRoomNumPlayers = mpCreateNP;
+    departedSlots = {}; // fresh room, fresh player roster
     localStorage.setItem('mp-session', JSON.stringify({ code, secret }));
     setRoomUrl(code);
     showWaitingRoom();
@@ -5522,6 +5542,7 @@ function connectSocket() {
     mpSecret = secret;
     mpRoomMode = mode;
     mpRoomNumPlayers = numPlayers;
+    departedSlots = {}; // fresh room, fresh player roster
     localStorage.setItem('mp-session', JSON.stringify({ code, secret }));
     setRoomUrl(code);
     updateWaitingPlayers(players, numPlayers);
@@ -5560,17 +5581,21 @@ function connectSocket() {
 
   socket.on('player-reconnected', ({ slot, name }) => {
     hideDcOverlay();
+    delete departedSlots[slot];
     glog(`${name} reconnected!`, true);
+    renderAll();
   });
 
-  socket.on('player-left', ({ name }) => {
+  socket.on('player-left', ({ slot, name }) => {
     hideDcOverlay();
+    departedSlots[slot] = true;
     glog(`${name} left the game.`, true);
+    handleAbandonment(slot);
   });
 
   socket.on('room-expired', ({ message }) => {
     hideDcOverlay();
-    alert(message || 'Room expired after 30 minutes of inactivity.');
+    alert(message || 'Room expired after 3 hours of inactivity.');
     showHomepage();
   });
 
@@ -5618,6 +5643,14 @@ function connectSocket() {
 
     } else {
     }
+    // `players` (live from the server) is the authoritative source for who's
+    // departed — the gameState blob above can be stale if a departure
+    // happened after the last turn-ending sync, so re-derive from `players`
+    // rather than trusting whatever applyGameState just set.
+    if (players) {
+      departedSlots = {};
+      players.forEach(p => { if (p.departed) departedSlots[p.slot] = true; });
+    }
     // Always re-render everything
     glowTurnSnapshot = '';
     selPawn = null;
@@ -5661,6 +5694,7 @@ function serializeGameState() {
       powerupsEnabled: powerupsEnabled,
       numPlayers: numPlayers,
       boardId: activeBoard,
+      departedSlots: departedSlots,
     });
   } catch(e) { return null; }
 }
@@ -5682,6 +5716,11 @@ function applyGameState(stateStr) {
     playerPowerups = s.playerPowerups || {};
     boardPowerups = s.boardPowerups || [];
     turnCount = s.turnCount || 0;
+    departedSlots = s.departedSlots || {};
+    // Guard against a race where a returning player receives a snapshot
+    // taken before the server cleared their own departed flag — never let a
+    // client believe it is itself departed.
+    if (mpSlot) delete departedSlots[mpSlot];
     glowTurnSnapshot = '';
     selPawn = null;
     reachable = [];
@@ -5958,12 +5997,16 @@ function startOnlineGame(players, mode, npOnline) {
 // (sync functions defined below)
 
 // ── Disconnect overlay ────────────────────────────────────────────
-let dcCountdown = 30;
+// 60s to match the server's actual reconnect grace period (server.js
+// disconnect handler) — previously 30s, which meant the overlay vanished a
+// full 30s before the server's 'player-left' event actually arrived,
+// leaving the remaining player thinking everything was fine in between.
+let dcCountdown = 60;
 function showDcOverlay(name, slot) {
   document.getElementById('dc-title').textContent = name + ' disconnected';
   document.getElementById('dc-msg').textContent = 'Waiting for them to reconnect...';
   document.getElementById('dc-overlay').classList.add('show');
-  dcCountdown = 30;
+  dcCountdown = 60;
   document.getElementById('dc-timer').textContent = dcCountdown;
   dcTimer = setInterval(() => {
     dcCountdown--;
@@ -5979,6 +6022,40 @@ function hideDcOverlay() {
 
 function dismissDc() {
   hideDcOverlay();
+}
+
+// ── Abandonment handling ────────────────────────────────────────────
+// Called once a slot has been formally marked departed (60s past
+// disconnect, server-confirmed via 'player-left'). Two jobs: end the game
+// cleanly if too few humans remain, or unstick the turn rotation if it was
+// the departed player's turn (nobody could act otherwise — the roll button
+// is hard-gated to currentPlayer === mpSlot).
+function handleAbandonment(slot) {
+  if (gameOver) return; // already ended (e.g. a clean win landed right before this fired)
+  const remaining = [];
+  for (let s = 1; s <= numPlayers; s++) { if (!departedSlots[s]) remaining.push(s); }
+  if (remaining.length < 2) {
+    // Not enough humans left to continue — end the game the same way a
+    // normal win does (index.html, win-check in movePawn), rather than
+    // leaving a dead board with no way forward.
+    gameOver = true;
+    renderAll();
+    const wmsg = document.getElementById('wmsg');
+    if (wmsg) wmsg.textContent = `${pnm(slot)} left the game`;
+    document.getElementById('win').classList.add('show');
+    glog(`${pnm(slot)} left — not enough players remaining to continue.`, true);
+    if (mpIsOnline) showRematchBtn();
+    localStorage.removeItem('mp-session');
+    return;
+  }
+  if (currentPlayer === slot) {
+    // Only the lowest remaining slot force-advances, so every client isn't
+    // independently calling nextTurn() (and broadcasting next-turn-resolved)
+    // at once. Same host-authority tiebreak already used for rematch votes.
+    const lowest = Math.min(...remaining);
+    if (mpSlot === lowest) nextTurn();
+  }
+  renderAll();
 }
 
 // ── Turn gating ──────────────────────────────────────────────────
