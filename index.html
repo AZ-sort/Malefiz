@@ -2383,7 +2383,12 @@
   </div>
 </div></div></div>
 
-<script src="https://malefiz-production.up.railway.app/socket.io/socket.io.js" onerror="window.__ioLoadFailed=true"></script>
+<!-- Vendored from node_modules/socket.io/client-dist/socket.io.min.js so the
+     client loads from the same origin as this page instead of trusting a
+     second (Railway) origin at runtime. Refresh this file whenever the
+     socket.io server dependency is upgraded — an old vendored client
+     against a newer server is the failure mode this guards against. -->
+<script src="socket.io.js" onerror="window.__ioLoadFailed=true"></script>
 <script>
 // Single source of truth for the multiplayer server origin — used by both
 // the REST auth calls (API) and the socket.io connection (SERVER_URL).
