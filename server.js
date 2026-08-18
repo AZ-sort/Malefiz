@@ -286,6 +286,12 @@ io.on('connection', (socket) => {
     }
     room.actionLog.push({ type: action.type, ts: Date.now() });
     if (room.actionLog.length > 200) room.actionLog.shift();
+    if (action.type === 'chat' && action.data) {
+      // Never trust a client-supplied chat name — stamp the sender's own
+      // server-sanitized name to prevent stored XSS and name spoofing.
+      const sender = room.players.find(p => p.id === socket.id);
+      action = { ...action, data: { ...action.data, name: sender ? sender.name : 'Player' } };
+    }
     socket.to(code).emit('game-action', action);
   });
 
