@@ -146,6 +146,12 @@ function cleanIcon(icon) {
   return icon.slice(0, 8);
 }
 
+// Strip reconnect secrets before a players array is broadcast to a room —
+// `secret` is a credential and must only ever be sent to the player it belongs to.
+function publicPlayers(players) {
+  return players.map(({ secret, ...rest }) => rest);
+}
+
 function generateRoomCode() {
   let code;
   let attempts = 0;
@@ -241,13 +247,13 @@ io.on('connection', (socket) => {
     room.lastActivity = Date.now();
     socket.join(code.toUpperCase());
     socketRooms[socket.id] = code.toUpperCase();
-    socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: room.players, mode: room.mode, numPlayers: room.numPlayers });
-    io.to(code.toUpperCase()).emit('player-joined', { players: room.players });
+    socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: publicPlayers(room.players), mode: room.mode, numPlayers: room.numPlayers });
+    io.to(code.toUpperCase()).emit('player-joined', { players: publicPlayers(room.players) });
     broadcastLobby();
     if (room.players.length === room.numPlayers) {
       room.started = true;
       broadcastLobby();
-      setTimeout(() => io.to(code.toUpperCase()).emit('game-start', { players: room.players, mode: room.mode, numPlayers: room.numPlayers }), 1000);
+      setTimeout(() => io.to(code.toUpperCase()).emit('game-start', { players: publicPlayers(room.players), mode: room.mode, numPlayers: room.numPlayers }), 1000);
     }
   });
 
@@ -261,7 +267,7 @@ io.on('connection', (socket) => {
     room.lastActivity = Date.now();
     socket.join(code);
     socketRooms[socket.id] = code;
-    socket.emit('reconnected', { slot: player.slot, players: room.players, gameState: room.gameState });
+    socket.emit('reconnected', { slot: player.slot, players: publicPlayers(room.players), gameState: room.gameState });
     socket.to(code).emit('player-reconnected', { slot: player.slot, name: player.name });
   });
 
@@ -313,7 +319,7 @@ io.on('connection', (socket) => {
         } else {
           room.players = room.players.filter(p => p.id !== socket.id);
           if (room.players.length === 0) delete rooms[code];
-          else io.to(code).emit('player-joined', { players: room.players });
+          else io.to(code).emit('player-joined', { players: publicPlayers(room.players) });
           broadcastLobby();
         }
       }
