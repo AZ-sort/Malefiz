@@ -5,8 +5,13 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const crypto = require('crypto');
 
 const app = express();
+// Railway sits in front of this app as a reverse proxy — without this,
+// req.ip resolves to the proxy's address for every request, which would
+// bucket all users worldwide into one rate-limit counter.
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
@@ -42,9 +47,24 @@ app.get(/.*\.(js|json|env|md|lock)$/i, (req, res, next) => {
 });
 
 // ── Database ─────────────────────────────────────────────────────
+// TLS certificate verification is on. Confirmed against the real Railway
+// Postgres instance: it presents a self-signed chain (no public CA), so
+// PGSSLROOTCERT must be set to that CA's PEM in the deploy environment —
+// without it, connections fail outright rather than silently degrading.
+// Railway's proxy cert is also issued for CN=localhost regardless of the
+// actual hostname you connect through, so hostname matching is skipped via
+// checkServerIdentity while chain-of-trust verification (the part that
+// actually stops a MITM without Railway's CA private key) still applies in
+// full — equivalent to Postgres's sslmode=verify-ca.
+const sslConfig = process.env.PGSSLROOTCERT
+  ? { rejectUnauthorized: true, ca: process.env.PGSSLROOTCERT, checkServerIdentity: () => undefined }
+  : { rejectUnauthorized: true };
+if (!process.env.PGSSLROOTCERT) {
+  console.warn('PGSSLROOTCERT is not set — DB connections will fail against a self-signed Postgres provider like Railway.');
+}
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: sslConfig
 });
 
 // Create users table if it doesn't exist
@@ -72,8 +92,17 @@ if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
 if (!process.env.JWT_SECRET) {
   console.warn('JWT_SECRET is not set — using an ephemeral development secret. Set JWT_SECRET before deploying.');
 }
-const JWT_SECRET = process.env.JWT_SECRET || require('crypto').randomBytes(32).toString('hex');
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const SALT_ROUNDS = 10;
+
+// Rate-limit constants for the two HTTP auth routes. `checkRate()` (defined
+// further below, alongside the socket rate limits it also serves) is a
+// hoisted function declaration so calling it from these routes is safe even
+// though it's defined later in the file — only these two constants need to
+// live above their first use, since they're evaluated at route-registration
+// time, not request time.
+const MAX_LOGINS_PER_IP = 10;    // per 60s window
+const MAX_REGISTERS_PER_IP = 5;  // per 60s window
 
 // ── Auth middleware ───────────────────────────────────────────────
 function verifyToken(req, res, next) {
@@ -88,7 +117,16 @@ function verifyToken(req, res, next) {
 }
 
 // ── Auth routes ───────────────────────────────────────────────────
-app.post('/auth/register', async (req, res) => {
+function authRateLimit(type, limit) {
+  return (req, res, next) => {
+    if (!checkRate(req.ip, type, limit)) {
+      return res.status(429).json({ error: 'Too many attempts. Please wait and try again.' });
+    }
+    next();
+  };
+}
+
+app.post('/auth/register', authRateLimit('register', MAX_REGISTERS_PER_IP), async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   if (username.length < 3 || username.length > 20) return res.status(400).json({ error: 'Username must be 3-20 characters' });
@@ -111,7 +149,7 @@ app.post('/auth/register', async (req, res) => {
   }
 });
 
-app.post('/auth/login', async (req, res) => {
+app.post('/auth/login', authRateLimit('login', MAX_LOGINS_PER_IP), async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   try {
@@ -150,7 +188,9 @@ function validNumPlayers(n) {
 }
 function cleanIcon(icon) {
   if (typeof icon !== 'string') return '';
-  return icon.slice(0, 8);
+  // Same sanitization approach as cleanName() for consistency, even though
+  // the 8-char cap alone makes this low-impact in practice.
+  return icon.replace(/[<>"'`]/g, '').slice(0, 8);
 }
 
 // Strip reconnect secrets before a players array is broadcast to a room —
@@ -159,14 +199,24 @@ function publicPlayers(players) {
   return players.map(({ secret, ...rest }) => rest);
 }
 
+// Room-code alphabet excludes visually ambiguous characters (0/O, 1/I) since
+// codes are read aloud and typed by hand.
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
 function generateRoomCode() {
   let code;
   let attempts = 0;
   do {
-    code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const bytes = crypto.randomBytes(6);
+    code = Array.from(bytes, b => ROOM_CODE_ALPHABET[b % ROOM_CODE_ALPHABET.length]).join('');
     attempts++;
   } while (rooms[code] && attempts < 20);
   return code;
+}
+
+// Reconnect secret: a CSPRNG credential, not just an unguessable-looking string.
+function generateSecret() {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────
@@ -233,7 +283,7 @@ io.on('connection', (socket) => {
     const name = cleanName(playerName);
     const np = validNumPlayers(numPlayers);
     const code = generateRoomCode();
-    const secret = Math.random().toString(36).substring(2, 12);
+    const secret = generateSecret();
     const player = { id: socket.id, name, slot: 1, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) };
     rooms[code] = { code, host: name, players: [player], numPlayers: np, mode, isPublic: !!isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
     socket.join(code);
@@ -248,7 +298,7 @@ io.on('connection', (socket) => {
     if (!room) { socket.emit('join-error', 'Room not found.'); return; }
     if (room.started) { socket.emit('join-error', 'Game already in progress.'); return; }
     if (room.players.length >= room.numPlayers) { socket.emit('join-error', 'Room is full.'); return; }
-    const secret = Math.random().toString(36).substring(2, 12);
+    const secret = generateSecret();
     const slot = room.players.length + 1;
     room.players.push({ id: socket.id, name: cleanName(playerName), slot, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) });
     room.lastActivity = Date.now();
