@@ -3932,6 +3932,16 @@ function clearRoomUrl() {
 // ── Rematch ───────────────────────────────────────────────────────
 let rematchVotes = {}; // {slot: true} tracking who wants rematch
 
+// Rematch only needs a vote from each slot still actually in the room — a
+// departed slot (handleAbandonment) has no client left to click the button,
+// so counting the original mpRoomNumPlayers here left the survivor(s) of an
+// abandonment-ended game stuck on a permanently-pending "1/2 want rematch".
+function activeRematchSlotCount() {
+  let n = 0;
+  for (let s = 1; s <= mpRoomNumPlayers; s++) { if (!departedSlots[s]) n++; }
+  return n;
+}
+
 function requestRematch() {
   if (!mpIsOnline || !socket) return;
   const btn = document.getElementById('rematch-btn');
@@ -3943,13 +3953,14 @@ function requestRematch() {
 
 function updateRematchStatus() {
   const votes = Object.keys(rematchVotes).length;
+  const needed = activeRematchSlotCount();
   const status = document.getElementById('rematch-status');
   if (status) {
     status.style.display = 'block';
-    status.textContent = `${votes}/${mpRoomNumPlayers} want rematch`;
+    status.textContent = `${votes}/${needed} want rematch`;
   }
-  // All players voted — active player broadcasts rematch-start
-  if (votes >= mpRoomNumPlayers) {
+  // All remaining (non-departed) players voted — active player broadcasts rematch-start
+  if (votes >= needed) {
     if (mpSlot === 1 || Object.keys(rematchVotes)[0] === String(mpSlot)) {
       syncAction('rematch-start', {});
     }
@@ -3964,6 +3975,10 @@ function startRematch() {
   gameOver = false;
   localStorage.removeItem('mp-session'); // will get new session from re-init
   initGame();
+  // initGame() always opens on slot 1 — if that slot departed (the
+  // abandonment-ended-game path), skip forward to the first slot still
+  // actually present, same as mid-game turn advancement already does.
+  if (departedSlots[currentPlayer]) currentPlayer = advanceSlot(currentPlayer);
   renderAll();
   glog('Rematch started! Good luck! 🎮', true);
   updateOnlineTurnUI();
