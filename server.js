@@ -32,6 +32,15 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
+// Baseline security headers for the API responses. CSP is skipped here —
+// this origin only ever returns JSON, and the CSP that matters for the
+// actual page (index.html, served from Vercel) lives in vercel.json instead.
+app.use((req, res, next) => {
+  res.header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 // Only serve safe static assets — never .js/.env/source files
 app.use(express.static(path.join(__dirname), {
   setHeaders: (res, filePath) => {
@@ -130,7 +139,7 @@ app.post('/auth/register', authRateLimit('register', MAX_REGISTERS_PER_IP), asyn
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   if (username.length < 3 || username.length > 20) return res.status(400).json({ error: 'Username must be 3-20 characters' });
-  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   if (!/^[a-zA-Z0-9_]+$/.test(username)) return res.status(400).json({ error: 'Username can only contain letters, numbers and underscores' });
   try {
     const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
