@@ -4,26 +4,28 @@
 <meta charset="UTF-8">
 <script>
   if (window.location.hostname.includes('railway.app')) {
-    window.location.replace('https://playsabotage.com' + window.location.pathname);
+    window.location.replace('https://www.playsabotage.com' + window.location.pathname);
   }
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Play Sabotage</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♟️</text></svg>">
-<link rel="canonical" href="https://playsabotage.com">
+<!-- Canonical is www — apex playsabotage.com 308-redirects here at the DNS/Vercel level. -->
+<link rel="canonical" href="https://www.playsabotage.com">
 <meta name="description" content="Play Sabotage online — a free multiplayer board game inspired by Malefiz and Barricade. Race your pawns, block opponents with barricades, and use powerups. Play with friends, your partner, or challenge the AI. No download required.">
 <meta name="keywords" content="malefiz online, barricade board game online, play malefiz, malefiz free, barricade game, online board game couples, multiplayer board game, play with friends online, free board game no download, sabotage board game">
 <meta name="robots" content="index, follow">
 <meta property="og:title" content="Play Sabotage — Free Online Multiplayer Board Game">
 <meta property="og:description" content="Race your pawns to the goal, block opponents with barricades, and sabotage your way to victory. Free to play with friends, your partner, or vs AI. Inspired by Malefiz and Barricade.">
-<meta property="og:url" content="https://playsabotage.com">
+<meta property="og:url" content="https://www.playsabotage.com">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://playsabotage.com/preview.png">
-<meta name="twitter:image" content="https://playsabotage.com/preview.png">
+<meta property="og:image" content="https://www.playsabotage.com/preview.png">
+<meta name="twitter:image" content="https://www.playsabotage.com/preview.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Play Sabotage — Free Online Multiplayer Board Game">
 <meta name="twitter:description" content="Free online board game. Play with friends, partner, or vs AI. Inspired by Malefiz/Barricade.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -1744,7 +1746,7 @@
   "@type": "VideoGame",
   "name": "Play Sabotage",
   "description": "A free online multiplayer board game inspired by Malefiz and Barricade. Race your pawns to the goal while blocking opponents with barricades. Play with friends, your partner, or challenge the AI.",
-  "url": "https://playsabotage.com",
+  "url": "https://www.playsabotage.com",
   "genre": ["Board Game", "Strategy", "Multiplayer"],
   "numberOfPlayers": {
     "@type": "QuantitativeValue",
@@ -1768,7 +1770,7 @@
   <div class="sbox">
     <div class="setup-header">
       <button class="btn bg" onclick="showHomepage()" style="width:auto;padding:7px 14px;font-size:.76rem;">← Home</button>
-      <h1>Play <span>Sabotage</span></h1>
+      <h2>Play <span>Sabotage</span></h2>
       <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
     </div>
     <p style="font-size:.82rem;color:var(--muted);line-height:1.65;margin-top:-8px">Race any pawn to the goal. Block opponents. Capture pieces to send them home.</p>
@@ -2381,8 +2383,13 @@
   </div>
 </div></div></div>
 
-<script src="https://malefiz-production.up.railway.app/socket.io/socket.io.js"></script>
+<script src="https://malefiz-production.up.railway.app/socket.io/socket.io.js" onerror="window.__ioLoadFailed=true"></script>
 <script>
+// Single source of truth for the multiplayer server origin — used by both
+// the REST auth calls (API) and the socket.io connection (SERVER_URL).
+// If this ever changes (e.g. Railway re-issues a hostname), update it here only.
+const PS_SERVER_URL = 'https://malefiz-production.up.railway.app';
+
 // ================================================================
 // PLAYSABOTAGE.COM — Board mapped precisely from Excel spreadsheet
 //
@@ -3895,9 +3902,11 @@ function handleUrlRouting() {
 
   if (socket && socket.connected) {
     onConnect();
-  } else {
+  } else if (socket) {
     socket.once('connect', onConnect);
   }
+  // else: multiplayer server unreachable (connectSocket() already surfaced
+  // that via showServerOffline()) — nothing to wait for.
 }
 
 // ── Update URL when joining/creating a room ───────────────────────
@@ -4021,7 +4030,7 @@ function hideChat() {
 
 
 // ── Auth System ───────────────────────────────────────────────────
-const API = 'https://malefiz-production.up.railway.app';
+const API = PS_SERVER_URL;
 let authToken = localStorage.getItem('auth-token') || null;
 let loggedInUser = null;
 let authTab = 'login';
@@ -4030,7 +4039,13 @@ let authTab = 'login';
 async function checkAuth() {
   const token = localStorage.getItem('auth-token');
   if (!token) {
-    showAuthModal();
+    // No saved session — stay a guest silently. Login is opt-in via the nav
+    // "Log In" button (handleAccountBtn -> showAuthModal), matching how
+    // "Continue as guest" already works everywhere else in this modal.
+    // (This branch never actually ran before the multiplayer-server-down
+    // fix above, because the earlier ReferenceError prevented checkAuth()
+    // from ever being scheduled — so this was untested in production.)
+    continueAsGuest();
     return;
   }
   try {
@@ -5389,7 +5404,7 @@ function setPowerups(on) {
 // ================================================================
 // MULTIPLAYER SYSTEM
 // ================================================================
-const SERVER_URL = 'https://malefiz-production.up.railway.app';
+const SERVER_URL = PS_SERVER_URL;
 
 // Name generator — AdjectiveNounNN format
 const MP_ADJ = ['Swift','Brave','Mighty','Shadow','Crimson','Golden','Silver','Iron','Wild','Frost','Storm','Thunder','Blazing','Silent','Cosmic','Neon','Phantom','Rogue','Savage','Stealth'];
@@ -5424,7 +5439,24 @@ let dcTimer = null;
 function connectSocket() {
   if (socket && socket.connected) return;
   if (socket) { try { socket.removeAllListeners(); socket.disconnect(); } catch(e){} socket = null; }
-  socket = io(SERVER_URL, { transports: ['websocket','polling'] });
+  // The socket.io client library loads from our multiplayer server as a
+  // separate <script> tag. If that server is down, the tag 404s and `io`
+  // is never defined — without this guard that throws here and aborts
+  // every script statement queued after this call on the page (including
+  // the homepage background animation), even though local play doesn't
+  // need any of this.
+  if (typeof io === 'undefined') {
+    console.warn('Play Sabotage: multiplayer server unreachable — local play still works.');
+    showServerOffline();
+    return;
+  }
+  try {
+    socket = io(SERVER_URL, { transports: ['websocket','polling'] });
+  } catch (e) {
+    console.warn('Play Sabotage: could not connect to multiplayer server.', e);
+    showServerOffline();
+    return;
+  }
 
   socket.on('connect', () => {
     setConnStatus(true);
@@ -5658,6 +5690,22 @@ function setConnStatus(connected) {
   const lbl = document.getElementById('conn-label');
   if (dot) dot.className = 'conn-dot' + (connected ? ' connected' : '');
   if (lbl) lbl.textContent = connected ? 'Connected' : 'Disconnected';
+}
+
+// Tell homepage visitors the multiplayer server is unreachable, instead of
+// silently showing an empty "no rooms" lobby forever. Local/vs-AI play is
+// unaffected and still works.
+function showServerOffline() {
+  setConnStatus(false);
+  const onlineEl = document.getElementById('hp-online-count');
+  const gamesEl = document.getElementById('hp-games-count');
+  const hpEmpty = document.getElementById('hp-room-empty');
+  if (onlineEl) onlineEl.textContent = 'multiplayer server offline';
+  if (gamesEl) gamesEl.textContent = 'try Local Game below';
+  if (hpEmpty) {
+    hpEmpty.textContent = "Can't reach the multiplayer server right now — play a Local Game instead →";
+    hpEmpty.style.display = 'block';
+  }
 }
 
 // ── Lobby ────────────────────────────────────────────────────────
@@ -6389,65 +6437,10 @@ function updateHomepageStats(rooms, onlineCount) {
   }
 }
 
-// Hide old setup screen — homepage replaces it
-document.getElementById('setup').style.display = 'none';
-// Connect to server IMMEDIATELY on load — never wait for auth
-connectSocket();
-// Handle room code in URL
-setTimeout(handleUrlRouting, 400);
-// Check auth on load
-setTimeout(checkAuth, 200);
-// Re-render lobby if we already have cached data
-setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms); }, 400);
-
-
-// ── Homepage multiplayer actions ─────────────────────────────────
-function hpJoinRoom(code) {
-  if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 1500); return; }
-  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
-}
-
-function hpJoinByCode() {
-  const code = document.getElementById('hp-join-input').value.trim().toUpperCase();
-  if (code.length < 4) {
-    const err = document.getElementById('hp-join-error');
-    err.textContent = 'Enter a valid room code';
-    err.style.display = 'block';
-    setTimeout(() => err.style.display = 'none', 3000);
-    return;
-  }
-  hpJoinRoom(code);
-}
-
-function hpCreateRoom() {
-  if (!socket || !socket.connected) {
-    // Show feedback that we're connecting
-    const btn = document.querySelector('#homepage .hp-cta-primary:last-of-type');
-    if (btn) { btn.textContent = 'Connecting...'; btn.disabled = true; }
-    connectSocket();
-    setTimeout(() => {
-      if (btn) { btn.textContent = '+ Create Room'; btn.disabled = false; }
-      if (socket && socket.connected) hpCreateRoom();
-    }, 1500);
-    return;
-  }
-  if (mpCreateBoard === 'duel') mpCreateNP = 2;
-  socket.emit('create-room', {
-    playerName: mpUsername,
-    numPlayers: mpCreateNP,
-    mode: mpModeString(),
-    isPublic: mpCreatePublic,
-    pawnIcon: myPawnIcon
-  });
-}
-
-function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
-function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
-function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
-function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
-function resetGame() { document.getElementById('win').classList.remove('show'); showHomepage(); }
-
 // ── Drifting pawns background (homepage only) ─────────────────────
+// Intentionally placed BEFORE the network/auth init below: it has no
+// dependency on the multiplayer server, and must keep running even if
+// that server is unreachable and throws during its own setup.
 (function() {
   const canvas = document.getElementById('hp-bg-canvas');
   if (!canvas) return;
@@ -6579,6 +6572,67 @@ function resetGame() { document.getElementById('win').classList.remove('show'); 
 
   syncToHomepage();
 })();
+
+// Hide old setup screen — homepage replaces it
+document.getElementById('setup').style.display = 'none';
+// Connect to server IMMEDIATELY on load — never wait for auth
+// (connectSocket() guards against a missing/failed socket.io load itself;
+// this try/catch is a second line of defense so a future change here can
+// never again take down every statement queued after it on the page.)
+try { connectSocket(); } catch (e) { console.warn('Play Sabotage: connectSocket failed.', e); showServerOffline(); }
+// Handle room code in URL
+setTimeout(handleUrlRouting, 400);
+// Check auth on load
+setTimeout(checkAuth, 200);
+// Re-render lobby if we already have cached data
+setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms); }, 400);
+
+
+// ── Homepage multiplayer actions ─────────────────────────────────
+function hpJoinRoom(code) {
+  if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 1500); return; }
+  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
+}
+
+function hpJoinByCode() {
+  const code = document.getElementById('hp-join-input').value.trim().toUpperCase();
+  if (code.length < 4) {
+    const err = document.getElementById('hp-join-error');
+    err.textContent = 'Enter a valid room code';
+    err.style.display = 'block';
+    setTimeout(() => err.style.display = 'none', 3000);
+    return;
+  }
+  hpJoinRoom(code);
+}
+
+function hpCreateRoom() {
+  if (!socket || !socket.connected) {
+    // Show feedback that we're connecting
+    const btn = document.querySelector('#homepage .hp-cta-primary:last-of-type');
+    if (btn) { btn.textContent = 'Connecting...'; btn.disabled = true; }
+    connectSocket();
+    setTimeout(() => {
+      if (btn) { btn.textContent = '+ Create Room'; btn.disabled = false; }
+      if (socket && socket.connected) hpCreateRoom();
+    }, 1500);
+    return;
+  }
+  if (mpCreateBoard === 'duel') mpCreateNP = 2;
+  socket.emit('create-room', {
+    playerName: mpUsername,
+    numPlayers: mpCreateNP,
+    mode: mpModeString(),
+    isPublic: mpCreatePublic,
+    pawnIcon: myPawnIcon
+  });
+}
+
+function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
+function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
+function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
+function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
+function resetGame() { document.getElementById('win').classList.remove('show'); showHomepage(); }
 
 </script>
 </body>
