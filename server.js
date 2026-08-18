@@ -47,13 +47,21 @@ app.get(/.*\.(js|json|env|md|lock)$/i, (req, res, next) => {
 });
 
 // ── Database ─────────────────────────────────────────────────────
-// TLS certificate verification is on. If the Postgres provider signs with a
-// private CA rather than a publicly-trusted one, set PGSSLROOTCERT to that
-// CA's PEM contents in the deploy environment; otherwise this verifies
-// against the public trust store as-is.
+// TLS certificate verification is on. Confirmed against the real Railway
+// Postgres instance: it presents a self-signed chain (no public CA), so
+// PGSSLROOTCERT must be set to that CA's PEM in the deploy environment —
+// without it, connections fail outright rather than silently degrading.
+// Railway's proxy cert is also issued for CN=localhost regardless of the
+// actual hostname you connect through, so hostname matching is skipped via
+// checkServerIdentity while chain-of-trust verification (the part that
+// actually stops a MITM without Railway's CA private key) still applies in
+// full — equivalent to Postgres's sslmode=verify-ca.
 const sslConfig = process.env.PGSSLROOTCERT
-  ? { rejectUnauthorized: true, ca: process.env.PGSSLROOTCERT }
+  ? { rejectUnauthorized: true, ca: process.env.PGSSLROOTCERT, checkServerIdentity: () => undefined }
   : { rejectUnauthorized: true };
+if (!process.env.PGSSLROOTCERT) {
+  console.warn('PGSSLROOTCERT is not set — DB connections will fail against a self-signed Postgres provider like Railway.');
+}
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: sslConfig
