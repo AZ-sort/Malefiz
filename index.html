@@ -6348,7 +6348,14 @@ function hideHomepage() {
 }
 
 function showHomepage() {
-  // If leaving an active online game, notify server and disconnect
+  // If leaving an active online game, notify server and disconnect.
+  // Deliberately keep mp-session in localStorage (unlike leaveRoom(), which
+  // clears it): the server holds your seat open indefinitely, and
+  // handleUrlRouting() only ever uses a saved session when its room code
+  // matches the URL's, so this only helps you get back into *this* room —
+  // it can't hijack an unrelated one. Without it, clicking Home mid-game
+  // then reloading the room link permanently locks you out, since the
+  // server never frees a started room's slot.
   if (mpIsOnline && socket && socket.connected) {
     socket.disconnect();
     socket = null;
@@ -6356,7 +6363,6 @@ function showHomepage() {
     mpSlot = null;
     mpRoomCode = null;
     mpSecret = null;
-    localStorage.removeItem('mp-session');
     hideChat();
   }
   document.getElementById('homepage').classList.add('show');
