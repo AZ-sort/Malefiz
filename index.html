@@ -39,6 +39,11 @@
   body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;
     height:100vh;max-height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;}
 
+  /* Drawn icon sprite (see <svg> defs at top of body) — replaces emoji so
+     the UI reads as fixed on-brand glyphs instead of platform-dependent
+     characters. currentColor lets each usage set its own color/opacity. */
+  .icon{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;flex-shrink:0;}
+
   /* ── Header ── */
   header{
     width:100%;padding:12px 24px;
@@ -1001,16 +1006,19 @@
     gap: 8px;
   }
   .hp-nav-btn {
-    padding: 8px 18px;
+    padding: 8px 16px;
     border-radius: var(--radius-sm);
-    border: 1.5px solid var(--border);
+    border: 2px solid var(--border);
     background: transparent;
     color: var(--text);
     font-family: 'Sora', sans-serif;
     font-size: .82rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all .14s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
   .hp-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
   .hp-nav-btn.primary {
@@ -1239,6 +1247,18 @@
 
     /* Join input row */
     .join-code-input { font-size: .8rem; }
+  }
+
+  /* Fix: on narrow phones (measured 390px), the four nav buttons plus the
+     logo overflowed the nav bar — .hp-nav-links' right edge sat past the
+     viewport, clipping "Settings" from view. Collapse to icon-only chips
+     instead of shrinking text further, which had already bottomed out. */
+  @media (max-width: 480px) {
+    .hp-nav { padding: 8px 12px; }
+    .hp-nav-links { gap: 6px; }
+    .hp-nav-links .hp-nav-btn,
+    .hp-nav-links .hp-account-btn { padding: 7px 9px; }
+    .hp-nav-links .btn-label { display: none; }
   }
 
 
@@ -1671,17 +1691,18 @@
     gap: 6px;
     padding: 6px 12px;
     border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
+    border: 2px solid var(--border);
     background: transparent;
     color: var(--text);
     font-family: 'Sora', sans-serif;
     font-size: .78rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all .13s;
   }
   .hp-account-btn:hover { border-color: var(--accent); color: var(--accent); }
   .hp-account-btn.logged-in { border-color: var(--accent); color: var(--accent); }
+  .hp-pawn-btn .icon { width: 1.3em; height: 1.3em; }
 
 
   /* ── Pawn Icon Picker ── */
@@ -1750,6 +1771,33 @@
 </head>
 <body>
 
+<!-- Icon sprite — drawn from the game's own shapes (pawn, barricade, goal
+     star) plus simple geometric glyphs. Replaces emoji in the homepage UI:
+     emoji render differently per platform/OS and read as a generic/AI-tool
+     look; these are fixed, on-brand, and theme-colored via currentColor. -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true">
+  <defs>
+    <symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M4.5 7.5h15M4.5 16.5h15" stroke="currentColor" stroke-width="1.6" fill="none"/></symbol>
+    <symbol id="icon-person" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="currentColor"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="icon-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 2.5v3.2M12 18.3v3.2M4.6 4.6l2.3 2.3M17.1 17.1l2.3 2.3M2.5 12h3.2M18.3 12h3.2M4.6 19.4l2.3-2.3M17.1 6.9l2.3-2.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.6" fill="currentColor"/><circle cx="18" cy="6" r="2.6" fill="currentColor"/><circle cx="18" cy="18" r="2.6" fill="currentColor"/><path d="M8.3 10.7 15.7 7M8.3 13.3l7.4 3.7" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="icon-dice" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/><circle cx="16" cy="8" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="8" cy="16" r="1.6" fill="currentColor"/><circle cx="16" cy="16" r="1.6" fill="currentColor"/></symbol>
+    <!-- pawn markings — the personal-icon set, geometric so they hold up at
+         small sizes and don't need illustration (unlike the animal-emoji set
+         they replace) -->
+    <symbol id="mark-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="currentColor"/></symbol>
+    <symbol id="mark-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="3"/></symbol>
+    <symbol id="mark-diamond" viewBox="0 0 24 24"><path d="M12 3l7 9-7 9-7-9z" fill="currentColor"/></symbol>
+    <symbol id="mark-cross" viewBox="0 0 24 24"><path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z" fill="currentColor"/></symbol>
+    <symbol id="mark-tri" viewBox="0 0 24 24"><path d="M12 4l8.5 15h-17z" fill="currentColor"/></symbol>
+    <symbol id="mark-hex" viewBox="0 0 24 24"><path d="M12 2.2l8 4.9v9.8l-8 4.9-8-4.9V7.1z" fill="currentColor"/></symbol>
+    <symbol id="mark-moon" viewBox="0 0 24 24"><path d="M20 14.6A8.6 8.6 0 1 1 9.4 4a7 7 0 1 0 10.6 10.6z" fill="currentColor"/></symbol>
+    <symbol id="mark-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
 <div id="setup" style="display:none;">
   <div class="sbox">
     <div class="setup-header">
@@ -1806,16 +1854,16 @@
   <nav class="hp-nav">
     <div class="hp-logo">Play <span>Sabotage</span></div>
     <div class="hp-nav-links">
-      <button class="hp-nav-btn" onclick="openHTP()">How to Play</button>
-      <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()">👤 Log In</button>
-      <button class="hp-account-btn" id="pawn-btn" onclick="openPawnModal()" style="display:none;" title="Change pawn icon">🎭</button>
+      <button class="hp-nav-btn" onclick="openHTP()" title="How to Play"><svg class="icon"><use href="#icon-dice"></use></svg><span class="btn-label">How to Play</span></button>
+      <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()" title="Log In"><svg class="icon"><use href="#icon-person"></use></svg><span class="btn-label">Log In</span></button>
+      <button class="hp-account-btn hp-pawn-btn" id="pawn-btn" onclick="openPawnModal()" style="display:none;" title="Change your pawn marking"></button>
       <div class="hp-nav-dropdown">
-        <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')">⚡ Powerups ▾</button>
+        <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')" title="Powerups"><svg class="icon"><use href="#icon-bolt"></use></svg><span class="btn-label">Powerups ▾</span></button>
         <div class="hp-nav-dropdown-menu" id="pu-dropdown">
           <div class="hp-nav-dropdown-title">Powerups Guide</div>
         </div>
       </div>
-      <button class="hp-nav-btn" onclick="openSettings()">⚙️ Settings</button>
+      <button class="hp-nav-btn" onclick="openSettings()" title="Settings"><svg class="icon"><use href="#icon-gear"></use></svg><span class="btn-label">Settings</span></button>
     </div>
   </nav>
 
@@ -4123,6 +4171,18 @@ async function submitAuth() {
   }
 }
 
+// Rebuild the nav account button as icon + text label. Shared by every
+// place that sets it (login, logout, guest) so all states render the same
+// drawn icon-person glyph instead of the 👤 emoji it replaced. Username is
+// set via .textContent, not string-concatenated into innerHTML, so a
+// crafted username can't inject markup here.
+function setAccountBtnLabel(text) {
+  const btn = document.getElementById('account-btn');
+  if (!btn) return;
+  btn.innerHTML = '<svg class="icon"><use href="#icon-person"></use></svg><span class="btn-label"></span>';
+  btn.querySelector('.btn-label').textContent = text;
+}
+
 function setLoggedIn(username, token) {
   loggedInUser = username;
   authToken = token;
@@ -4130,7 +4190,7 @@ function setLoggedIn(username, token) {
   // Update account button
   const btn = document.getElementById('account-btn');
   if (btn) {
-    btn.textContent = '👤 ' + username;
+    setAccountBtnLabel(username);
     btn.classList.add('logged-in');
   }
   // Show pawn picker button
@@ -4145,8 +4205,7 @@ function setLoggedIn(username, token) {
 function continueAsGuest() {
   hideAuthModal();
   // mpUsername stays as the randomly generated guest name
-  const btn = document.getElementById('account-btn');
-  if (btn) btn.textContent = '👤 Log In';
+  setAccountBtnLabel('Log In');
 }
 
 function handleAccountBtn() {
@@ -4157,8 +4216,9 @@ function handleAccountBtn() {
       loggedInUser = null;
       authToken = null;
       mpUsername = genUsername(); // reset to random name
+      setAccountBtnLabel('Log In');
       const btn = document.getElementById('account-btn');
-      if (btn) { btn.textContent = '👤 Log In'; btn.classList.remove('logged-in'); }
+      if (btn) btn.classList.remove('logged-in');
       const pawnBtn = document.getElementById('pawn-btn');
       if (pawnBtn) pawnBtn.style.display = 'none';
       const mpUser = document.getElementById('mp-username');
@@ -4176,9 +4236,22 @@ function canChat() {
 
 
 // ── Pawn Customisation ────────────────────────────────────────────
-const PAWN_ICONS = ['🦊','🐺','🦅','🐉','🦁','🐯','🦈','🐻','🐒','🐱','⭐','👑','🔥','⚡','💎','🌙','☠️','🍀'];
+// Geometric markings (drawn from the sprite defs at the top of <body>)
+// instead of animal/object emoji — fixed appearance across platforms, and
+// drawable as simple shapes rather than needing real icon illustration.
+const PAWN_ICONS = ['mark-dot','mark-ring','mark-diamond','mark-cross','mark-tri','mark-hex','mark-moon','mark-bolt'];
 let myPawnIcon = localStorage.getItem('pawn-icon') || '';
+// Migrate away from the old emoji values (or any other stale value) —
+// render as "no marking" rather than a broken <use> reference.
+if (myPawnIcon && !PAWN_ICONS.includes(myPawnIcon)) myPawnIcon = '';
 let selectedPawnIcon = myPawnIcon;
+
+// Shared marking renderer — used by the picker grid, the nav pawn button,
+// and the in-game pawn overlays so they all stay in sync.
+function pawnMarkSVG(iconId, sizePx) {
+  if (!iconId) return '';
+  return `<svg class="icon pawn-mark" style="width:${sizePx}px;height:${sizePx}px;"><use href="#${iconId}"></use></svg>`;
+}
 
 // Map of slot -> pawn icon for current game
 let gamePawnIcons = {};
@@ -4206,7 +4279,7 @@ function buildPawnGrid() {
   PAWN_ICONS.forEach(icon => {
     const el = document.createElement('div');
     el.className = 'pawn-icon-option' + (selectedPawnIcon === icon ? ' selected' : '');
-    el.textContent = icon;
+    el.innerHTML = pawnMarkSVG(icon, 20);
     el.onclick = () => {
       selectedPawnIcon = icon;
       grid.querySelectorAll('.pawn-icon-option').forEach(e => e.classList.remove('selected'));
@@ -4226,7 +4299,7 @@ function savePawnIcon() {
 
 function updatePawnBtn() {
   const btn = document.getElementById('pawn-btn');
-  if (btn) btn.textContent = myPawnIcon || '🎭';
+  if (btn) btn.innerHTML = pawnMarkSVG(myPawnIcon || 'mark-ring', 18);
 }
 
 // ── Auto-roll ──────────────────────────────────────────────────
@@ -4997,8 +5070,8 @@ function renderBoard() {
         const pIcon = mpIsOnline ? (gamePawnIcons[occ.player] || '') : (occ.player === 1 ? myPawnIcon : '');
         if (pIcon) {
           const iconEl = document.createElement('div');
-          iconEl.style.cssText = `position:absolute;font-size:${Math.round(pw * 0.6)}px;line-height:1;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;`;
-          iconEl.textContent = pIcon;
+          iconEl.style.cssText = `position:absolute;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;color:rgba(8,10,16,.62);`;
+          iconEl.innerHTML = pawnMarkSVG(pIcon, Math.round(pw * 0.55));
           div.appendChild(iconEl);
         }
       }
@@ -5107,8 +5180,8 @@ function renderBoard() {
       const hIcon = mpIsOnline ? (gamePawnIcons[p] || '') : (p === 1 ? myPawnIcon : '');
       if (hIcon) {
         const hIconEl = document.createElement('div');
-        hIconEl.style.cssText = 'position:absolute;font-size:1rem;line-height:1;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;';
-        hIconEl.textContent = hIcon;
+        hIconEl.style.cssText = 'position:absolute;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;color:rgba(8,10,16,.62);';
+        hIconEl.innerHTML = pawnMarkSVG(hIcon, Math.round(homePawnSize * 0.55));
         pd.appendChild(hIconEl);
       }
 
