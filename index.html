@@ -789,78 +789,13 @@
   .glow-overlay.shield-p4 { animation: glow-shield-p4 1.6s ease-in-out infinite; }
 
 
-  /* ── Multiplayer Screens ── */
-  #mp-screen {
-    display:none;position:fixed;inset:0;
-    background:var(--bg);z-index:100;
-    flex-direction:column;align-items:center;
-    overflow-y:auto;
-  }
-  #mp-screen.show{display:flex;}
-  .mp-wrap {
-    width:100%;max-width:960px;padding:24px;
-    display:flex;flex-direction:column;gap:20px;
-  }
-  .mp-header {
-    display:flex;align-items:center;gap:12px;
-  }
-  .mp-header h2{font-size:1.4rem;font-weight:700;flex:1;}
-  .mp-header .conn-dot {
-    width:8px;height:8px;border-radius:50%;background:#444;
-    flex-shrink:0;transition:background .3s;
-  }
-  .mp-header .conn-dot.connected{background:#3cc45a;}
-  .mp-header .conn-label{font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted);}
-
-  /* Lobby layout */
-  .mp-cols{display:flex;gap:16px;align-items:flex-start;}
-  .mp-lobby{flex:1;min-width:0;}
-  .mp-create{width:280px;flex-shrink:0;}
-
-  /* Room list */
-  .room-list{
-    background:var(--surface);border:1px solid var(--border);
-    border-radius:var(--radius);overflow:hidden;
-    min-height:200px;
-  }
-  .room-list-header{
-    padding:12px 16px;border-bottom:1px solid var(--border);
-    font-size:.65rem;font-family:'DM Mono',monospace;
-    color:var(--muted);letter-spacing:.1em;text-transform:uppercase;
-    display:flex;align-items:center;justify-content:space-between;
-  }
-  .room-empty{
-    padding:40px 20px;text-align:center;
-    font-size:.8rem;color:var(--muted);
-  }
-  .room-row{
-    display:flex;align-items:center;gap:12px;
-    padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);
-    transition:background .12s;cursor:pointer;
-  }
-  .room-row:last-child{border-bottom:none;}
-  .room-row:hover{background:var(--surface2);}
-  .room-host{flex:1;font-size:.85rem;font-weight:600;}
-  .room-host small{display:block;font-size:.68rem;font-family:'DM Mono',monospace;color:var(--muted);font-weight:400;margin-top:2px;}
-  .room-badge{
-    font-size:.62rem;font-family:'DM Mono',monospace;
-    padding:3px 8px;border-radius:4px;font-weight:600;
-  }
-  .badge-classic{background:rgba(124,106,255,.15);color:var(--accent);}
-  .badge-powerups{background:rgba(255,201,60,.15);color:#ffc93c;}
-  .room-players{font-size:.8rem;font-family:'DM Mono',monospace;color:var(--muted);}
-  .room-join-btn{
-    padding:5px 14px;border-radius:6px;border:none;
-    background:var(--accent);color:#fff;
-    font-family:'Sora',sans-serif;font-size:.75rem;font-weight:600;
-    cursor:pointer;transition:all .12s;
-  }
-  .room-join-btn:hover{background:var(--accent-h);}
-
-  /* Join by code */
-  .join-code-row{
-    display:flex;gap:8px;margin-top:10px;
-  }
+  /* join-code-input is still live -- shared with the homepage card's
+     #hp-join-input. Everything else that used to live in this section
+     (#mp-screen and its room-list/create-panel/username-row/conn-dot
+     chrome) was deleted along with #mp-screen itself: confirmed
+     unreachable in production (showMpLobby(), its only caller, is never
+     called anywhere), and its createRoom()/joinByCode() handlers had no
+     other callers either. See the HTML removal for the full reasoning. */
   .join-code-input{
     flex:1;padding:10px 12px;background:var(--surface2);
     border:1px solid var(--border);border-radius:var(--radius-sm);
@@ -870,23 +805,6 @@
   }
   .join-code-input:focus{border-color:var(--accent);}
   .join-code-input::placeholder{color:var(--muted);letter-spacing:.05em;text-transform:none;}
-
-  /* Create panel */
-  .create-panel{
-    background:var(--surface);border:1px solid var(--border);
-    border-radius:var(--radius);padding:20px;
-    display:flex;flex-direction:column;gap:14px;
-  }
-  .create-panel h3{font-size:.65rem;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;}
-
-  /* Username display */
-  .username-row{
-    display:flex;align-items:center;justify-content:space-between;
-    background:var(--surface2);border:1px solid var(--border);
-    border-radius:var(--radius-sm);padding:10px 12px;
-  }
-  .username-label{font-size:.68rem;font-family:'DM Mono',monospace;color:var(--muted);}
-  .username-val{font-size:.88rem;font-weight:700;color:var(--accent);}
 
   /* Waiting room */
   #waiting-screen{
@@ -898,17 +816,29 @@
   .waiting-box{
     background:var(--surface);border:1px solid var(--border);
     border-radius:16px;padding:36px;width:400px;
+    /* Pre-existing gap: this was a fixed 400px box with no mobile
+       override, which overflows a 375px viewport outright. Not
+       previously visible because the box's own content never got wide
+       enough to expose it before this PR (share button + fuller invite
+       section made it worth fixing here). */
+    max-width:calc(100vw - 32px);
     display:flex;flex-direction:column;gap:20px;align-items:center;
     text-align:center;animation:pop .3s cubic-bezier(.34,1.56,.64,1);
   }
-  .waiting-box h2{font-size:1.3rem;font-weight:700;}
-  .room-code-display{
-    font-size:2.2rem;font-family:'DM Mono',monospace;font-weight:700;
-    color:var(--accent);letter-spacing:.25em;
-    background:var(--surface2);padding:14px 24px;border-radius:10px;
-    border:1px solid var(--border);cursor:pointer;user-select:all;
+  @media (max-width:480px){
+    .waiting-box{ padding:24px; }
   }
-  .room-code-display:hover{border-color:var(--accent);}
+  .waiting-box h2{font-size:1.3rem;font-weight:700;}
+  .waiting-invite{width:100%;display:flex;flex-direction:column;gap:10px;}
+  .waiting-url-label{
+    font-family:'DM Mono',monospace;font-size:.82rem;color:var(--muted);
+    background:var(--surface2);border:2px solid var(--border);border-radius:10px;
+    padding:12px 16px;width:100%;text-align:center;cursor:pointer;
+    transition:border-color .13s;overflow-wrap:break-word;
+  }
+  .waiting-url-label:hover{border-color:var(--accent);}
+  .waiting-url-label .code-part{color:var(--accent);font-weight:700;font-size:1.15rem;letter-spacing:.14em;}
+  .waiting-share-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;}
   .waiting-players{width:100%;display:flex;flex-direction:column;gap:8px;}
   .waiting-player{
     display:flex;align-items:center;gap:10px;
@@ -941,10 +871,6 @@
   .dc-box p{font-size:.82rem;color:var(--muted);}
   .dc-timer{font-size:2rem;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent);}
 
-  @media(max-width:700px){
-    .mp-cols{flex-direction:column;}
-    .mp-create{width:100%;}
-  }
 
 
 
@@ -1303,12 +1229,6 @@
     border-radius: 4px;
     font-weight: 600;
   }
-  /* Still used by the legacy #mp-screen room list, which this PR doesn't
-     touch (it's unreachable in production today -- showMpLobby(), the only
-     function that ever un-hides it, is itself never called -- but leaving
-     its styling intact until that gets a deliberate look in the next PR). */
-  .badge-classic { background: rgba(255,255,255,.08); color: var(--text); }
-  .badge-powerups { background: rgba(255,200,0,.15); color: #FFD700; }
   .hp-room-join {
     padding: 5px 12px;
     border-radius: 6px;
@@ -1748,7 +1668,11 @@
     <symbol id="icon-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="currentColor"/></symbol>
     <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
     <symbol id="icon-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 2.5v3.2M12 18.3v3.2M4.6 4.6l2.3 2.3M17.1 17.1l2.3 2.3M2.5 12h3.2M18.3 12h3.2M4.6 19.4l2.3-2.3M17.1 6.9l2.3-2.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
-    <symbol id="icon-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.6" fill="currentColor"/><circle cx="18" cy="6" r="2.6" fill="currentColor"/><circle cx="18" cy="18" r="2.6" fill="currentColor"/><path d="M8.3 10.7 15.7 7M8.3 13.3l7.4 3.7" stroke="currentColor" stroke-width="2"/></symbol>
+    <!-- Paper-plane "send" glyph, solid fill -- the original 3-dot Android
+         share icon read as a "<" at button-label size (confirmed visually
+         at ~19px, verified live); a solid silhouette holds up much better
+         at small sizes than a thin multi-part outline does. -->
+    <symbol id="icon-share" viewBox="0 0 24 24"><path d="M2 12 22 2 14 22 11 13Z" fill="currentColor"/></symbol>
     <symbol id="icon-dice" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/><circle cx="16" cy="8" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="8" cy="16" r="1.6" fill="currentColor"/><circle cx="16" cy="16" r="1.6" fill="currentColor"/></symbol>
     <!-- pawn markings — the personal-icon set, geometric so they hold up at
          small sizes and don't need illustration (unlike the animal-emoji set
@@ -2182,96 +2106,32 @@
 </div>
 
 
-<!-- ── MULTIPLAYER LOBBY SCREEN ── -->
-<div id="mp-screen">
-  <div class="mp-wrap">
-    <div class="mp-header">
-      <button class="btn bg" onclick="showHomepage()" style="width:auto;padding:8px 16px;font-size:.78rem;">← Back</button>
-      <h2>Play Online</h2>
-      <div class="conn-dot" id="conn-dot"></div>
-      <span class="conn-label" id="conn-label">Connecting...</span>
-    </div>
-
-    <!-- Username -->
-    <div class="username-row">
-      <span class="username-label">Playing as</span>
-      <span class="username-val" id="mp-username">...</span>
-    </div>
-
-    <div class="mp-cols">
-      <!-- Lobby list -->
-      <div class="mp-lobby">
-        <div class="room-list" id="room-list">
-          <div class="room-list-header">
-            <span>Open Rooms</span>
-            <span id="room-count" style="color:var(--text)">0 rooms</span>
-          </div>
-          <div class="room-empty" id="room-empty">No open rooms — create one to start!</div>
-        </div>
-
-        <!-- Join by code -->
-        <div style="margin-top:12px;">
-          <div class="slbl">Join Private Room</div>
-          <div class="join-code-row">
-            <input class="join-code-input" id="join-code-input" placeholder="Enter room code..." maxlength="6">
-            <button class="btn bp" style="width:auto;padding:10px 18px;" onclick="joinByCode()">Join</button>
-          </div>
-          <div id="join-error" style="font-size:.72rem;color:#e84545;margin-top:6px;font-family:'DM Mono',monospace;display:none;"></div>
-        </div>
-      </div>
-
-      <!-- Create panel -->
-      <div class="mp-create">
-        <div class="create-panel">
-          <h3>Create Game</h3>
-          <div>
-            <div class="slbl">Players</div>
-            <div class="rbs">
-              <div class="rb on" id="mp-np2" onclick="setMpNP(2)">2</div>
-              <div class="rb" id="mp-np3" onclick="setMpNP(3)">3</div>
-              <div class="rb" id="mp-np4" onclick="setMpNP(4)">4</div>
-            </div>
-          </div>
-          <div>
-            <div class="slbl">Game Mode</div>
-            <div class="rbs">
-              <div class="rb on" id="mp-classic" onclick="setMpBoard('classic')">Classic</div>
-              <div class="rb" id="mp-duel" onclick="setMpBoard('duel')">💑 Duel</div>
-            </div>
-          </div>
-          <div>
-            <div class="slbl">Powerups</div>
-            <div class="rbs">
-              <div class="rb on" id="mp-pu-off" onclick="setMpPowerups(false)">Off</div>
-              <div class="rb" id="mp-pu-on" onclick="setMpPowerups(true)">⚡ On</div>
-            </div>
-          </div>
-          <div>
-            <div class="slbl">Visibility</div>
-            <div class="rbs">
-              <div class="rb on" id="mp-public" onclick="setMpVisibility(true)">🌐 Public</div>
-              <div class="rb" id="mp-private" onclick="setMpVisibility(false)">🔒 Private</div>
-            </div>
-          </div>
-          <button class="btn bp" onclick="createRoom()">+ Create Room</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- The old standalone multiplayer-lobby screen (#mp-screen) lived here.
+     Deleted: confirmed unreachable in production -- showMpLobby(), the
+     only function that ever added its .show class, is itself never
+     called from anywhere. The homepage play card (see .hp-card above)
+     already covers everything it did -- open rooms, join by code, create
+     room -- and has for two PRs now. Its exclusive handlers (createRoom(),
+     joinByCode()) and CSS were removed along with it; joinRoom(), which
+     it also called, stays since the live homepage room list uses it too. -->
 
 <!-- ── WAITING ROOM ── -->
 <div id="waiting-screen">
   <div class="waiting-box">
-    <h2>Waiting for players</h2>
+    <h2>Your Room is Open</h2>
     <div id="waiting-mode-label" style="font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);"></div>
 
-    <!-- Room code (only shown for private rooms) -->
-    <div id="waiting-code-section" style="display:none;width:100%;">
-      <div class="slbl" style="text-align:center;margin-bottom:8px;">Share this code</div>
-      <div class="room-code-display" id="waiting-code" onclick="copyRoomCode()" title="Click to copy link">------</div>
-      <div style="font-size:.65rem;font-family:'DM Mono',monospace;color:var(--muted);text-align:center;margin-top:4px;">Click to copy shareable link</div>
-      <div id="copy-confirm" style="font-size:.7rem;color:#3cc45a;font-family:'DM Mono',monospace;margin-top:6px;display:none;">Copied!</div>
+    <!-- Invite -- the loudest thing on this screen, not a muted click-to-copy
+         code. Share button feature-detects navigator.share (label + JS
+         both set in showWaitingRoom()); copyRoomCode() covers desktop and
+         is also still reachable by clicking the URL text itself. -->
+    <div class="waiting-invite">
+      <div class="waiting-url-label" id="waiting-code" onclick="copyRoomCode()" title="Click to copy link">playsabotage.com/<span class="code-part" id="waiting-code-part">------</span></div>
+      <button class="hp-cta-primary waiting-share-btn" id="waiting-share-btn" onclick="shareRoomLink()">
+        <svg class="icon"><use href="#icon-share"></use></svg>
+        <span id="waiting-share-label">Send Invite</span>
+      </button>
+      <div id="copy-confirm" style="font-size:.7rem;color:#3cc45a;font-family:'DM Mono',monospace;display:none;">Copied!</div>
     </div>
 
     <!-- Players -->
@@ -5798,23 +5658,10 @@ function showServerOffline() {
 }
 
 // ── Lobby ────────────────────────────────────────────────────────
-function showMpLobby() {
-  document.getElementById('setup').style.display = 'none';
-// Connect socket immediately on load for live stats and room creation
-setTimeout(() => {
-  connectSocket();
-  // Poll lobby every 3s while homepage is visible to keep rooms fresh
-  setInterval(() => {
-    if (socket && socket.connected && document.getElementById('homepage').classList.contains('show')) {
-      socket.emit('get-lobby');
-    }
-  }, 3000);
-}, 300);
-
-  document.getElementById('mp-screen').classList.add('show');
-  document.getElementById('mp-username').textContent = mpUsername;
-  connectSocket();
-}
+// (showMpLobby() used to live here -- deleted along with #mp-screen, see
+// the HTML removal for why. Its "connect socket + poll lobby every 3s"
+// logic was already dead weight: the real bootstrap is the top-level
+// connectSocket() call further down, guarded by its own try/catch.)
 
 function showSetup() { showHomepage(); }
 
@@ -5843,7 +5690,7 @@ function updateLobbyList(rooms) {
       rooms.forEach(room => {
         const row = document.createElement('div');
         row.className = 'hp-room-row';
-        const modeLabel = (String(room.mode).includes('duel') ? '💑 Duel' : 'Classic') + (String(room.mode).includes('power') ? ' ⚡' : '');
+        const modeLabel = (String(room.mode).includes('duel') ? 'Duel' : 'Classic') + (String(room.mode).includes('power') ? ' + Powerups' : '');
         row.innerHTML = `
           <div class="hp-room-host">${escapeHtml(room.host||'')}<small>${room.players}/${room.numPlayers} · ${modeLabel}</small></div>
           <button class="hp-room-join" onclick="joinRoom('${room.code}')">Join</button>
@@ -5852,32 +5699,6 @@ function updateLobbyList(rooms) {
       });
     }
   }
-  // Update mp-screen list
-  const list = document.getElementById('room-list');
-  const empty = document.getElementById('room-empty');
-  const count = document.getElementById('room-count');
-  if (list) {
-    list.querySelectorAll('.room-row').forEach(r => r.remove());
-    count.textContent = rooms.length + ' room' + (rooms.length !== 1 ? 's' : '');
-    if (rooms.length === 0) {
-      empty.style.display = 'block';
-    } else {
-      empty.style.display = 'none';
-      rooms.forEach(room => {
-        const row = document.createElement('div');
-        row.className = 'room-row';
-        const modeClass = String(room.mode).includes('power') ? 'badge-powerups' : 'badge-classic';
-        const modeLabel = (String(room.mode).includes('duel') ? '💑 Duel' : 'Classic') + (String(room.mode).includes('power') ? ' ⚡' : '');
-        row.innerHTML = `
-          <div class="room-host">${escapeHtml(room.host||'')}<small>${room.players}/${room.numPlayers} players</small></div>
-          <span class="room-badge ${modeClass}">${modeLabel}</span>
-          <button class="room-join-btn" onclick="joinRoom('${room.code}')">Join</button>
-        `;
-        list.appendChild(row);
-      });
-    }
-  }
-
 }
 
 function setMpNP(n) {
@@ -5912,55 +5733,35 @@ function setMpVisibility(pub) {
   const pv = document.getElementById('mp-private'); if(pv) pv.classList.toggle('on', !pub);
 }
 
-function createRoom() {
-  if (!socket || !socket.connected) { alert('Not connected to server. Please wait.'); return; }
-  if (mpCreateBoard === 'duel') mpCreateNP = 2;
-  mpRoomNumPlayers = mpCreateNP;
-  mpRoomMode = mpModeString();
-  socket.emit('create-room', {
-    playerName: mpUsername,
-    numPlayers: mpCreateNP,
-    mode: mpModeString(),
-    isPublic: mpCreatePublic,
-    pawnIcon: myPawnIcon
-  });
-}
-
+// createRoom() and joinByCode() (the #mp-screen-only counterparts of
+// hpCreateRoom()/hpJoinByCode()) were deleted along with #mp-screen --
+// both had no other callers. joinRoom() stays: the live homepage room
+// list uses it too.
 function joinRoom(code) {
   if (!socket || !socket.connected) { alert('Not connected to server.'); return; }
   socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
 }
 
-function joinByCode() {
-  const code = document.getElementById('join-code-input').value.trim().toUpperCase();
-  if (code.length < 4) {
-    document.getElementById('join-error').textContent = 'Please enter a valid room code.';
-    document.getElementById('join-error').style.display = 'block';
-    return;
-  }
-  joinRoom(code);
-}
-
 // ── Waiting room ─────────────────────────────────────────────────
 function showWaitingRoom() {
   // Hide all screens
-  document.getElementById('mp-screen').classList.remove('show');
   document.getElementById('homepage').classList.remove('show');
   const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'none';
   document.getElementById('setup').style.display = 'none';
   const ws = document.getElementById('waiting-screen');
   ws.classList.add('show');
-  document.getElementById('waiting-code').textContent = mpRoomCode;
-
-  // Show code section for private rooms
-  const codeSection = document.getElementById('waiting-code-section');
-  codeSection.style.display = mpCreatePublic === false ? 'block' : 'block'; // always show
+  document.getElementById('waiting-code-part').textContent = mpRoomCode;
+  // The share button feature-detects navigator.share -- mobile browsers
+  // get the native share sheet, desktop gets clipboard copy (same
+  // copyRoomCode() the URL text itself already used). See shareRoomLink().
+  const shareLabel = document.getElementById('waiting-share-label');
+  if (shareLabel) shareLabel.textContent = navigator.share ? 'Send Invite' : 'Copy Link';
 
   // Use mpCreateMode as fallback in case mpRoomMode wasn't set yet
   const displayMode = mpRoomMode || mpCreateMode;
   const displayNP = mpRoomNumPlayers || mpCreateNP;
   const dm = String(displayMode || '');
-  const modeTxt = (dm.includes('duel') ? '💑 Duel' : 'Classic') + (dm.includes('power') ? ' ⚡ Powerups' : '') + ' · ';
+  const modeTxt = (dm.includes('duel') ? 'Duel' : 'Classic') + (dm.includes('power') ? ' + Powerups' : '') + ' · ';
   document.getElementById('waiting-mode-label').textContent = modeTxt + displayNP + ' players';
 
   updateWaitingPlayers(
@@ -6002,6 +5803,21 @@ function copyRoomCode() {
     cc.style.display = 'block';
     setTimeout(() => cc.style.display = 'none', 2000);
   });
+}
+
+// Primary invite action on the waiting screen. navigator.share opens the
+// native share sheet (WhatsApp/iMessage/etc.) on mobile, where the room
+// link previously only offered "copy link" -- the actual growth-roadmap
+// item this PR exists for. Desktop (and any browser without the API, or
+// a user who cancels/dismisses the sheet) falls back to the same
+// clipboard copy the URL text itself already does.
+function shareRoomLink() {
+  const url = window.location.origin + '/' + mpRoomCode;
+  if (navigator.share) {
+    navigator.share({ title: 'Play Sabotage', text: 'Join my game!', url }).catch(() => {});
+  } else {
+    copyRoomCode();
+  }
 }
 
 function leaveRoom() {
@@ -6495,7 +6311,6 @@ function showHomepage() {
   document.getElementById('homepage').classList.add('show');
   const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'block';
   document.getElementById('setup').style.display = 'none';
-  document.getElementById('mp-screen').classList.remove('show');
   document.getElementById('waiting-screen').classList.remove('show');
   document.getElementById('win').classList.remove('show');
   gameOver = false;
