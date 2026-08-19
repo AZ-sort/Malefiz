@@ -6540,24 +6540,37 @@ function updateHomepageStats(rooms, onlineCount) {
   }
 }
 
-// ── Drifting pawns background (homepage only) ─────────────────────
+// ── Lattice + barricade-trail background (homepage only) ──────────
 // Intentionally placed BEFORE the network/auth init below: it has no
 // dependency on the multiplayer server, and must keep running even if
 // that server is unreachable and throws during its own setup.
+//
+// Replaces the earlier drifting-pawns treatment with the board's own
+// vocabulary: a faint tiled grid of path cells (the dominant motif —
+// 112 of them on the real board), with cream barricade capsules that
+// snap onto the grid behind the cursor and fade, echoing SZ=40/GAP=4
+// (~44px pitch, see the board renderer) without needing to match it
+// exactly — the ratio is what carries the resemblance.
 (function() {
   const canvas = document.getElementById('hp-bg-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  let W = 0, H = 0, pawns = [], raf = null, running = false;
+  let W = 0, H = 0, raf = null, running = false, dpr = 1;
 
-  const COUNT = 14;           // few, so it stays classy
-  const REPEL_RADIUS = 140;   // how close the cursor gets before pawns react
-  const REPEL_FORCE = 0.9;    // push strength
-  const PUSH_DECAY = 0.90;    // how quickly the push eases back to normal drift
+  const PITCH = 46;          // lattice grid spacing (px, CSS space)
+  const RING_R = 15;         // lattice cell ring radius
+  const RING_ALPHA = 0.055;  // lattice ring opacity — background, not foreground
+  const TRAIL_LIFE = 1700;   // ms a barricade lives before fading out
+  const TRAIL_MAX = 44;      // cap so a stationary cursor can't grow this forever
+  const TRAIL_ALPHA = 0.18;  // peak barricade opacity — kept low so it reads as background
+  const BONE = '#EFE3C8';    // barricade cream, matches the in-game barricade color
+
   const hasMouse = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   let mouseX = -9999, mouseY = -9999;
+  let trail = [];
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  let latticeColor = '#5BAAFF';
   function themeColors() {
     const s = getComputedStyle(document.documentElement);
     return [
@@ -6567,74 +6580,85 @@ function updateHomepageStats(rooms, onlineCount) {
       s.getPropertyValue('--p4').trim() || '#5BAAFF'
     ];
   }
+  function pickLatticeColor() {
+    // p4 (blue) reads best as a faint line color across both themes;
+    // themeColors() keeps this in sync if the palette is ever restyled.
+    return themeColors()[3];
+  }
 
   function resize() {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   if (hasMouse) {
-    window.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; }, { passive: true });
+    window.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX; mouseY = e.clientY;
+      addTrail(mouseX, mouseY);
+    }, { passive: true });
     window.addEventListener('mouseleave', () => { mouseX = -9999; mouseY = -9999; });
   }
 
-  function makePawn(cols) {
-    const r = 14 + Math.random() * 34;         // large, soft
-    return {
-      x: Math.random() * W,
-      y: Math.random() * H,
-      r,
-      color: cols[Math.floor(Math.random() * cols.length)],
-      vy: -(0.08 + Math.random() * 0.22),      // slow upward drift
-      vx: (Math.random() - 0.5) * 0.12,        // gentle sideways
-      px: 0, py: 0,                            // mouse-push velocity (decays)
-      alpha: 0.05 + Math.random() * 0.10       // very faint
-    };
+  // Snap to the nearest lattice cell so barricades land on the grid,
+  // the way they do on the real board. Skips a duplicate push onto
+  // the same cell so a slow-moving cursor doesn't stack up alpha.
+  function addTrail(x, y) {
+    const cx = Math.round(x / PITCH) * PITCH;
+    const cy = Math.round(y / PITCH) * PITCH;
+    const last = trail[trail.length - 1];
+    if (last && last.x === cx && last.y === cy) return;
+    trail.push({ x: cx, y: cy, born: performance.now() });
+    if (trail.length > TRAIL_MAX) trail.shift();
   }
 
   function init() {
     resize();
-    const cols = themeColors();
-    pawns = Array.from({ length: COUNT }, () => makePawn(cols));
+    latticeColor = pickLatticeColor();
+    trail = [];
+  }
+
+  function drawLattice() {
+    const cols = Math.ceil(W / PITCH) + 1;
+    const rows = Math.ceil(H / PITCH) + 1;
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = latticeColor;
+    ctx.globalAlpha = RING_ALPHA;
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        ctx.beginPath();
+        ctx.arc(i * PITCH, j * PITCH, RING_R, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawTrail(now) {
+    ctx.fillStyle = BONE;
+    for (let i = trail.length - 1; i >= 0; i--) {
+      const t = trail[i];
+      const age = now - t.born;
+      if (age > TRAIL_LIFE) { trail.splice(i, 1); continue; }
+      const k = 1 - age / TRAIL_LIFE;
+      const w = 30, h = 11;
+      ctx.globalAlpha = k * TRAIL_ALPHA;
+      ctx.beginPath();
+      ctx.roundRect(t.x - w / 2, t.y - h / 2, w, h, h / 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
-    for (const p of pawns) {
-      // Mouse repulsion — push away from cursor within radius
-      if (hasMouse) {
-        const dx = p.x - mouseX;
-        const dy = p.y - mouseY;
-        const dist = Math.hypot(dx, dy);
-        if (dist < REPEL_RADIUS && dist > 0.01) {
-          const strength = (1 - dist / REPEL_RADIUS) * REPEL_FORCE;
-          p.px += (dx / dist) * strength;
-          p.py += (dy / dist) * strength;
-        }
-      }
-      // Push velocity decays smoothly back toward normal drift
-      p.px *= PUSH_DECAY;
-      p.py *= PUSH_DECAY;
-
-      p.x += p.vx + p.px;
-      p.y += p.vy + p.py;
-      // wrap around edges
-      if (p.y + p.r < 0) { p.y = H + p.r; p.x = Math.random() * W; }
-      if (p.x + p.r < 0) p.x = W + p.r;
-      if (p.x - p.r > W) p.x = -p.r;
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.alpha;
-      ctx.fill();
-      // soft ring for a "pawn" feel
-      ctx.globalAlpha = p.alpha * 1.6;
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = p.color;
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
+    drawLattice();
+    if (hasMouse && !prefersReduced) drawTrail(performance.now());
     raf = requestAnimationFrame(draw);
   }
 
@@ -6642,7 +6666,7 @@ function updateHomepageStats(rooms, onlineCount) {
     if (running) return;
     running = true;
     init();
-    if (prefersReduced) { draw(); cancelAnimationFrame(raf); return; } // draw one static frame
+    if (prefersReduced) { draw(); cancelAnimationFrame(raf); return; } // draw one static frame, no trail
     draw();
   }
   function stop() {
@@ -6650,10 +6674,9 @@ function updateHomepageStats(rooms, onlineCount) {
     if (raf) cancelAnimationFrame(raf);
   }
 
-  // Recolor when theme changes (re-init keeps positions fresh)
+  // Recolor when theme changes (name/global kept — called from Settings)
   window.refreshHpBgColors = function() {
-    const cols = themeColors();
-    for (const p of pawns) p.color = cols[Math.floor(Math.random() * cols.length)];
+    latticeColor = pickLatticeColor();
   };
 
   window.addEventListener('resize', () => { if (running) resize(); });
