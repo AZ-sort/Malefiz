@@ -942,28 +942,6 @@
   }
 
 
-  /* Light theme overrides */
-  body.light-theme header { background: var(--surface); border-bottom-color: var(--border); }
-  body.light-theme .panel { background: var(--surface); border-color: var(--border); }
-  body.light-theme .prow.active { background: var(--surface2); }
-  body.light-theme #dface { background: var(--surface2); border-color: var(--border); }
-  body.light-theme .sbox { background: var(--surface); }
-  body.light-theme .settings-box { background: var(--surface); }
-  body.light-theme .htp-box { background: var(--surface); }
-  body.light-theme .inv-slot { border-color: var(--border); background: var(--surface2); }
-  body.light-theme .room-list { background: var(--surface); }
-  body.light-theme .room-row:hover { background: var(--surface2); }
-  body.light-theme .create-panel { background: var(--surface); }
-  body.light-theme .rb { background: var(--surface2); color: var(--text); border-color: var(--border); }
-  body.light-theme .phbox { background: var(--surface2); }
-  body.light-theme .join-code-input { background: var(--surface2); color: var(--text); }
-  body.light-theme .waiting-box { background: var(--surface); }
-  body.light-theme .waiting-player { background: var(--surface2); }
-  body.light-theme .pu-box { background: var(--surface); }
-  body.light-theme .target-box { background: var(--surface); }
-  body.light-theme .dc-box { background: var(--surface); }
-  body.light-theme .wb { background: var(--surface); }
-  body.light-theme .hp-main-panel { box-shadow: 0 20px 50px rgba(0,0,0,.13), 0 3px 10px rgba(0,0,0,.07); }
 
 
   /* ── HOMEPAGE ── */
@@ -5302,32 +5280,6 @@ const THEMES = [
       '--p1':'#FF4D6D','--p2':'#35E0A6','--p3':'#FFDD57','--p4':'#4C8DF0',
     }
   },
-  {
-    // Santorini — whitewashed Cycladic walls, Aegean blue domes, and
-    // bougainvillea cascading over them; sun-baked gold, olive green
-    id: 'santorini', name: 'Santorini',
-    vars: {
-      '--bg':'#F7FAFC','--surface':'#FFFFFF','--surface2':'#EAF2F8',
-      '--border':'#C7DCEA','--text':'#14263A','--muted':'#5E7C93',
-      '--accent':'#1565C0','--accent-h':'#0E4C94',
-      '--cell':'#EAF2F8','--cellb':'#9CC3DE',
-      '--bar':'#14263A','--goal':'#E0A930',
-      '--p1':'#D6336C','--p2':'#4C8C5A','--p3':'#E0A930','--p4':'#1565C0',
-    }
-  },
-  {
-    // Jaipur, India's Pink City — pink-washed sandstone facades with
-    // royal Rajasthani peacock teal and marigold-gold accents
-    id: 'jaipur', name: 'Jaipur',
-    vars: {
-      '--bg':'#FBF1EC','--surface':'#FFFAF7','--surface2':'#F7E1D7',
-      '--border':'#E3B9A9','--text':'#3A2019','--muted':'#9C7266',
-      '--accent':'#0E7C7B','--accent-h':'#0A5F5E',
-      '--cell':'#F7E1D7','--cellb':'#DDA48C',
-      '--bar':'#3A2019','--goal':'#E8A23D',
-      '--p1':'#D6543F','--p2':'#3F9142','--p3':'#E8A23D','--p4':'#0E7C7B',
-    }
-  },
 ];
 
 let activeTheme = 'deep-ocean';
@@ -5338,9 +5290,6 @@ function applyTheme(themeId) {
   activeTheme = themeId;
   const root = document.documentElement;
   Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
-  // Toggle light-theme class for light backgrounds
-  const lightThemes = ['santorini','jaipur'];
-  document.body.classList.toggle('light-theme', lightThemes.includes(themeId));
   // Update active state on buttons
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === themeId);
