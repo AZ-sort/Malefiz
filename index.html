@@ -963,6 +963,7 @@
   body.light-theme .target-box { background: var(--surface); }
   body.light-theme .dc-box { background: var(--surface); }
   body.light-theme .wb { background: var(--surface); }
+  body.light-theme .hp-main-panel { box-shadow: 0 20px 50px rgba(0,0,0,.13), 0 3px 10px rgba(0,0,0,.07); }
 
 
   /* ── HOMEPAGE ── */
@@ -998,7 +999,7 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
   /* Homepage content must sit above the background layers */
-  .hp-nav, .hp-main, #seo-text { position: relative; z-index: 2; }
+  .hp-nav, .hp-hero, .hp-preview, #seo-text { position: relative; z-index: 2; }
 
   .hp-nav {
     width: 100%;
@@ -1273,7 +1274,12 @@
     gap: 0;
     max-width: 900px;
     width: 100%;
-    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    position: relative;
+    z-index: 1;
+    box-shadow:
+      0 24px 70px rgba(0,0,0,.5),
+      0 4px 14px rgba(0,0,0,.28),
+      inset 0 1px 0 rgba(255,255,255,.045);
   }
   .hp-col {
     display: flex;
