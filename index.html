@@ -822,6 +822,15 @@
        enough to expose it before this PR (share button + fuller invite
        section made it worth fixing here). */
     max-width:calc(100vw - 32px);
+    /* The host-settings block (mode/powerups/max-players/private) added
+       here can run to ~800px tall with 4 players seated, well past a
+       phone's usable viewport. #waiting-screen is a centered fixed
+       overlay with no scroll of its own, so without this the box was
+       clipped top and bottom with no way to reach Start/Leave Room --
+       same shape of bug as .rooms-box/.local-box already guard against
+       below; this box just didn't have tall enough content to expose it
+       until now. */
+    max-height:calc(100vh - 48px);overflow-y:auto;
     display:flex;flex-direction:column;gap:20px;align-items:center;
     text-align:center;animation:pop .3s cubic-bezier(.34,1.56,.64,1);
   }
@@ -1008,6 +1017,8 @@
     box-shadow: 0 4px 20px rgba(0,0,0,.3);
   }
   .hp-cta-primary:hover { background: var(--accent-h); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.4); }
+  .hp-cta-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; box-shadow: none; }
+  .hp-cta-primary:disabled:hover { background: var(--border); transform: none; box-shadow: none; }
 
   /* Live stats */
   .hp-stats {
