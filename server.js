@@ -204,8 +204,10 @@ function cleanIcon(icon) {
 
 // Strip reconnect secrets before a players array is broadcast to a room —
 // `secret` is a credential and must only ever be sent to the player it belongs to.
-function publicPlayers(players) {
-  return players.map(({ secret, ...rest }) => rest);
+// Also stamps isHost so clients can gate host-only UI without the server
+// exposing hostId (a raw socket id) directly.
+function publicPlayers(players, hostId) {
+  return players.map(({ secret, ...rest }) => ({ ...rest, isHost: rest.id === hostId }));
 }
 
 // Room-code alphabet excludes visually ambiguous characters (0/O, 1/I) since
@@ -234,6 +236,12 @@ const RATE_WINDOW_MS = 60 * 1000;
 const MAX_ROOMS_PER_IP = 5;
 const MAX_JOINS_PER_IP = 20;
 const MAX_ACTIONS_PER_IP = 300;
+const MAX_SETTINGS_PER_IP = 30;
+
+// Settings a host is allowed to send via update-room-settings — whitelisted
+// rather than relayed raw, since (unlike at create time) this value is now
+// mutable and re-broadcast to every player in the room.
+const VALID_MODES = ['classic', 'classic-powerups', 'duel', 'duel-powerups'];
 
 function checkRate(ip, type, limit) {
   const key = `${ip}:${type}`;
@@ -301,7 +309,7 @@ io.on('connection', (socket) => {
     const code = generateRoomCode();
     const secret = generateSecret();
     const player = { id: socket.id, name, slot: 1, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) };
-    rooms[code] = { code, host: name, players: [player], numPlayers: np, mode, isPublic: !!isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
+    rooms[code] = { code, host: name, hostId: socket.id, players: [player], numPlayers: np, mode, isPublic: !!isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
     socket.join(code);
     socketRooms[socket.id] = code;
     socket.emit('room-created', { code, slot: 1, secret });
@@ -320,14 +328,45 @@ io.on('connection', (socket) => {
     room.lastActivity = Date.now();
     socket.join(code.toUpperCase());
     socketRooms[socket.id] = code.toUpperCase();
-    socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: publicPlayers(room.players), mode: room.mode, numPlayers: room.numPlayers });
-    io.to(code.toUpperCase()).emit('player-joined', { players: publicPlayers(room.players) });
+    socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
+    io.to(code.toUpperCase()).emit('player-joined', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
     broadcastLobby();
-    if (room.players.length === room.numPlayers) {
-      room.started = true;
-      broadcastLobby();
-      setTimeout(() => io.to(code.toUpperCase()).emit('game-start', { players: publicPlayers(room.players), mode: room.mode, numPlayers: room.numPlayers }), 1000);
-    }
+    // Games no longer auto-start on fill — the host starts explicitly via
+    // 'start-game' (below), watching players arrive Gartic-Phone style and
+    // adjusting settings first. numPlayers is now a cap, not a target.
+  });
+
+  // Host-only: change mode/powerups/max-players/public-private while the
+  // room is still in its waiting lobby. Broadcast on the same 'player-joined'
+  // event the roster already uses, so the client has one settings-sync path
+  // instead of two.
+  socket.on('update-room-settings', ({ mode, numPlayers, isPublic }) => {
+    if (!checkRate(ip, 'settings', MAX_SETTINGS_PER_IP)) return;
+    const code = socketRooms[socket.id];
+    const room = code && rooms[code];
+    if (!room || room.started || socket.id !== room.hostId) return;
+    if (VALID_MODES.includes(mode)) room.mode = mode;
+    const isDuel = room.mode.startsWith('duel');
+    let np = validNumPlayers(numPlayers);
+    if (isDuel) np = 2;
+    // Never shrink the cap below players already seated.
+    if (np >= room.players.length) room.numPlayers = np;
+    if (typeof isPublic === 'boolean') room.isPublic = isPublic;
+    room.lastActivity = Date.now();
+    io.to(code).emit('player-joined', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
+    broadcastLobby();
+  });
+
+  // Host-only: start the game early instead of waiting for the room to fill.
+  socket.on('start-game', () => {
+    const code = socketRooms[socket.id];
+    const room = code && rooms[code];
+    if (!room || room.started || socket.id !== room.hostId) return;
+    if (room.players.length < 2) return;
+    room.started = true;
+    room.lastActivity = Date.now();
+    io.to(code).emit('game-start', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers });
+    broadcastLobby();
   });
 
   socket.on('reconnect-attempt', ({ code, secret }) => {
@@ -341,7 +380,7 @@ io.on('connection', (socket) => {
     room.lastActivity = Date.now();
     socket.join(code);
     socketRooms[socket.id] = code;
-    socket.emit('reconnected', { slot: player.slot, players: publicPlayers(room.players), gameState: room.gameState });
+    socket.emit('reconnected', { slot: player.slot, players: publicPlayers(room.players, room.hostId), gameState: room.gameState, mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
     socket.to(code).emit('player-reconnected', { slot: player.slot, name: player.name });
   });
 
@@ -398,9 +437,16 @@ io.on('connection', (socket) => {
             }
           }, 60000);
         } else {
+          const wasHost = socket.id === room.hostId;
           room.players = room.players.filter(p => p.id !== socket.id);
-          if (room.players.length === 0) delete rooms[code];
-          else io.to(code).emit('player-joined', { players: publicPlayers(room.players) });
+          if (room.players.length === 0) {
+            delete rooms[code];
+          } else {
+            // Promote the next remaining player if the host just left —
+            // the room otherwise has no one who can start it or change settings.
+            if (wasHost) room.hostId = room.players[0].id;
+            io.to(code).emit('player-joined', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
+          }
           broadcastLobby();
         }
       }

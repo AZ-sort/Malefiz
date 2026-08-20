@@ -848,6 +848,8 @@
   .waiting-player .wp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
   .waiting-player .wp-name{flex:1;font-size:.85rem;font-weight:600;text-align:left;}
   .waiting-player .wp-you{font-size:.62rem;font-family:'DM Mono',monospace;color:var(--accent);}
+  .waiting-player .wp-host{font-size:.6rem;font-family:'DM Mono',monospace;color:#0d0d14;background:var(--accent);padding:2px 6px;border-radius:4px;font-weight:700;letter-spacing:.04em;}
+  .waiting-player .wp-pawn{display:flex;align-items:center;color:var(--muted);flex-shrink:0;}
   .waiting-player.empty{opacity:.35;border-style:dashed;}
   .waiting-dots span{display:inline-block;animation:wdot 1.2s ease-in-out infinite;}
   .waiting-dots span:nth-child(2){animation-delay:.2s;}
@@ -1154,6 +1156,42 @@
     font-size: 1.05rem;
   }
 
+  /* ── Three doors: Host / Rooms / Local Play ── */
+  .hp-doors {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hp-door {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    transition: all .13s;
+    font-family: 'Sora', sans-serif;
+  }
+  .hp-door:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .hp-door .icon { width: 22px; height: 22px; flex-shrink: 0; color: var(--accent); }
+  .hp-door-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .hp-door-label { font-size: .96rem; font-weight: 700; }
+  .hp-door-sub { font-size: .71rem; color: var(--muted); font-weight: 400; }
+  .hp-door-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 4px 4px 0 rgba(0,0,0,.25);
+  }
+  .hp-door-primary:hover { background: var(--accent-h); border-color: var(--accent-h); }
+  .hp-door-primary .icon { color: #fff; }
+  .hp-door-primary .hp-door-sub { color: rgba(255,255,255,.78); }
+
   .hp-join-row {
     display: flex;
     align-items: center;
@@ -1183,7 +1221,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     overflow: hidden;
-    max-height: 160px;
+    max-height: 320px;
     overflow-y: auto;
   }
   .hp-rooms-strip::-webkit-scrollbar { width: 3px; }
@@ -1244,57 +1282,35 @@
   }
   .hp-room-join:hover { background: var(--accent-h); }
 
-  /* Collapsible sections (room settings, local play) — native <details>
-     so open/close needs no JS state of its own. */
-  .hp-disclosure {
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
+  /* Rooms + Local Play screens — same fixed-overlay pattern as
+     #waiting-screen (see that block's CSS for the shared box/animation). */
+  #rooms-screen, #local-screen {
+    display: none; position: fixed; inset: 0;
+    background: rgba(13,13,20,.97); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center; z-index: 150;
   }
-  .hp-disclosure summary {
-    cursor: pointer;
-    font-size: .78rem;
-    font-weight: 700;
-    color: var(--text);
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    user-select: none;
+  #rooms-screen.show, #local-screen.show { display: flex; }
+  .rooms-box, .local-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 26px; width: 440px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 48px); overflow-y: auto;
+    display: flex; flex-direction: column; gap: 14px;
+    animation: pop .3s cubic-bezier(.34,1.56,.64,1);
   }
-  .hp-disclosure summary::-webkit-details-marker { display: none; }
-  .hp-disclosure summary::before {
-    content: '▸';
-    font-size: .7rem;
-    color: var(--muted);
-    transition: transform .13s;
-    display: inline-block;
+  .rooms-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
   }
-  .hp-disclosure[open] summary::before { transform: rotate(90deg); }
-  .hp-disclosure-body {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-top: 12px;
+  .rooms-header h2 { font-size: 1.1rem; font-weight: 700; }
+  .rooms-refresh-btn {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 1.15rem; line-height: 1; padding: 4px; transition: color .13s;
   }
-  /* "Play on this device" reads as a quiet link, not a card section --
-     it's the secondary path; online play is the primary one. */
-  .hp-disclosure--quiet {
-    border-top: none;
-    padding-top: 4px;
-    text-align: center;
-  }
-  .hp-disclosure--quiet summary {
-    justify-content: center;
-    font-size: .78rem;
-    font-weight: 600;
-    color: var(--muted);
-  }
-  .hp-disclosure--quiet summary::before { content: ''; }
-  .hp-disclosure--quiet:hover summary { color: var(--text); }
+  .rooms-refresh-btn:hover { color: var(--text); }
 
   @media (max-width: 700px) {
     .hp-card { padding: 18px; max-width: 100%; border-radius: 14px; }
-    .hp-rooms-strip { max-height: 140px; }
+    .rooms-box, .local-box { padding: 20px; }
   }
 
 
@@ -1674,6 +1690,8 @@
          at small sizes than a thin multi-part outline does. -->
     <symbol id="icon-share" viewBox="0 0 24 24"><path d="M2 12 22 2 14 22 11 13Z" fill="currentColor"/></symbol>
     <symbol id="icon-dice" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/><circle cx="16" cy="8" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="8" cy="16" r="1.6" fill="currentColor"/><circle cx="16" cy="16" r="1.6" fill="currentColor"/></symbol>
+    <symbol id="icon-list" viewBox="0 0 24 24"><rect x="3" y="5" width="4" height="4" rx="1" fill="currentColor"/><rect x="3" y="10" width="4" height="4" rx="1" fill="currentColor"/><rect x="3" y="15" width="4" height="4" rx="1" fill="currentColor"/><path d="M10 7h11M10 12h11M10 17h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-cpu" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="14" r="1.6" fill="currentColor"/><circle cx="15" cy="14" r="1.6" fill="currentColor"/><path d="M12 8V4M8 4h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <!-- pawn markings — the personal-icon set, geometric so they hold up at
          small sizes and don't need illustration (unlike the animal-emoji set
          they replace) -->
@@ -1764,7 +1782,7 @@
       <div class="hp-stats-dot"></div>
       <span id="hp-online-count">— players online</span>
       &nbsp;·&nbsp;
-      <span id="hp-games-count">— games in progress</span>
+      <span id="hp-games-count">— open rooms</span>
     </div>
   </div>
 
@@ -1778,121 +1796,32 @@
         <input class="hp-name-input" id="hp-name-input" maxlength="20" placeholder="Your name" oninput="onHpNameInput(this.value)">
       </div>
 
-      <button class="hp-cta-primary hp-primary-cta" id="hp-create-btn" onclick="hpCreateRoom()">
-        <svg class="icon"><use href="#icon-globe"></use></svg>
-        Play with Friends
-      </button>
-
-      <!-- Join by code -->
-      <div class="hp-join-row">
-        <span class="hp-join-label">Got a code?</span>
-        <input class="join-code-input" id="hp-join-input" placeholder="Room code..." maxlength="6" style="flex:1;">
-        <button class="hp-np-btn" onclick="hpJoinByCode()" style="width:auto;padding:10px 16px;flex-shrink:0;border-color:var(--accent);color:var(--accent);">Join</button>
+      <!-- Three doors: Host a room, browse Rooms, or play Local. Settings
+           for a hosted room live in the waiting lobby (see #waiting-screen),
+           not here -- Host fires with defaults and goes straight there. -->
+      <div class="hp-doors">
+        <button class="hp-door hp-door-primary" id="hp-create-btn" onclick="hpCreateRoom()">
+          <svg class="icon"><use href="#icon-globe"></use></svg>
+          <span class="hp-door-text">
+            <span class="hp-door-label">Host</span>
+            <span class="hp-door-sub">Start a room, invite friends</span>
+          </span>
+        </button>
+        <button class="hp-door" id="hp-rooms-btn" onclick="showRoomsScreen()">
+          <svg class="icon"><use href="#icon-list"></use></svg>
+          <span class="hp-door-text">
+            <span class="hp-door-label">Rooms</span>
+            <span class="hp-door-sub">Join an open game</span>
+          </span>
+        </button>
+        <button class="hp-door" id="hp-local-btn" onclick="showLocalPlayScreen()">
+          <svg class="icon"><use href="#icon-cpu"></use></svg>
+          <span class="hp-door-text">
+            <span class="hp-door-label">Local Play</span>
+            <span class="hp-door-sub">Pass & play, or vs bots</span>
+          </span>
+        </button>
       </div>
-      <div id="hp-join-error" style="font-size:.7rem;color:#FF4040;font-family:'DM Mono',monospace;display:none;"></div>
-
-      <!-- Open rooms — hidden entirely until there's something to show;
-           toggled by updateLobbyList() alongside the count/rows below. -->
-      <div class="hp-rooms-strip" id="hp-room-list" style="display:none;">
-        <div class="hp-room-list-header">
-          <span>Open Rooms <span id="hp-room-count" style="color:var(--muted);font-weight:400;">(0)</span></span>
-          <button onclick="refreshLobby()" title="Refresh" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0;transition:color .13s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">↻</button>
-        </div>
-      </div>
-
-      <!-- Room settings -->
-      <details class="hp-disclosure">
-        <summary>Room settings</summary>
-        <div class="hp-disclosure-body">
-          <div class="hp-field">
-            <div class="hp-field-label">Players</div>
-            <select class="hp-select" id="mp-np-select" onchange="setMpNP(parseInt(this.value))">
-              <option value="2">2 Players</option>
-              <option value="3">3 Players</option>
-              <option value="4">4 Players</option>
-            </select>
-          </div>
-
-          <div class="hp-field">
-            <div class="hp-field-label">Game Mode</div>
-            <select class="hp-select" id="mp-mode-select" onchange="setMpBoard(this.value)">
-              <option value="classic">Classic</option>
-              <option value="duel">2 Player Duel</option>
-            </select>
-          </div>
-
-          <div class="hp-private-row">
-            <label class="toggle" style="flex-shrink:0;">
-              <input type="checkbox" id="mp-powerups-toggle" onchange="setMpPowerups(this.checked)">
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-            <span class="hp-private-label"><svg class="icon"><use href="#icon-bolt"></use></svg> Powerups</span>
-          </div>
-
-          <div class="hp-private-row">
-            <label class="toggle" style="flex-shrink:0;">
-              <input type="checkbox" id="mp-private-toggle" onchange="setMpVisibility(!this.checked)">
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-            <span class="hp-private-label"><svg class="icon"><use href="#icon-lock"></use></svg> Private Room</span>
-          </div>
-        </div>
-      </details>
-
-      <!-- Local play — quiet secondary path, never the primary CTA -->
-      <details class="hp-disclosure hp-disclosure--quiet">
-        <summary>Play on this device</summary>
-        <div class="hp-disclosure-body">
-          <div class="hp-field">
-            <div class="hp-field-label">Game Mode</div>
-            <select class="hp-select" id="hp-mode-select" onchange="setHpBoard(this.value)">
-              <option value="classic">Classic</option>
-              <option value="duel">2 Player Duel</option>
-            </select>
-          </div>
-
-          <div class="hp-private-row">
-            <label class="toggle" style="flex-shrink:0;">
-              <input type="checkbox" id="hp-powerups-toggle" onchange="setHpPowerups(this.checked)">
-              <div class="toggle-track"></div>
-              <div class="toggle-thumb"></div>
-            </label>
-            <span class="hp-private-label"><svg class="icon"><use href="#icon-bolt"></use></svg> Powerups</span>
-          </div>
-
-          <div class="hp-field">
-            <div class="hp-field-label">Players</div>
-            <select class="hp-select" id="hp-np-select" onchange="setHpNP(parseInt(this.value))">
-              <option value="2">2 Players</option>
-              <option value="3">3 Players</option>
-              <option value="4">4 Players</option>
-            </select>
-          </div>
-
-          <div class="hp-field">
-            <div class="hp-field-label">Opponents</div>
-            <select class="hp-select" onchange="setHpCPU(this.value)">
-              <option value="none">Human</option>
-              <option value="some">vs CPU</option>
-            </select>
-          </div>
-
-          <div class="hp-field" id="hp-diff-row" style="display:none;">
-            <div class="hp-field-label">Difficulty</div>
-            <select class="hp-select" onchange="setHpDiff(this.value)">
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-          </div>
-
-          <button class="hp-cta-primary" style="padding:11px;width:100%;margin-top:4px;" onclick="startFromHomepage()">
-            Start Local Game
-          </button>
-        </div>
-      </details>
 
     </div>
   </div>
@@ -2137,12 +2066,134 @@
     <!-- Players -->
     <div class="waiting-players" id="waiting-players"></div>
 
-    <div style="font-size:.8rem;color:var(--muted);">
-      <span class="waiting-dots"><span>●</span><span>●</span><span>●</span></span>
-      waiting for everyone to join
+    <!-- Host-only live settings -- hidden for joiners, who see the
+         read-only summary line above instead. Every change here is
+         broadcast to the room immediately via update-room-settings. -->
+    <div id="waiting-settings-host" style="display:none;width:100%;flex-direction:column;gap:8px;text-align:left;">
+      <div class="hp-field">
+        <div class="hp-field-label">Game Mode</div>
+        <select class="hp-select" id="wait-mode-select" onchange="waitModeChanged(this.value)">
+          <option value="classic">Classic</option>
+          <option value="duel">2 Player Duel</option>
+        </select>
+      </div>
+      <div class="hp-private-row">
+        <label class="toggle" style="flex-shrink:0;">
+          <input type="checkbox" id="wait-powerups-toggle" onchange="hostUpdateSettings()">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <span class="hp-private-label"><svg class="icon"><use href="#icon-bolt"></use></svg> Powerups</span>
+      </div>
+      <div class="hp-field">
+        <div class="hp-field-label">Max Players</div>
+        <select class="hp-select" id="wait-np-select" onchange="hostUpdateSettings()">
+          <option value="2">2 Players</option>
+          <option value="3">3 Players</option>
+          <option value="4">4 Players</option>
+        </select>
+      </div>
+      <div class="hp-private-row">
+        <label class="toggle" style="flex-shrink:0;">
+          <input type="checkbox" id="wait-private-toggle" onchange="hostUpdateSettings()">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <span class="hp-private-label"><svg class="icon"><use href="#icon-lock"></use></svg> Private Room — code-only, hidden from Rooms</span>
+      </div>
     </div>
 
+    <div style="font-size:.8rem;color:var(--muted);">
+      <span class="waiting-dots"><span>●</span><span>●</span><span>●</span></span>
+      <span id="waiting-status-msg">waiting for everyone to join</span>
+    </div>
+
+    <button class="hp-cta-primary" id="waiting-start-btn" style="display:none;width:100%;" onclick="hostStartGame()">Start Game</button>
     <button class="btn bg" onclick="leaveRoom()" style="font-size:.76rem;">Leave Room</button>
+  </div>
+</div>
+
+<!-- ── ROOMS ── -->
+<div id="rooms-screen">
+  <div class="rooms-box">
+    <div class="rooms-header">
+      <button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button>
+      <h2>Open Rooms</h2>
+      <button class="rooms-refresh-btn" onclick="refreshLobby()" title="Refresh">↻</button>
+    </div>
+
+    <!-- Join by code -->
+    <div class="hp-join-row">
+      <span class="hp-join-label">Got a code?</span>
+      <input class="join-code-input" id="hp-join-input" placeholder="Room code..." maxlength="6" style="flex:1;" onkeydown="if(event.key==='Enter'){hpJoinByCode();}">
+      <button class="hp-np-btn" onclick="hpJoinByCode()" style="width:auto;padding:10px 16px;flex-shrink:0;border-color:var(--accent);color:var(--accent);">Join</button>
+    </div>
+    <div id="hp-join-error" style="font-size:.7rem;color:#FF4040;font-family:'DM Mono',monospace;display:none;"></div>
+
+    <div class="hp-rooms-strip" id="hp-room-list">
+      <div class="hp-room-list-header">
+        <span>Open Rooms <span id="hp-room-count" style="color:var(--muted);font-weight:400;">(0)</span></span>
+      </div>
+      <div class="hp-room-empty" id="hp-room-empty">No games running right now — host one and it'll show up here for others to join.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOCAL PLAY ── -->
+<div id="local-screen">
+  <div class="local-box">
+    <div class="rooms-header">
+      <button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button>
+      <h2>Play on This Device</h2>
+      <span style="width:22px;"></span>
+    </div>
+
+    <div class="hp-field">
+      <div class="hp-field-label">Game Mode</div>
+      <select class="hp-select" id="hp-mode-select" onchange="setHpBoard(this.value)">
+        <option value="classic">Classic</option>
+        <option value="duel">2 Player Duel</option>
+      </select>
+    </div>
+
+    <div class="hp-private-row">
+      <label class="toggle" style="flex-shrink:0;">
+        <input type="checkbox" id="hp-powerups-toggle" onchange="setHpPowerups(this.checked)">
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+      <span class="hp-private-label"><svg class="icon"><use href="#icon-bolt"></use></svg> Powerups</span>
+    </div>
+
+    <div class="hp-field">
+      <div class="hp-field-label">Players</div>
+      <select class="hp-select" id="hp-np-select" onchange="setHpNP(parseInt(this.value))">
+        <option value="2">2 Players</option>
+        <option value="3">3 Players</option>
+        <option value="4">4 Players</option>
+      </select>
+    </div>
+
+    <div class="hp-field">
+      <div class="hp-field-label">Opponents</div>
+      <select class="hp-select" onchange="setHpCPU(this.value)">
+        <option value="none">Human</option>
+        <option value="some">vs CPU</option>
+      </select>
+    </div>
+
+    <div class="hp-field" id="hp-diff-row" style="display:none;">
+      <div class="hp-field-label">Difficulty</div>
+      <select class="hp-select" onchange="setHpDiff(this.value)">
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </div>
+
+    <button class="hp-cta-primary" style="padding:11px;width:100%;margin-top:4px;" onclick="startFromHomepage()">
+      Start Local Game
+    </button>
   </div>
 </div>
 
@@ -5349,6 +5400,15 @@ let mpRoomCode = null;
 let mpSecret = null;
 let mpRoomMode = 'classic';
 let mpRoomNumPlayers = 2;
+let mpRoomIsPublic = true;
+// Full players array from the last room-joined/player-joined/room-created —
+// the single source of truth the waiting room renders from (see
+// showWaitingRoom(), updateWaitingPlayers(), renderWaitingSettings()).
+let mpRoomPlayers = [];
+// Whether *this* client is the current room's host. Derived from the
+// server's isHost flag (see publicPlayers() in server.js), never assumed
+// client-side, since the host can be reassigned on disconnect.
+let mpIsHost = false;
 let mpIsOnline = false;
 let mpCreateNP = 2;
 let mpCreateBoard = 'classic';   // 'classic' | 'duel'
@@ -5435,27 +5495,47 @@ function connectSocket() {
     mpSecret = secret;
     mpRoomMode = mpModeString();
     mpRoomNumPlayers = mpCreateNP;
+    mpRoomIsPublic = mpCreatePublic;
+    // The creator is always the room's initial host — no round trip needed
+    // to know this the way a joiner needs the server's isHost flag.
+    mpRoomPlayers = [{ slot: 1, name: mpUsername, pawnIcon: myPawnIcon, isHost: true, connected: true }];
+    mpIsHost = true;
     departedSlots = {}; // fresh room, fresh player roster
     localStorage.setItem('mp-session', JSON.stringify({ code, secret }));
     setRoomUrl(code);
     showWaitingRoom();
   });
 
-  socket.on('room-joined', ({ code, slot, secret, players, mode, numPlayers }) => {
+  socket.on('room-joined', ({ code, slot, secret, players, mode, numPlayers, isPublic }) => {
     mpRoomCode = code;
     mpSlot = slot;
     mpSecret = secret;
     mpRoomMode = mode;
     mpRoomNumPlayers = numPlayers;
+    mpRoomIsPublic = isPublic;
+    mpRoomPlayers = players;
+    const me = players.find(p => p.slot === slot);
+    mpIsHost = !!(me && me.isHost);
     departedSlots = {}; // fresh room, fresh player roster
     localStorage.setItem('mp-session', JSON.stringify({ code, secret }));
     setRoomUrl(code);
-    updateWaitingPlayers(players, numPlayers);
     showWaitingRoom();
   });
 
-  socket.on('player-joined', ({ players }) => {
-    updateWaitingPlayers(players, mpRoomNumPlayers);
+  // Carries the roster AND the current settings snapshot — fired on join,
+  // on a pre-start leave, and on a host settings change (see server.js
+  // update-room-settings), so this one handler keeps the waiting room's
+  // player list and its settings display in sync from a single event.
+  socket.on('player-joined', ({ players, mode, numPlayers, isPublic }) => {
+    mpRoomPlayers = players;
+    if (mode !== undefined) mpRoomMode = mode;
+    if (numPlayers !== undefined) mpRoomNumPlayers = numPlayers;
+    if (isPublic !== undefined) mpRoomIsPublic = isPublic;
+    const me = players.find(p => p.slot === mpSlot);
+    mpIsHost = !!(me && me.isHost);
+    updateWaitingPlayers(mpRoomPlayers, mpRoomNumPlayers);
+    renderWaitingSettings();
+    updateWaitingStartUI();
   });
 
   socket.on('join-error', (msg) => {
@@ -5678,13 +5758,17 @@ function updateLobbyList(rooms) {
   if (hpList) {
     hpList.querySelectorAll('.hp-room-row').forEach(r => r.remove());
     if (hpCount) hpCount.textContent = '(' + rooms.length + ')';
-    // The whole strip is hidden rather than showing an empty-state message
-    // -- an empty "No open rooms yet" box was the single largest element
-    // on the old homepage, advertising emptiness. Nothing to show, so
-    // show nothing.
-    hpList.style.display = rooms.length === 0 ? 'none' : 'block';
+    // Rooms is now a destination screen the player navigated to on
+    // purpose, not an ambient homepage strip -- so an empty result gets a
+    // real empty state instead of being hidden. Reset the text on every
+    // call (not just the first) so a stale "server offline" message left
+    // by showServerOffline() doesn't survive back into a real empty state
+    // once the connection recovers.
     if (rooms.length === 0) {
-      if (hpEmpty) hpEmpty.style.display = 'block';
+      if (hpEmpty) {
+        hpEmpty.textContent = "No games running right now — host one and it'll show up here for others to join.";
+        hpEmpty.style.display = 'block';
+      }
     } else {
       if (hpEmpty) hpEmpty.style.display = 'none';
       rooms.forEach(room => {
@@ -5701,36 +5785,72 @@ function updateLobbyList(rooms) {
   }
 }
 
-function setMpNP(n) {
-  mpCreateNP = n;
-  [2,3,4].forEach(x => { const el = document.getElementById('mp-np'+x); if(el) el.classList.toggle('on', x===n); });
-}
-
-function setMpBoard(b) {
-  mpCreateBoard = b === 'duel' ? 'duel' : 'classic';
-  mpCreateMode = mpModeString();
-  const c = document.getElementById('mp-classic'); if(c) c.classList.toggle('on', b==='classic');
-  const d = document.getElementById('mp-duel'); if(d) d.classList.toggle('on', b==='duel');
-  // Duel is strictly 2 players — lock the player count
-  const isDuel = b === 'duel';
-  if (isDuel) setMpNP(2);
-  const npSel = document.getElementById('mp-np-select');
+// ── Host-lobby settings (waiting room) ──────────────────────────────
+// Replaces the old create-time setMpNP/setMpBoard/setMpPowerups/
+// setMpVisibility -- there's no more pre-create settings form; Host fires
+// with defaults and the host adjusts everything here instead, live, with
+// every change broadcast to the room via update-room-settings.
+function waitModeChanged(board) {
+  const isDuel = board === 'duel';
+  const npSel = document.getElementById('wait-np-select');
   if (npSel) { if (isDuel) npSel.value = '2'; npSel.disabled = isDuel; }
-  [3,4].forEach(x => { const el = document.getElementById('mp-np'+x); if(el) el.style.opacity = isDuel ? '.35' : '', el.style.pointerEvents = isDuel ? 'none' : ''; });
+  hostUpdateSettings();
 }
 
-function setMpPowerups(on) {
-  mpCreatePowerups = !!on;
-  mpCreateMode = mpModeString();
-  const off = document.getElementById('mp-pu-off'); if(off) off.classList.toggle('on', !on);
-  const puOn = document.getElementById('mp-pu-on'); if(puOn) puOn.classList.toggle('on', !!on);
-  const tgl = document.getElementById('mp-powerups-toggle'); if(tgl) tgl.checked = !!on;
+function hostUpdateSettings() {
+  if (!mpIsHost || !socket || !socket.connected) return;
+  const boardSel = document.getElementById('wait-mode-select');
+  const puToggle = document.getElementById('wait-powerups-toggle');
+  const npSel = document.getElementById('wait-np-select');
+  const privToggle = document.getElementById('wait-private-toggle');
+  const board = boardSel ? boardSel.value : 'classic';
+  const isDuel = board === 'duel';
+  const numPlayers = isDuel ? 2 : parseInt(npSel ? npSel.value : '2', 10);
+  const mode = board + (puToggle && puToggle.checked ? '-powerups' : '');
+  const isPublic = !(privToggle && privToggle.checked);
+  socket.emit('update-room-settings', { mode, numPlayers, isPublic });
 }
 
-function setMpVisibility(pub) {
-  mpCreatePublic = pub;
-  const pp = document.getElementById('mp-public'); if(pp) pp.classList.toggle('on', pub);
-  const pv = document.getElementById('mp-private'); if(pv) pv.classList.toggle('on', !pub);
+function hostStartGame() {
+  if (!mpIsHost || !socket || !socket.connected) return;
+  socket.emit('start-game');
+}
+
+// Renders both the always-visible read-only summary and, for the host
+// only, the live-editable controls -- driven entirely by the mpRoom*
+// globals, which every relevant socket handler keeps current.
+function renderWaitingSettings() {
+  const dm = String(mpRoomMode || mpCreateMode || 'classic');
+  const isDuel = dm.includes('duel');
+  const hasPU = dm.includes('power');
+  const np = mpRoomNumPlayers || mpCreateNP;
+  const label = document.getElementById('waiting-mode-label');
+  if (label) {
+    const modeTxt = (isDuel ? 'Duel' : 'Classic') + (hasPU ? ' + Powerups' : '') + (mpRoomIsPublic === false ? ' · Private' : '') + ' · ';
+    label.textContent = modeTxt + np + ' players max';
+  }
+  const hostBlock = document.getElementById('waiting-settings-host');
+  if (hostBlock) hostBlock.style.display = mpIsHost ? 'flex' : 'none';
+  if (mpIsHost) {
+    const modeSel = document.getElementById('wait-mode-select'); if (modeSel) modeSel.value = isDuel ? 'duel' : 'classic';
+    const puToggle = document.getElementById('wait-powerups-toggle'); if (puToggle) puToggle.checked = hasPU;
+    const npSel = document.getElementById('wait-np-select'); if (npSel) { npSel.value = String(np); npSel.disabled = isDuel; }
+    const privToggle = document.getElementById('wait-private-toggle'); if (privToggle) privToggle.checked = mpRoomIsPublic === false;
+  }
+}
+
+function updateWaitingStartUI() {
+  const startBtn = document.getElementById('waiting-start-btn');
+  const statusMsg = document.getElementById('waiting-status-msg');
+  if (!startBtn) return;
+  if (mpIsHost) {
+    startBtn.style.display = 'block';
+    startBtn.disabled = mpRoomPlayers.length < 2;
+    if (statusMsg) statusMsg.textContent = mpRoomPlayers.length < 2 ? 'need at least 2 players to start' : 'start anytime, or wait for more players';
+  } else {
+    startBtn.style.display = 'none';
+    if (statusMsg) statusMsg.textContent = 'waiting for the host to start';
+  }
 }
 
 // createRoom() and joinByCode() (the #mp-screen-only counterparts of
@@ -5744,10 +5864,14 @@ function joinRoom(code) {
 
 // ── Waiting room ─────────────────────────────────────────────────
 function showWaitingRoom() {
-  // Hide all screens
+  // Hide all screens -- including Rooms/Local Play, since Host/Join can be
+  // reached from either of them (not just the homepage doors directly),
+  // and both share this same fixed-overlay z-index.
   document.getElementById('homepage').classList.remove('show');
   const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'none';
   document.getElementById('setup').style.display = 'none';
+  document.getElementById('rooms-screen').classList.remove('show');
+  document.getElementById('local-screen').classList.remove('show');
   const ws = document.getElementById('waiting-screen');
   ws.classList.add('show');
   document.getElementById('waiting-code-part').textContent = mpRoomCode;
@@ -5757,17 +5881,12 @@ function showWaitingRoom() {
   const shareLabel = document.getElementById('waiting-share-label');
   if (shareLabel) shareLabel.textContent = navigator.share ? 'Send Invite' : 'Copy Link';
 
-  // Use mpCreateMode as fallback in case mpRoomMode wasn't set yet
-  const displayMode = mpRoomMode || mpCreateMode;
-  const displayNP = mpRoomNumPlayers || mpCreateNP;
-  const dm = String(displayMode || '');
-  const modeTxt = (dm.includes('duel') ? 'Duel' : 'Classic') + (dm.includes('power') ? ' + Powerups' : '') + ' · ';
-  document.getElementById('waiting-mode-label').textContent = modeTxt + displayNP + ' players';
-
-  updateWaitingPlayers(
-    [{ name: mpUsername, slot: mpSlot }],
-    mpRoomNumPlayers
-  );
+  // Render everything from the mpRoom* globals -- callers (room-created,
+  // room-joined) set them before invoking this, so this function is just
+  // a render pass and can be re-run safely from player-joined too.
+  updateWaitingPlayers(mpRoomPlayers, mpRoomNumPlayers);
+  renderWaitingSettings();
+  updateWaitingStartUI();
 }
 
 function updateWaitingPlayers(players, numPlayers) {
@@ -5782,8 +5901,10 @@ function updateWaitingPlayers(players, numPlayers) {
     if (player) {
       const isYou = player.slot === mpSlot;
       div.innerHTML = `
+        <span class="wp-pawn">${pawnMarkSVG(player.pawnIcon || 'mark-ring', 16)}</span>
         <div class="wp-dot" style="background:${colors[i-1]}"></div>
         <div class="wp-name">${escapeHtml(player.name||'')}</div>
+        ${player.isHost ? '<span class="wp-host">HOST</span>' : ''}
         ${isYou ? '<span class="wp-you">YOU</span>' : ''}
       `;
     } else {
@@ -6312,21 +6433,44 @@ function showHomepage() {
   const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'block';
   document.getElementById('setup').style.display = 'none';
   document.getElementById('waiting-screen').classList.remove('show');
+  document.getElementById('rooms-screen').classList.remove('show');
+  document.getElementById('local-screen').classList.remove('show');
   document.getElementById('win').classList.remove('show');
   gameOver = false;
   // Reconnect fresh for lobby
   setTimeout(() => {
     connectSocket();
-    // Re-render cached lobby immediately if we have data
-    if (_lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms);
+    // Re-render cached lobby immediately -- unconditionally, so an actually-
+    // empty result (not just "no data yet") renders its real empty state
+    // rather than leaving whatever the Rooms screen last showed.
+    updateLobbyList(_lastLobbyRooms);
   }, 300);
   updateHpStats();
   // Connect socket to get live stats
   if (!socket) connectSocket();
 }
 
+// Rooms and Local Play are separate destination screens off the homepage
+// doors -- same show/hide pattern as showWaitingRoom(), just simpler
+// (neither needs the "hide every other screen by hand" dance beyond the
+// homepage itself, since neither can be reached from inside another screen).
+function showRoomsScreen() {
+  document.getElementById('homepage').classList.remove('show');
+  const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'none';
+  document.getElementById('rooms-screen').classList.add('show');
+  if (socket && socket.connected) socket.emit('get-lobby');
+  else connectSocket();
+}
+
+function showLocalPlayScreen() {
+  document.getElementById('homepage').classList.remove('show');
+  const seoEl = document.getElementById('seo-text'); if(seoEl) seoEl.style.display = 'none';
+  document.getElementById('local-screen').classList.add('show');
+}
+
 function startFromHomepage() {
   hideHomepage();
+  document.getElementById('local-screen').classList.remove('show');
   setBoard(hpBoard);
   numPlayers = hpBoard === 'duel' ? 2 : hpNP;
   cpuMode = hpCPU;
@@ -6384,10 +6528,7 @@ function updateHomepageStats(rooms, onlineCount) {
   const onlineEl = document.getElementById('hp-online-count');
   const gamesEl = document.getElementById('hp-games-count');
   if (onlineEl) onlineEl.textContent = (onlineCount || 0) + ' player' + (onlineCount !== 1 ? 's' : '') + ' online';
-  if (gamesEl) {
-    const inProgress = Object.values ? rooms.filter ? rooms.filter(r => r).length : 0 : 0;
-    gamesEl.textContent = rooms.length + ' open room' + (rooms.length !== 1 ? 's' : '');
-  }
+  if (gamesEl) gamesEl.textContent = rooms.length + ' open room' + (rooms.length !== 1 ? 's' : '');
 }
 
 // ── Lattice + barricade-trail background (homepage only) ──────────
@@ -6560,8 +6701,10 @@ try { connectSocket(); } catch (e) { console.warn('Play Sabotage: connectSocket 
 setTimeout(handleUrlRouting, 400);
 // Check auth on load
 setTimeout(checkAuth, 200);
-// Re-render lobby if we already have cached data
-setTimeout(() => { if (_lastLobbyRooms && _lastLobbyRooms.length > 0) updateLobbyList(_lastLobbyRooms); }, 400);
+// Re-render lobby from cache -- unconditionally, so a genuinely-empty
+// result renders its real empty state rather than being treated as "no
+// data yet" and left blank.
+setTimeout(() => { if (_lastLobbyRooms) updateLobbyList(_lastLobbyRooms); }, 400);
 
 
 // ── Homepage multiplayer actions ─────────────────────────────────
@@ -6571,12 +6714,15 @@ function hpJoinRoom(code) {
 }
 
 function hpJoinByCode() {
-  const code = document.getElementById('hp-join-input').value.trim().toUpperCase();
+  const input = document.getElementById('hp-join-input');
+  const code = input ? input.value.trim().toUpperCase() : '';
   if (code.length < 4) {
     const err = document.getElementById('hp-join-error');
-    err.textContent = 'Enter a valid room code';
-    err.style.display = 'block';
-    setTimeout(() => err.style.display = 'none', 3000);
+    if (err) {
+      err.textContent = 'Enter a valid room code';
+      err.style.display = 'block';
+      setTimeout(() => err.style.display = 'none', 3000);
+    }
     return;
   }
   hpJoinRoom(code);
