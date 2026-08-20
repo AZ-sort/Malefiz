@@ -41,19 +41,21 @@ app.use((req, res, next) => {
   res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
-// Only serve safe static assets — never .js/.env/source files
-app.use(express.static(path.join(__dirname), {
-  setHeaders: (res, filePath) => {
-    if (/\.(js|json|env|md|lock)$/i.test(filePath) && !filePath.endsWith('socket.io.js')) {
-      res.status(403).end();
-    }
+// Block sensitive files before they ever reach express.static. This used to
+// live inside static's setHeaders callback, calling res.status(403).end()
+// after the response had already begun -- Express throws
+// ERR_HTTP_HEADERS_SENT for that, uncaught, which killed the process on
+// every single request for a blocked path (confirmed: GET /server.js took
+// production down). Blocking here, before static even starts writing a
+// response, avoids the double-send entirely.
+app.use((req, res, next) => {
+  if (/\.(js|json|env|md|lock)$/i.test(req.path) && !req.path.endsWith('socket.io.js')) {
+    return res.status(403).send('Forbidden');
   }
-}));
-// Explicitly block sensitive files
-app.get(/.*\.(js|json|env|md|lock)$/i, (req, res, next) => {
-  if (req.path.includes('socket.io')) return next();
-  res.status(403).send('Forbidden');
+  next();
 });
+// Only serve safe static assets — never .js/.env/source files
+app.use(express.static(path.join(__dirname)));
 
 // ── Database ─────────────────────────────────────────────────────
 // TLS certificate verification is on. Confirmed against the real Railway
@@ -74,6 +76,12 @@ if (!process.env.PGSSLROOTCERT) {
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: sslConfig
+});
+// node-postgres docs: an error on an idle client with no 'error' listener
+// crashes the process. Railway recycles idle DB connections, so this is a
+// real (if unconfirmed-in-practice) exposure, not theoretical.
+pool.on('error', (err) => {
+  console.error('Postgres pool error (idle client):', err.message);
 });
 
 // Create users table if it doesn't exist
@@ -264,6 +272,19 @@ const rooms = {};
 const socketRooms = {};
 const ROOM_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
 
+// Safe lookup for client-supplied room codes. A plain rooms[code] is
+// exploitable: rooms['__proto__'] resolves to Object.prototype, which is
+// truthy, so a naive `if (!room)` guard passes and the next
+// room.players.find(...) throws on undefined -- confirmed to kill the
+// process. hasOwnProperty rules that out, and normalizing case here
+// (rather than relying on each call site to remember .toUpperCase())
+// means a lowercase code from a client can still reconnect.
+function getRoom(code) {
+  if (typeof code !== 'string') return null;
+  const upper = code.toUpperCase();
+  return Object.prototype.hasOwnProperty.call(rooms, upper) ? rooms[upper] : null;
+}
+
 function getRoomList() {
   return Object.values(rooms)
     .filter(r => r.isPublic && !r.started && r.players.length < r.numPlayers)
@@ -302,23 +323,29 @@ io.on('connection', (socket) => {
 
   socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
 
-  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic, pawnIcon }) => {
+  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic, pawnIcon } = {}) => {
     if (!checkRate(ip, 'create', MAX_ROOMS_PER_IP)) { socket.emit('join-error', 'Too many rooms created. Please wait.'); return; }
     const name = cleanName(playerName);
     const np = validNumPlayers(numPlayers);
+    // mode used to be echoed back only, so any value was harmless. PR #18
+    // made it load-bearing (room.mode.startsWith('duel') in
+    // update-room-settings below), so an unwhitelisted mode -- null,
+    // a number, an object -- now throws there. Whitelist at creation too,
+    // not just on update.
+    const roomMode = VALID_MODES.includes(mode) ? mode : 'classic';
     const code = generateRoomCode();
     const secret = generateSecret();
     const player = { id: socket.id, name, slot: 1, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) };
-    rooms[code] = { code, host: name, hostId: socket.id, players: [player], numPlayers: np, mode, isPublic: !!isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
+    rooms[code] = { code, host: name, hostId: socket.id, players: [player], numPlayers: np, mode: roomMode, isPublic: !!isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
     socket.join(code);
     socketRooms[socket.id] = code;
     socket.emit('room-created', { code, slot: 1, secret });
     broadcastLobby();
   });
 
-  socket.on('join-room', ({ code, playerName, pawnIcon }) => {
+  socket.on('join-room', ({ code, playerName, pawnIcon } = {}) => {
     if (!checkRate(ip, 'join', MAX_JOINS_PER_IP)) { socket.emit('join-error', 'Too many join attempts.'); return; }
-    const room = rooms[code?.toUpperCase()];
+    const room = getRoom(code);
     if (!room) { socket.emit('join-error', 'Room not found.'); return; }
     if (room.started) { socket.emit('join-error', 'Game already in progress.'); return; }
     if (room.players.length >= room.numPlayers) { socket.emit('join-error', 'Room is full.'); return; }
@@ -340,7 +367,7 @@ io.on('connection', (socket) => {
   // room is still in its waiting lobby. Broadcast on the same 'player-joined'
   // event the roster already uses, so the client has one settings-sync path
   // instead of two.
-  socket.on('update-room-settings', ({ mode, numPlayers, isPublic }) => {
+  socket.on('update-room-settings', ({ mode, numPlayers, isPublic } = {}) => {
     if (!checkRate(ip, 'settings', MAX_SETTINGS_PER_IP)) return;
     const code = socketRooms[socket.id];
     const room = code && rooms[code];
@@ -369,8 +396,8 @@ io.on('connection', (socket) => {
     broadcastLobby();
   });
 
-  socket.on('reconnect-attempt', ({ code, secret }) => {
-    const room = rooms[code];
+  socket.on('reconnect-attempt', ({ code, secret } = {}) => {
+    const room = getRoom(code);
     if (!room) { socket.emit('reconnect-failed', 'Room no longer exists.'); return; }
     const player = room.players.find(p => p.secret === secret);
     if (!player) { socket.emit('reconnect-failed', 'Could not verify identity.'); return; }
@@ -378,21 +405,25 @@ io.on('connection', (socket) => {
     player.connected = true;
     player.departed = false;
     room.lastActivity = Date.now();
-    socket.join(code);
-    socketRooms[socket.id] = code;
+    // Use room.code (the canonical, already-uppercased key), not the raw
+    // client-supplied code -- getRoom() normalizes case for lookup but a
+    // client can still send lowercase, and joining a socket.io room keyed
+    // by the wrong case would desync it from rooms[room.code].
+    socket.join(room.code);
+    socketRooms[socket.id] = room.code;
     socket.emit('reconnected', { slot: player.slot, players: publicPlayers(room.players, room.hostId), gameState: room.gameState, mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
-    socket.to(code).emit('player-reconnected', { slot: player.slot, name: player.name });
+    socket.to(room.code).emit('player-reconnected', { slot: player.slot, name: player.name });
   });
 
-  socket.on('request-state', ({ code, secret }) => {
-    const room = rooms[code];
+  socket.on('request-state', ({ code, secret } = {}) => {
+    const room = getRoom(code);
     if (!room) return;
     const player = room.players.find(p => p.secret === secret);
     if (!player) return;
     if (room.gameState) socket.emit('state-update', { gameState: room.gameState });
   });
 
-  socket.on('game-action', (action) => {
+  socket.on('game-action', (action = {}) => {
     if (!checkRate(ip, 'action', MAX_ACTIONS_PER_IP)) return;
     const code = socketRooms[socket.id];
     if (!code || !rooms[code]) return;
@@ -457,6 +488,16 @@ io.on('connection', (socket) => {
   socket.on('get-lobby', () => {
     socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
   });
+});
+
+// Backstop, not a substitute for fixing the specific crash vectors above --
+// this exists so an unforeseen throw logs and gets a chance to be diagnosed
+// instead of silently killing the process the same way the confirmed bugs
+// above did. Deliberately does not call process.exit(): the alternative,
+// letting Node's default handler kill the process, is exactly the failure
+// mode this file already had four live examples of.
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception (process kept alive):', err);
 });
 
 const PORT = process.env.PORT || 3000;
