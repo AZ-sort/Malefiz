@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Play Sabotage</title>
+<meta name="description" content="Privacy policy for Play Sabotage: what data is collected, how it's used, and how to request deletion.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#08111F; --surface:#0E1C32; --surface2:#152440; --border:#1E3358;
+    --text:#F0F6FF; --muted:#6888AA; --accent:#FF7A2F; --accent-h:#E8641A;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text); font-family:'Sora',sans-serif;
+    margin:0; padding:0 20px 64px; line-height:1.7;
+  }
+  .wrap{max-width:720px; margin:0 auto;}
+  .top-nav{padding:20px 0 8px; display:flex; align-items:center; justify-content:space-between;}
+  .top-nav a{
+    color:var(--muted); text-decoration:none; font-family:'DM Mono',monospace;
+    font-size:.78rem; border:1px solid var(--border); padding:7px 12px; border-radius:8px;
+  }
+  .top-nav a:hover{color:var(--text); border-color:var(--accent);}
+  h1{font-size:1.6rem; font-weight:700; margin:24px 0 4px;}
+  .updated{color:var(--muted); font-family:'DM Mono',monospace; font-size:.75rem; margin-bottom:32px;}
+  h2{font-size:1.05rem; font-weight:600; margin:32px 0 10px; color:var(--text);}
+  p, li{color:#C9D8EA; font-size:.92rem;}
+  ul{padding-left:20px;}
+  li{margin-bottom:6px;}
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:18px 20px; margin:20px 0;
+  }
+  .muted{color:var(--muted);}
+  .footnote{
+    margin-top:48px; padding-top:20px; border-top:1px solid var(--border);
+    color:var(--muted); font-size:.78rem; font-family:'DM Mono',monospace; line-height:1.6;
+  }
+  a{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top-nav">
+    <span style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--muted);">Play Sabotage</span>
+    <a href="/">← Back to game</a>
+  </div>
+
+  <h1>Privacy Policy</h1>
+  <div class="updated">Last updated: 2026-08-22</div>
+
+  <p>Play Sabotage is a small, independently-run multiplayer game. This page explains, plainly, what data the game collects and why — there's not much of it.</p>
+
+  <h2>What we collect</h2>
+  <div class="card">
+    <ul>
+      <li><strong>Nothing, if you just play as a guest.</strong> You can create or join a room, play a full game, and use chat without ever giving us an email address, a phone number, or any identity information. A display name and an optional pawn icon are stored only for the lifetime of your room.</li>
+      <li><strong>Username + password, only if you register an account.</strong> Registration exists so you can keep a name across sessions — it does not currently unlock any feature guest play doesn't have. We store your chosen username and a one-way <a href="https://en.wikipedia.org/wiki/Bcrypt" target="_blank" rel="noopener">bcrypt hash</a> of your password — never the password itself. We do not collect an email address, which also means there is currently no way to reset a forgotten password; see Terms of Service.</li>
+      <li><strong>IP address, transiently, for abuse prevention.</strong> Your IP is used to rate-limit room creation, joins, logins, and in-game actions, so one connection can't spam the server. This is held in server memory only, resets automatically every 60 seconds, and is never written to a database or logged permanently.</li>
+      <li><strong>Anonymous gameplay milestones.</strong> The server logs when a room is created, a second player joins, a game starts, and a game finishes — tied to a room code and a timestamp, not to any player identity — so we can tell whether the game is actually being played, not just visited. These rows contain no player names, IPs, or account data.</li>
+      <li><strong>Basic, cookieless site analytics.</strong> We use Vercel Web Analytics to see visit counts, referring sites, country, and device type. It identifies visitors with a hash that resets every day — no cookie, no persistent identifier, no cross-site tracking. See <a href="https://vercel.com/docs/analytics/privacy-policy" target="_blank" rel="noopener">Vercel's Web Analytics privacy notice</a> for how that data is handled on their end.</li>
+    </ul>
+  </div>
+
+  <h2>What we don't do</h2>
+  <ul>
+    <li>We don't run ads or ad-tracking pixels.</li>
+    <li>We don't sell or share your data with third parties for marketing.</li>
+    <li>We don't set tracking cookies.</li>
+    <li>We don't knowingly collect data from children under 13.</li>
+  </ul>
+
+  <h2>Where data lives</h2>
+  <p>The game client is hosted on <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a>; the game server and database run on <a href="https://railway.com" target="_blank" rel="noopener">Railway</a>. Both are infrastructure providers, not parties we share your data with for any purpose beyond running the game.</p>
+  <p>An active game room (players, moves, chat) lives in server memory and is automatically deleted after 3 hours of inactivity. Registered account records (username + password hash) persist until you ask us to delete them.</p>
+
+  <h2>Your choices</h2>
+  <p>To request deletion of a registered account, or to ask any question about this policy, please <a href="https://github.com/AZ-sort/Malefiz/issues" target="_blank" rel="noopener">open an issue on the GitHub repository</a>. There's no self-service deletion button yet — we'll process the request by hand.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes in a material way, the "Last updated" date above will change. Given the size of this project, we don't expect frequent changes.</p>
+
+  <div class="footnote">
+    Play Sabotage is a hobby project, not a company. This is a plain-language description of what the game actually does with data, written by the person who built it — not a substitute for professional legal advice.
+  </div>
+</div>
+</body>
+</html>
