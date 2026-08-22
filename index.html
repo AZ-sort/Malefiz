@@ -32,6 +32,10 @@
     --bg:#08111F; --surface:#0E1C32; --surface2:#152440; --border:#1E3358;
     --text:#F0F6FF; --muted:#6888AA; --accent:#FF7A2F; --accent-h:#E8641A;
     --p1:#FF4040; --p2:#40D9A0; --p3:#FFD700; --p4:#5BAAFF;
+    /* r,g,b triples of the same 4 colors -- lets home-area tints do
+       rgba(var(--pN-rgb), alpha), which a hex custom property can't.
+       applyTheme() overwrites both together per theme (see THEMES below). */
+    --p1-rgb:255,64,64; --p2-rgb:64,217,160; --p3-rgb:255,215,0; --p4-rgb:91,170,255;
     --bar:#E8D4B8; --goal:#FFD700; --cell:#152440; --cellb:#2A4070;
     --radius:10px; --radius-sm:7px;
   }
@@ -172,10 +176,13 @@
                box-shadow .18s ease;
     will-change:left,top;
   }
-  .float-pawn.p1{background:var(--p1);}
-  .float-pawn.p2{background:var(--p2);}
-  .float-pawn.p3{background:var(--p3);}
-  .float-pawn.p4{background:var(--p4);}
+  /* pc1-4 = rendered COLOR (claimed independently of seat/slot). Named
+     distinctly from the glow-p1-4 classes below (which are still keyed the
+     same way) so the two never collide when applied to the same element. */
+  .float-pawn.pc1{background:var(--p1);}
+  .float-pawn.pc2{background:var(--p2);}
+  .float-pawn.pc3{background:var(--p3);}
+  .float-pawn.pc4{background:var(--p4);}
   .float-pawn.is-moving{
     transform:scale(1.15) translateY(-3px);
     box-shadow:0 8px 20px rgba(0,0,0,.6);
@@ -191,10 +198,10 @@
     border-radius:50%;border:2px solid rgba(255,255,255,.28);
     box-shadow:0 2px 7px rgba(0,0,0,.5);pointer-events:none;
   }
-  .pawn.p1{background:var(--p1);}
-  .pawn.p2{background:var(--p2);}
-  .pawn.p3{background:var(--p3);}
-  .pawn.p4{background:var(--p4);}
+  .pawn.pc1{background:var(--p1);}
+  .pawn.pc2{background:var(--p2);}
+  .pawn.pc3{background:var(--p3);}
+  .pawn.pc4{background:var(--p4);}
   .pawn.sel{box-shadow:0 0 0 3px rgba(124,106,255,.5);transform:scale(1.18);}
 
   /* ── Home areas ── */
@@ -203,19 +210,22 @@
     display:flex;align-items:center;justify-content:center;
     gap:5px;flex-wrap:wrap;padding:8px 6px;
   }
-  .home1-bg{background:rgba(232,69,69,.1);border:1.5px solid rgba(232,69,69,.28);}
-  .home2-bg{background:rgba(60,196,90,.1);border:1.5px solid rgba(60,196,90,.28);}
-  .home3-bg{background:rgba(255,201,60,.1);border:1.5px solid rgba(255,201,60,.28);}
-  .home4-bg{background:rgba(74,144,217,.1);border:1.5px solid rgba(74,144,217,.28);}
+  /* Tints now key off claimed COLOR, not seat -- and use each theme's own
+     --pN-rgb triple (added to THEMES below) instead of the hardcoded RGB
+     this replaces, which never tracked the active theme. */
+  .home-bg-1{background:rgba(var(--p1-rgb),.1);border:1.5px solid rgba(var(--p1-rgb),.28);}
+  .home-bg-2{background:rgba(var(--p2-rgb),.1);border:1.5px solid rgba(var(--p2-rgb),.28);}
+  .home-bg-3{background:rgba(var(--p3-rgb),.1);border:1.5px solid rgba(var(--p3-rgb),.28);}
+  .home-bg-4{background:rgba(var(--p4-rgb),.1);border:1.5px solid rgba(var(--p4-rgb),.28);}
   .home-pawn{
     border-radius:50%;border:2px solid rgba(255,255,255,.25);
     box-shadow:0 2px 6px rgba(0,0,0,.4);cursor:default;
     transition:transform .12s,box-shadow .12s;
   }
-  .home-pawn.p1{background:var(--p1);}
-  .home-pawn.p2{background:var(--p2);}
-  .home-pawn.p3{background:var(--p3);}
-  .home-pawn.p4{background:var(--p4);}
+  .home-pawn.pc1{background:var(--p1);}
+  .home-pawn.pc2{background:var(--p2);}
+  .home-pawn.pc3{background:var(--p3);}
+  .home-pawn.pc4{background:var(--p4);}
   .home-pawn.clickable{cursor:pointer;}
   .home-pawn.clickable:hover{transform:scale(1.22);box-shadow:0 0 0 3px rgba(124,106,255,.3);}
   .home-pawn.sel{box-shadow:0 0 0 3px rgba(124,106,255,.55);transform:scale(1.22);}
@@ -241,6 +251,7 @@
   .prow:last-child{margin-bottom:0;}
   .prow.active{background:var(--surface2);border-color:var(--border);}
   .pdot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+  .pav{display:flex;align-items:center;color:var(--muted);flex-shrink:0;}
   .pnm{flex:1;font-size:.84rem;font-weight:600;color:var(--text);}
   .ptg{font-size:.65rem;font-family:'DM Mono',monospace;color:var(--muted);}
   .pbdg{
@@ -353,6 +364,8 @@
   }
   @keyframes pop{from{transform:scale(.75);opacity:0}to{transform:scale(1);opacity:1}}
   .wi{font-size:3.4rem;}
+  .win-avatar{width:40px;height:40px;color:var(--accent);}
+  .win-avatar:empty{display:none;}
   .wt{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;}
   .ws{font-size:.82rem;color:var(--muted);}
 
@@ -887,6 +900,16 @@
   .waiting-player .wp-host{font-size:.6rem;font-family:'DM Mono',monospace;color:#0d0d14;background:var(--accent);padding:2px 6px;border-radius:4px;font-weight:700;letter-spacing:.04em;}
   .waiting-player .wp-pawn{display:flex;align-items:center;color:var(--muted);flex-shrink:0;}
   .waiting-player.empty{opacity:.35;border-style:dashed;}
+  .color-claim-row{width:100%;display:flex;gap:10px;justify-content:center;margin-top:4px;}
+  .color-swatch{
+    width:32px;height:32px;border-radius:50%;cursor:pointer;
+    border:2px solid rgba(255,255,255,.25);transition:transform .13s,box-shadow .13s;
+    display:flex;align-items:center;justify-content:center;position:relative;
+  }
+  .color-swatch:hover{transform:scale(1.1);}
+  .color-swatch.mine{box-shadow:0 0 0 3px var(--accent);}
+  .color-swatch.taken{opacity:.3;cursor:not-allowed;}
+  .color-swatch.taken:hover{transform:none;}
   .waiting-dots span{display:inline-block;animation:wdot 1.2s ease-in-out infinite;}
   .waiting-dots span:nth-child(2){animation-delay:.2s;}
   .waiting-dots span:nth-child(3){animation-delay:.4s;}
@@ -1672,13 +1695,18 @@
   /* ── Pawn Icon Picker ── */
   .pawn-picker-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
     margin-top: 8px;
+    /* Real character art needs more room than the old 8-shape geometric
+       set did, and a real set will likely grow past one screenful --
+       scrolls instead of overflowing the modal. */
+    max-height: 260px;
+    overflow-y: auto;
   }
   .pawn-icon-option {
-    width: 40px;
-    height: 40px;
+    width: 56px;
+    height: 56px;
     border-radius: 8px;
     border: 2px solid var(--border);
     background: var(--surface2);
@@ -1758,14 +1786,18 @@
     <!-- pawn markings — the personal-icon set, geometric so they hold up at
          small sizes and don't need illustration (unlike the animal-emoji set
          they replace) -->
-    <symbol id="mark-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="currentColor"/></symbol>
-    <symbol id="mark-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="3"/></symbol>
-    <symbol id="mark-diamond" viewBox="0 0 24 24"><path d="M12 3l7 9-7 9-7-9z" fill="currentColor"/></symbol>
-    <symbol id="mark-cross" viewBox="0 0 24 24"><path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z" fill="currentColor"/></symbol>
-    <symbol id="mark-tri" viewBox="0 0 24 24"><path d="M12 4l8.5 15h-17z" fill="currentColor"/></symbol>
-    <symbol id="mark-hex" viewBox="0 0 24 24"><path d="M12 2.2l8 4.9v9.8l-8 4.9-8-4.9V7.1z" fill="currentColor"/></symbol>
-    <symbol id="mark-moon" viewBox="0 0 24 24"><path d="M20 14.6A8.6 8.6 0 1 1 9.4 4a7 7 0 1 0 10.6 10.6z" fill="currentColor"/></symbol>
-    <symbol id="mark-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="currentColor"/></symbol>
+    <!-- PLACEHOLDER geometric avatars -- swap these for real character
+         artwork (see the comment above the AVATARS array in the main script
+         block for exactly what to change). Kept as currentColor shapes for
+         now so the picker/roster/HUD aren't empty before real art lands. -->
+    <symbol id="avatar-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="currentColor"/></symbol>
+    <symbol id="avatar-ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="3"/></symbol>
+    <symbol id="avatar-diamond" viewBox="0 0 24 24"><path d="M12 3l7 9-7 9-7-9z" fill="currentColor"/></symbol>
+    <symbol id="avatar-cross" viewBox="0 0 24 24"><path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z" fill="currentColor"/></symbol>
+    <symbol id="avatar-tri" viewBox="0 0 24 24"><path d="M12 4l8.5 15h-17z" fill="currentColor"/></symbol>
+    <symbol id="avatar-hex" viewBox="0 0 24 24"><path d="M12 2.2l8 4.9v9.8l-8 4.9-8-4.9V7.1z" fill="currentColor"/></symbol>
+    <symbol id="avatar-moon" viewBox="0 0 24 24"><path d="M20 14.6A8.6 8.6 0 1 1 9.4 4a7 7 0 1 0 10.6 10.6z" fill="currentColor"/></symbol>
+    <symbol id="avatar-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="currentColor"/></symbol>
   </defs>
 </svg>
 
@@ -1853,9 +1885,9 @@
   <div class="hp-preview">
     <div class="hp-card">
 
-      <!-- Your pawn + name -->
+      <!-- Your avatar + name -->
       <div class="hp-identity-row">
-        <button class="hp-pawn-identity" id="pawn-btn" onclick="openPawnModal()" title="Change your pawn marking"></button>
+        <button class="hp-pawn-identity" id="pawn-btn" onclick="openAvatarModal()" title="Change your avatar"></button>
         <input class="hp-name-input" id="hp-name-input" maxlength="20" placeholder="Your name" oninput="onHpNameInput(this.value)">
       </div>
 
@@ -1942,11 +1974,11 @@
 <!-- ── PAWN PICKER MODAL ── -->
 <div id="pawn-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);align-items:center;justify-content:center;z-index:600;">
   <div class="auth-box" style="width:320px;">
-    <h2>Choose Your Pawn</h2>
-    <div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:-8px;">Pick an icon for your pawns</div>
+    <h2>Choose Your Avatar</h2>
+    <div style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:-8px;">Pick a character to play as</div>
     <div class="pawn-picker-grid" id="pawn-picker-grid"></div>
-    <button class="auth-submit" onclick="savePawnIcon()">Save</button>
-    <div class="auth-guest" onclick="closePawnModal()">Maybe later</div>
+    <button class="auth-submit" onclick="saveAvatar()">Save</button>
+    <div class="auth-guest" onclick="closeAvatarModal()">Maybe later</div>
   </div>
 </div>
 
@@ -2150,6 +2182,10 @@
     <!-- Players -->
     <div class="waiting-players" id="waiting-players"></div>
 
+    <!-- Color claim -- 4 swatches, click a free one to take it. Populated
+         by renderColorClaimRow(); disabled once the game starts. -->
+    <div class="color-claim-row" id="color-claim-row"></div>
+
     <!-- Host-only live settings -- hidden for joiners, who see the
          read-only summary line above instead. Every change here is
          broadcast to the room immediately via update-room-settings. -->
@@ -2290,6 +2326,7 @@
 <div id="dc-overlay">
   <div class="dc-box">
     <div style="font-size:2.5rem;">📡</div>
+    <div class="win-avatar" id="dc-avatar"></div>
     <h2 id="dc-title">Player Disconnected</h2>
     <p id="dc-msg">Waiting for them to reconnect...</p>
     <div class="dc-timer" id="dc-timer">30</div>
@@ -2307,6 +2344,9 @@
 <div id="win">
   <div class="wb">
     <div class="wi">🏆</div>
+    <!-- Filled at runtime by showWin() when the winner has an avatar set;
+         left empty (and hidden via the .win-avatar:empty rule) otherwise. -->
+    <div class="win-avatar" id="win-avatar"></div>
     <!-- Filled at runtime by showWin()/the "left the game" path below --
          was previously "Player 1 Wins!" as placeholder copy, which read
          as a real stale-state bug during the 2026-08-20 play test until
@@ -2637,8 +2677,23 @@ let numPlayers = 2, cpuMode = 'none', cpuDiff = 'easy', powerupsEnabled = false;
 let pawns = {}, barricades = [], currentPlayer = 1;
 let diceVal = null, phase = 'roll', selPawn = null, reachable = [], gameOver = false;
 
-const PCOLS = {1:'var(--p1)',2:'var(--p2)',3:'var(--p3)',4:'var(--p4)'};
 const PNMS  = {1:'Player 1',2:'Player 2',3:'Player 3',4:'Player 4'};
+
+// ── Claimed color (independent of seat/slot) ──────────────────────
+// slot=seat (home area, board entry, whose turn it is) stays authoritative
+// for game mechanics. color=1-4 is a cosmetic claim a player picks in the
+// lobby (see 'claim-color' / claimColorUI below) and is purely which of the
+// 4 palette entries their pieces render as.
+// Map of slot -> claimed color for the current online game.
+let gameColors = {};
+// Gated on mpIsOnline (matching every gameAvatars read elsewhere) rather
+// than just falling back when gameColors[slot] is unset -- gameColors is
+// only ever cleared implicitly by being overwritten on the next online
+// game's 'reconnected'/'game-start', so a stale claim from a PRIOR online
+// session would otherwise leak into a local/CPU game started afterward in
+// the same tab. Local/pass-and-play/CPU games always render by seat.
+function colorOf(slot) { return mpIsOnline ? (gameColors[slot] || slot) : slot; }
+function pcol(slot) { return `var(--p${colorOf(slot)})`; }
 
 function barAt(er,ec) { return barricades.find(b=>b.er===er&&b.ec===ec)||null; }
 function puAt(er,ec) { return boardPowerups.find(p=>p.er===er&&p.ec===ec)||null; }
@@ -2839,7 +2894,7 @@ function getFloatEl(pawn) {
   if (floatPawns[key]) return floatPawns[key];
   const el = document.createElement('div');
   const pw = SZ - 10;
-  el.className = `float-pawn p${pawn.player}`;
+  el.className = `float-pawn pc${colorOf(pawn.player)}`;
   el.style.width = pw + 'px';
   el.style.height = pw + 'px';
   el.style.marginLeft = ((SZ - pw) / 2) + 'px'; // center in cell
@@ -3526,7 +3581,7 @@ function showTargetModal(type) {
     const targetP = p;
     const btn = document.createElement('div');
     btn.className = 'target-btn';
-    btn.innerHTML = `<div style="width:12px;height:12px;border-radius:50%;background:${PCOLS[targetP]};flex-shrink:0;"></div> ${pnm(targetP)}`;
+    btn.innerHTML = `<div style="width:12px;height:12px;border-radius:50%;background:${pcol(targetP)};flex-shrink:0;"></div> ${pnm(targetP)}`;
     btn.onclick = () => {
       // Remove from inventory using captured references
       if (puToRemove) {
@@ -3912,7 +3967,7 @@ function handleUrlRouting() {
     if (savedCode && savedSecret) {
       socket.emit('reconnect-attempt', { code: savedCode, secret: savedSecret });
     } else {
-      socket.emit('join-room', { code: path, playerName: mpUsername, pawnIcon: myPawnIcon });
+      socket.emit('join-room', { code: path, playerName: mpUsername, avatar: myAvatar });
     }
   };
 
@@ -4029,9 +4084,10 @@ function addChatMessage(name, msg, isOwn) {
   if (!log) return;
   const div = document.createElement('div');
   div.className = 'chat-msg';
-  // Color name by player slot
+  // Color name by player slot's CLAIMED color (not chosen by an avatar --
+  // chat isn't an avatar surface, but must still agree with the board).
   const slot = Object.entries(PNMS).find(([k,v]) => v === name);
-  const color = slot ? `var(--p${slot[0]})` : 'var(--accent)';
+  const color = slot ? pcol(slot[0]) : 'var(--accent)';
   div.innerHTML = `<span class="chat-msg-name" style="color:${color}">${escapeHtml(name)}:</span><span class="chat-msg-text">${escapeHtml(msg)}</span>`;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
@@ -4085,7 +4141,7 @@ async function checkAuth() {
     });
     if (res.ok) {
       const data = await res.json();
-      setLoggedIn(data.username, token);
+      setLoggedIn(data.username, token, data.avatar);
     } else {
       localStorage.removeItem('auth-token');
       showAuthModal();
@@ -4141,7 +4197,7 @@ async function submitAuth() {
       return;
     }
     localStorage.setItem('auth-token', data.token);
-    setLoggedIn(data.username, data.token);
+    setLoggedIn(data.username, data.token, data.avatar);
     hideAuthModal();
   } catch(e) {
     errEl.textContent = 'Could not connect to server';
@@ -4162,17 +4218,25 @@ function setAccountBtnLabel(text) {
   btn.querySelector('.btn-label').textContent = text;
 }
 
-function setLoggedIn(username, token) {
+function setLoggedIn(username, token, avatar) {
   loggedInUser = username;
   authToken = token;
   mpUsername = username; // use account name in multiplayer
+  // Adopt the account's saved avatar so it follows across devices. Only
+  // when the account actually has one saved -- a null/missing avatar here
+  // just means this account never picked one yet, not "clear the guest
+  // choice they made before logging in."
+  if (avatar && AVATARS.includes(avatar)) {
+    myAvatar = avatar;
+    try { localStorage.setItem('avatar', myAvatar); } catch(e) {}
+  }
   // Update account button
   const btn = document.getElementById('account-btn');
   if (btn) {
     setAccountBtnLabel(username);
     btn.classList.add('logged-in');
   }
-  updatePawnBtn();
+  updateAvatarBtn();
   // Account name is canonical while logged in — lock the identity-row
   // input so it can't drift from what create-room/join actually send.
   const nameInput = document.getElementById('hp-name-input');
@@ -4220,53 +4284,70 @@ function canChat() {
 }
 
 
-// ── Pawn Customisation ────────────────────────────────────────────
-// Geometric markings (drawn from the sprite defs at the top of <body>)
-// instead of animal/object emoji — fixed appearance across platforms, and
-// drawable as simple shapes rather than needing real icon illustration.
-const PAWN_ICONS = ['mark-dot','mark-ring','mark-diamond','mark-cross','mark-tri','mark-hex','mark-moon','mark-bolt'];
-let myPawnIcon = localStorage.getItem('pawn-icon') || '';
-// Migrate away from the old emoji values (or any other stale value) —
-// render as "no marking" rather than a broken <use> reference.
-if (myPawnIcon && !PAWN_ICONS.includes(myPawnIcon)) myPawnIcon = '';
-let selectedPawnIcon = myPawnIcon;
+// ── Player Avatars ─────────────────────────────────────────────────
+// Drawn from the sprite <symbol> defs at the top of <body> (id prefix
+// "avatar-"). This replaces the old on-piece geometric "pawn marking" set
+// (mark-dot/mark-ring/etc) -- pieces are now a plain colored disc (see
+// colorOf()/pcol() above and renderBoard()) and the avatar instead appears
+// on the sidebar HUD, the waiting-room roster, the win screen and the
+// disconnect notice, where identity actually needs showing.
+//
+// TO ADD REAL ARTWORK: add a <symbol id="avatar-xxx" viewBox="0 0 24 24">
+// next to the placeholder ones in the sprite block, add its id to AVATARS
+// below, and remove the placeholder entry it replaces. No other code needs
+// to change -- avatarSVG()/the picker/every render site all key off this
+// one array. Placeholder ids are intentionally reused from the old marking
+// set so nothing here has to change twice.
+const AVATARS = ['avatar-dot','avatar-ring','avatar-diamond','avatar-cross','avatar-tri','avatar-hex','avatar-moon','avatar-bolt'];
 
-// Shared marking renderer — used by the picker grid, the nav pawn button,
-// and the in-game pawn overlays so they all stay in sync.
-function pawnMarkSVG(iconId, sizePx) {
-  if (!iconId) return '';
+// Personal avatar preference. localStorage is the guest-path source of
+// truth; a logged-in account's saved avatar (from /auth/me) overrides it at
+// login (see setLoggedIn()) and PUT /auth/avatar pushes a new choice back
+// up, so it follows the account across devices instead of living only here.
+let myAvatar = localStorage.getItem('avatar') || localStorage.getItem('pawn-icon') || '';
+// Migrate away from the old mark-* ids (or any other stale value) — render
+// as "no avatar" rather than a broken <use> reference.
+if (myAvatar && !AVATARS.includes(myAvatar)) myAvatar = '';
+let selectedAvatar = myAvatar;
+
+// Shared avatar renderer — used by the picker grid, the nav avatar button,
+// and every in-game surface so they all stay in sync. Re-validates against
+// AVATARS (not just trusting the caller) since online games can pass an
+// id that arrived over the wire from another client.
+function avatarSVG(iconId, sizePx) {
+  if (!iconId || !AVATARS.includes(iconId)) return '';
   return `<svg class="icon pawn-mark" style="width:${sizePx}px;height:${sizePx}px;"><use href="#${iconId}"></use></svg>`;
 }
 
-// Map of slot -> pawn icon for current game
-let gamePawnIcons = {};
+// Map of slot -> avatar id for the current online game.
+let gameAvatars = {};
 
-function openPawnModal() {
-  selectedPawnIcon = myPawnIcon;
-  buildPawnGrid();
+function openAvatarModal() {
+  selectedAvatar = myAvatar;
+  buildAvatarGrid();
   document.getElementById('pawn-modal').style.display = 'flex';
 }
 
-function closePawnModal() {
+function closeAvatarModal() {
   document.getElementById('pawn-modal').style.display = 'none';
 }
 
-function buildPawnGrid() {
+function buildAvatarGrid() {
   const grid = document.getElementById('pawn-picker-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  // No icon option
+  // No-avatar option
   const none = document.createElement('div');
-  none.className = 'pawn-icon-option' + (!selectedPawnIcon ? ' selected' : '');
+  none.className = 'pawn-icon-option' + (!selectedAvatar ? ' selected' : '');
   none.innerHTML = '<span class="pawn-icon-none">None</span>';
-  none.onclick = () => { selectedPawnIcon = ''; grid.querySelectorAll('.pawn-icon-option').forEach(el => el.classList.remove('selected')); none.classList.add('selected'); };
+  none.onclick = () => { selectedAvatar = ''; grid.querySelectorAll('.pawn-icon-option').forEach(el => el.classList.remove('selected')); none.classList.add('selected'); };
   grid.appendChild(none);
-  PAWN_ICONS.forEach(icon => {
+  AVATARS.forEach(icon => {
     const el = document.createElement('div');
-    el.className = 'pawn-icon-option' + (selectedPawnIcon === icon ? ' selected' : '');
-    el.innerHTML = pawnMarkSVG(icon, 20);
+    el.className = 'pawn-icon-option' + (selectedAvatar === icon ? ' selected' : '');
+    el.innerHTML = avatarSVG(icon, 26);
     el.onclick = () => {
-      selectedPawnIcon = icon;
+      selectedAvatar = icon;
       grid.querySelectorAll('.pawn-icon-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
     };
@@ -4274,17 +4355,28 @@ function buildPawnGrid() {
   });
 }
 
-function savePawnIcon() {
-  myPawnIcon = selectedPawnIcon;
-  localStorage.setItem('pawn-icon', myPawnIcon);
-  closePawnModal();
-  // Update account button to show current icon
-  updatePawnBtn();
+async function saveAvatar() {
+  myAvatar = selectedAvatar;
+  try { localStorage.setItem('avatar', myAvatar); } catch(e) {}
+  closeAvatarModal();
+  updateAvatarBtn();
+  // Push to the account too when logged in, so it follows across devices.
+  // Best-effort: localStorage already has it, so a failed request here just
+  // means the sync happens next time this succeeds, not a lost choice.
+  if (loggedInUser && authToken && myAvatar) {
+    try {
+      await fetch(API + '/auth/avatar', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+        body: JSON.stringify({ avatar: myAvatar })
+      });
+    } catch(e) {}
+  }
 }
 
-function updatePawnBtn() {
+function updateAvatarBtn() {
   const btn = document.getElementById('pawn-btn');
-  if (btn) btn.innerHTML = pawnMarkSVG(myPawnIcon || 'mark-ring', 22);
+  if (btn) btn.innerHTML = avatarSVG(myAvatar || 'avatar-ring', 22);
 }
 
 // Guest display name — the identity row's name input is always editable
@@ -4303,7 +4395,7 @@ function onHpNameInput(value) {
 // Shared by the initial mpUsername declaration (hoisted call, see above)
 // and by logout (handleAccountBtn) — a previously-picked guest name
 // survives a login/logout cycle instead of being replaced with a fresh
-// random one each time, matching how myPawnIcon persists.
+// random one each time, matching how myAvatar persists.
 function loadGuestUsername() {
   try {
     const saved = localStorage.getItem('guest-username');
@@ -4312,11 +4404,11 @@ function loadGuestUsername() {
   return genUsername();
 }
 
-// Populate the homepage identity row on load — pawn marking button and
-// name input both need an explicit first render since nothing else calls
-// updatePawnBtn() for a guest who never logs in.
+// Populate the homepage identity row on load — avatar button and name
+// input both need an explicit first render since nothing else calls
+// updateAvatarBtn() for a guest who never logs in.
 function initHpIdentity() {
-  updatePawnBtn();
+  updateAvatarBtn();
   const input = document.getElementById('hp-name-input');
   if (input) input.value = mpUsername;
 }
@@ -5001,7 +5093,7 @@ function updateGlowOverlay() {
     for (const pw of (pawns[currentPlayer] || [])) {
       if (!pw.onBoard) continue;
       const overlay = document.createElement('div');
-      overlay.className = `glow-overlay glow-p${currentPlayer}`;
+      overlay.className = `glow-overlay glow-p${colorOf(currentPlayer)}`;
       overlay.style.cssText = `position:absolute;border-radius:50%;pointer-events:none;z-index:3;` +
         `width:${SZ}px;height:${SZ}px;left:${cellX(pw.ec)}px;top:${cellY(pw.er)}px;`;
       document.getElementById('board').appendChild(overlay);
@@ -5144,26 +5236,22 @@ function renderBoard() {
       // Don't render static pawn if it's currently being animated as a float
       const isFloating = animating && floatPawns[pawnKey(occ.pawn)];
       if (!isFloating) {
+        // Pieces are a plain colored disc -- no avatar drawn on the pawn
+        // itself. Identity now lives in the color (claimed, see colorOf())
+        // and the avatar shown on the sidebar/roster/win/disconnect
+        // surfaces, not on the piece.
         const pd = document.createElement('div');
         const pw = SZ - 10;
-        pd.className = `pawn p${occ.player}${selPawn===occ.pawn?' sel':''}`;
+        pd.className = `pawn pc${colorOf(occ.player)}${selPawn===occ.pawn?' sel':''}`;
         pd.style.width = pw + 'px'; pd.style.height = pw + 'px';
         div.innerHTML = ''; div.appendChild(pd);
-        // Pawn icon overlay
-        const pIcon = mpIsOnline ? (gamePawnIcons[occ.player] || '') : (occ.player === 1 ? myPawnIcon : '');
-        if (pIcon) {
-          const iconEl = document.createElement('div');
-          iconEl.style.cssText = `position:absolute;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;color:rgba(8,10,16,.62);`;
-          iconEl.innerHTML = pawnMarkSVG(pIcon, Math.round(pw * 0.55));
-          div.appendChild(iconEl);
-        }
       }
     }
 
     // Glow always applies regardless of human/CPU
     if ((phase==='roll' || phase==='pick-pawn') && occ && occ.player===currentPlayer && !animating) {
       const pw2 = div.querySelector('.pawn');
-      if (pw2) pw2.classList.add(`glow-p${currentPlayer}`);
+      if (pw2) pw2.classList.add(`glow-p${colorOf(currentPlayer)}`);
     }
 
     // Interactions (human only)
@@ -5244,7 +5332,7 @@ function renderBoard() {
     const boxX = entryX - homeSize/2 + SZ/2;
 
     const homeDiv = document.createElement('div');
-    homeDiv.className = `home-area home${p}-bg`;
+    homeDiv.className = `home-area home-bg-${colorOf(p)}`;
     homeDiv.style.width = boxW + 'px';
     homeDiv.style.height = boxH + 'px';
     homeDiv.style.left = boxX + 'px';
@@ -5255,18 +5343,10 @@ function renderBoard() {
 
     reserve.forEach(pw => {
       const pd = document.createElement('div');
-      pd.className = `home-pawn p${p}${selPawn===pw?' sel':''}`;
+      pd.className = `home-pawn pc${colorOf(p)}${selPawn===pw?' sel':''}`;
       pd.style.width = homePawnSize + 'px';
       pd.style.height = homePawnSize + 'px';
       pd.style.position = 'relative';
-      // Pawn icon on home pawns too
-      const hIcon = mpIsOnline ? (gamePawnIcons[p] || '') : (p === 1 ? myPawnIcon : '');
-      if (hIcon) {
-        const hIconEl = document.createElement('div');
-        hIconEl.style.cssText = 'position:absolute;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;color:rgba(8,10,16,.62);';
-        hIconEl.innerHTML = pawnMarkSVG(hIcon, Math.round(homePawnSize * 0.55));
-        pd.appendChild(hIconEl);
-      }
 
       const homePawnPlayer = currentPlayer;
       if (!gameOver && human && (phase==='pick-pawn'||phase==='move') && p===homePawnPlayer) {
@@ -5279,16 +5359,18 @@ function renderBoard() {
       }
       // Glow home pawns
       if ((phase==='roll' || phase==='pick-pawn') && p===currentPlayer && !animating && !gameOver) {
-        pd.classList.add(`glow-p${p}`);
+        pd.classList.add(`glow-p${colorOf(p)}`);
       }
       homeDiv.appendChild(pd);
     });
 
-    // Label
+    // Label — the player's name online (colors are claimed, no longer a
+    // reliable stand-in for identity), the claimed color's name locally
+    // (no server-confirmed names to show in local/CPU play).
     const lbl = document.createElement('div');
     lbl.style.cssText = `position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:.62rem;font-family:'DM Mono',monospace;color:var(--muted);`;
-    const labels = {1:'Red',2:'Green',3:'Yellow',4:'Blue'};
-    lbl.textContent = labels[p];
+    const colorNames = {1:'Red',2:'Green',3:'Yellow',4:'Blue'};
+    lbl.textContent = mpIsOnline ? (PNMS[p] || colorNames[colorOf(p)]) : colorNames[colorOf(p)];
     homeDiv.style.position = 'absolute';
     homeDiv.appendChild(lbl);
     container.appendChild(homeDiv);
@@ -5313,7 +5395,7 @@ function renderBoard() {
         slot.title = POWERUP_TYPES[pu.type].name;
         // Glow on owner's turn during roll phase
         if (p === currentPlayer && phase === 'roll' && !gameOver && !animating) {
-          slot.classList.add(`glow-p${p}`);
+          slot.classList.add(`glow-p${colorOf(p)}`);
         }
         const isOwn = !mpIsOnline || p === mpSlot;
         if (!gameOver && !animating && p === currentPlayer && phase === 'roll' && isOwn) {
@@ -5340,8 +5422,10 @@ function renderSidebar() {
     const cpu = isCPU(p);
     const reserve = (pawns[p]||[]).filter(pw=>!pw.onBoard).length;
     const shielded = shieldTurns[p] > 0;
+    const seatAvatar = cpu ? '' : (mpIsOnline ? (gameAvatars[p] || '') : (p === 1 ? myAvatar : ''));
     h += `<div class="prow${act?' active':''}">
-      <div class="pdot" style="background:${PCOLS[p]}"></div>
+      <div class="pdot" style="background:${pcol(p)}"></div>
+      ${seatAvatar ? `<span class="pav">${avatarSVG(seatAvatar, 18)}</span>` : ''}
       <div class="pnm">${cpu?'CPU '+p:escapeHtml(PNMS[p]||'')}</div>
       <div class="ptg">${reserve}/5 home</div>
       ${shielded?'<span class="ptg">🛡️</span>':''}
@@ -5374,6 +5458,11 @@ function glog(msg,hi=false) { const g=document.getElementById('glog'); const d=d
 function showWin(p) {
   const wmsg = document.getElementById('wmsg');
   if (wmsg) wmsg.textContent = `${pnm(p)} Wins! 🎉`;
+  const winAvatar = document.getElementById('win-avatar');
+  if (winAvatar) {
+    const a = isCPU(p) ? '' : (mpIsOnline ? (gameAvatars[p] || '') : (p === 1 ? myAvatar : ''));
+    winAvatar.innerHTML = a ? avatarSVG(a, 40) : '';
+  }
   document.getElementById('win').classList.add('show');
   glog(`🏆 ${pnm(p)} wins!`,true);
   // Show rematch button in online games
@@ -5396,6 +5485,9 @@ const THEMES = [
       '--cell':'#152440','--cellb':'#2A4070',
       '--bar':'#E8D4B8','--goal':'#FFD700',
       '--p1':'#FF4040','--p2':'#40D9A0','--p3':'#FFD700','--p4':'#5BAAFF',
+      // r,g,b triples (not hex) so home-area tints can do
+      // rgba(var(--pN-rgb), alpha) -- CSS can't hex-decode a custom prop.
+      '--p1-rgb':'255,64,64','--p2-rgb':'64,217,160','--p3-rgb':'255,215,0','--p4-rgb':'91,170,255',
     }
   },
   {
@@ -5409,6 +5501,7 @@ const THEMES = [
       '--cell':'#17293D','--cellb':'#2E4A66',
       '--bar':'#E9DCC0','--goal':'#F4C542',
       '--p1':'#FF5A4E','--p2':'#35C98C','--p3':'#F4C542','--p4':'#4FA8E0',
+      '--p1-rgb':'255,90,78','--p2-rgb':'53,201,140','--p3-rgb':'244,197,66','--p4-rgb':'79,168,224',
     }
   },
   {
@@ -5422,6 +5515,7 @@ const THEMES = [
       '--cell':'#251D52','--cellb':'#46368E',
       '--bar':'#EADFC2','--goal':'#FFC94A',
       '--p1':'#E0562E','--p2':'#2FBF8F','--p3':'#FFC94A','--p4':'#6C5CE0',
+      '--p1-rgb':'224,86,46','--p2-rgb':'47,191,143','--p3-rgb':'255,201,74','--p4-rgb':'108,92,224',
     }
   },
   {
@@ -5435,6 +5529,7 @@ const THEMES = [
       '--cell':'#122036','--cellb':'#24406A',
       '--bar':'#E4F2EA','--goal':'#FFDD57',
       '--p1':'#FF4D6D','--p2':'#35E0A6','--p3':'#FFDD57','--p4':'#4C8DF0',
+      '--p1-rgb':'255,77,109','--p2-rgb':'53,224,166','--p3-rgb':'255,221,87','--p4-rgb':'76,141,240',
     }
   },
 ];
@@ -5571,7 +5666,7 @@ function genUsername() {
 let socket = null;
 // Guest display name — editable from the homepage identity row (see
 // onHpNameInput/loadGuestUsername below) and persisted so a returning
-// guest keeps the name they picked, same pattern as myPawnIcon's
+// guest keeps the name they picked, same pattern as myAvatar's
 // localStorage persistence. loadGuestUsername is a function declaration
 // (hoisted), so calling it here before its later textual position is safe.
 let mpUsername = loadGuestUsername();
@@ -5678,7 +5773,7 @@ function connectSocket() {
     mpRoomIsPublic = mpCreatePublic;
     // The creator is always the room's initial host — no round trip needed
     // to know this the way a joiner needs the server's isHost flag.
-    mpRoomPlayers = [{ slot: 1, name: mpUsername, pawnIcon: myPawnIcon, isHost: true, connected: true }];
+    mpRoomPlayers = [{ slot: 1, name: mpUsername, avatar: myAvatar, color: 1, isHost: true, connected: true }];
     mpIsHost = true;
     departedSlots = {}; // fresh room, fresh player roster
     localStorage.setItem('mp-session', JSON.stringify({ code, secret }));
@@ -5782,7 +5877,7 @@ function connectSocket() {
     const path = window.location.pathname.replace('/', '').trim().toUpperCase();
     if (path && path.length >= 4) {
       // Try joining fresh as a new player
-      socket.emit('join-room', { code: path, playerName: mpUsername, pawnIcon: myPawnIcon });
+      socket.emit('join-room', { code: path, playerName: mpUsername, avatar: myAvatar });
     } else {
       // No room in URL — return to homepage
       if (typeof showHomepage === 'function') showHomepage();
@@ -5802,7 +5897,8 @@ function connectSocket() {
     if (players) {
       players.forEach(p => {
         PNMS[p.slot] = p.name;
-        gamePawnIcons[p.slot] = p.pawnIcon || '';
+        gameAvatars[p.slot] = p.avatar || p.pawnIcon || '';
+        gameColors[p.slot] = p.color || p.slot;
       });
       mpRoomNumPlayers = players.length;
       numPlayers = players.length;
@@ -6050,7 +6146,7 @@ function updateWaitingStartUI() {
 // list uses it too.
 function joinRoom(code) {
   if (!socket || !socket.connected) { alert('Not connected to server.'); return; }
-  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
+  socket.emit('join-room', { code, playerName: mpUsername, avatar: myAvatar });
 }
 
 // ── Waiting room ─────────────────────────────────────────────────
@@ -6084,28 +6180,60 @@ function updateWaitingPlayers(players, numPlayers) {
   const container = document.getElementById('waiting-players');
   if (!container) return;
   container.innerHTML = '';
-  const colors = ['var(--p1)','var(--p2)','var(--p3)','var(--p4)'];
   for (let i = 1; i <= numPlayers; i++) {
     const player = players.find(p => p.slot === i);
     const div = document.createElement('div');
     div.className = 'waiting-player' + (player ? '' : ' empty');
     if (player) {
       const isYou = player.slot === mpSlot;
+      const avatar = player.avatar || player.pawnIcon || '';
       div.innerHTML = `
-        <span class="wp-pawn">${pawnMarkSVG(player.pawnIcon || 'mark-ring', 16)}</span>
-        <div class="wp-dot" style="background:${colors[i-1]}"></div>
+        ${avatar ? `<span class="wp-pawn">${avatarSVG(avatar, 16)}</span>` : ''}
+        <div class="wp-dot" style="background:var(--p${player.color || player.slot})"></div>
         <div class="wp-name">${escapeHtml(player.name||'')}</div>
         ${player.isHost ? '<span class="wp-host">HOST</span>' : ''}
         ${isYou ? '<span class="wp-you">YOU</span>' : ''}
       `;
     } else {
       div.innerHTML = `
-        <div class="wp-dot" style="background:${colors[i-1]};opacity:.3"></div>
+        <div class="wp-dot" style="background:var(--p${i});opacity:.3"></div>
         <div class="wp-name" style="color:var(--muted)">Waiting...</div>
       `;
     }
     container.appendChild(div);
   }
+  renderColorClaimRow(players);
+}
+
+// 4-swatch color claim row -- any seated player (not just host) can click a
+// free color to take it (emits 'claim-color'); own swatch is ringed, a
+// color already held by someone else is dimmed and inert. Hidden once the
+// game has started (waiting-screen is gone by then anyway, but this also
+// guards the brief window between start-game and the screen swap).
+function renderColorClaimRow(players) {
+  const row = document.getElementById('color-claim-row');
+  if (!row) return;
+  const me = players.find(p => p.slot === mpSlot);
+  const myColor = me ? (me.color || me.slot) : null;
+  row.innerHTML = '';
+  for (let c = 1; c <= 4; c++) {
+    const holder = players.find(p => (p.color || p.slot) === c && p.slot !== mpSlot);
+    const isMine = c === myColor;
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (isMine ? ' mine' : '') + (holder ? ' taken' : '');
+    sw.style.background = `var(--p${c})`;
+    sw.title = holder ? `Taken by ${holder.name}` : (isMine ? 'Your color' : 'Claim this color');
+    if (!holder) sw.onclick = () => claimColor(c);
+    row.appendChild(sw);
+  }
+}
+
+function claimColor(color) {
+  // Not mpIsOnline -- that only flips true once the game actually starts
+  // (see 'game-start'/'reconnected'). mpRoomCode is set as soon as a room
+  // exists, which is exactly the waiting-lobby window this claim UI lives in.
+  if (!mpRoomCode || !socket) return;
+  socket.emit('claim-color', { code: mpRoomCode, color });
 }
 
 function copyRoomCode() {
@@ -6172,7 +6300,8 @@ function startOnlineGame(players, mode, npOnline) {
   // Override PNMS with actual player names
   players.forEach(p => {
     PNMS[p.slot] = p.name;
-    gamePawnIcons[p.slot] = p.pawnIcon || '';
+    gameAvatars[p.slot] = p.avatar || p.pawnIcon || '';
+    gameColors[p.slot] = p.color || p.slot;
   });
 
   document.getElementById('glog').innerHTML = '';
@@ -6197,6 +6326,8 @@ let dcCountdown = 60;
 function showDcOverlay(name, slot) {
   document.getElementById('dc-title').textContent = name + ' disconnected';
   document.getElementById('dc-msg').textContent = 'Waiting for them to reconnect...';
+  const dcAvatar = document.getElementById('dc-avatar');
+  if (dcAvatar) { const a = gameAvatars[slot] || ''; dcAvatar.innerHTML = a ? avatarSVG(a, 40) : ''; }
   document.getElementById('dc-overlay').classList.add('show');
   dcCountdown = 60;
   document.getElementById('dc-timer').textContent = dcCountdown;
@@ -6915,7 +7046,7 @@ setTimeout(() => { if (_lastLobbyRooms) updateLobbyList(_lastLobbyRooms); }, 400
 // ── Homepage multiplayer actions ─────────────────────────────────
 function hpJoinRoom(code) {
   if (!socket || !socket.connected) { connectSocket(); setTimeout(() => hpJoinRoom(code), 1500); return; }
-  socket.emit('join-room', { code, playerName: mpUsername, pawnIcon: myPawnIcon });
+  socket.emit('join-room', { code, playerName: mpUsername, avatar: myAvatar });
 }
 
 function hpJoinByCode() {
@@ -6955,7 +7086,7 @@ function hpCreateRoom() {
     numPlayers: mpCreateNP,
     mode: mpModeString(),
     isPublic: mpCreatePublic,
-    pawnIcon: myPawnIcon
+    avatar: myAvatar
   });
 }
 
