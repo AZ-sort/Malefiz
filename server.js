@@ -95,12 +95,37 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // Server-side growth funnel (Phase 0 Layer 2). Client-side analytics
+    // (Vercel Web Analytics) can say how many people visited; it can't say
+    // how many actually played, because a bounce never opens a socket. This
+    // table is the only layer that can answer that, from events server.js
+    // already sees at each of the four handlers below.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS funnel_events (
+        id SERIAL PRIMARY KEY,
+        event_type VARCHAR(20) NOT NULL,
+        room_code VARCHAR(10),
+        num_players INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
     console.log('Database ready');
   } catch(e) {
     console.error('DB init error:', e.message);
   }
 }
 initDB();
+
+// Fire-and-forget funnel logging. Deliberately never awaited or thrown from
+// a socket handler -- a logging failure must never take the backend down,
+// per the uncaughtException/pool.on('error') backstops elsewhere in this
+// file. num_players is optional context (e.g. seated count at game-start).
+function logEvent(eventType, roomCode, numPlayers) {
+  pool.query(
+    'INSERT INTO funnel_events (event_type, room_code, num_players) VALUES ($1, $2, $3)',
+    [eventType, roomCode || null, numPlayers ?? null]
+  ).catch(e => console.error('funnel_events insert failed:', e.message));
+}
 
 if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
   console.error('FATAL: JWT_SECRET is not set. Refusing to start with a guessable fallback secret in production.');
@@ -319,7 +344,23 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 io.on('connection', (socket) => {
-  const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim() || socket.handshake.address || 'unknown';
+  // Hardening, not a fix for a confirmed live bypass -- checked both ways.
+  // In general, XFF entries are appended by each proxy hop, so the LEFTMOST
+  // entry is whatever the connecting client claimed, and a raw socket
+  // handshake (unlike the HTTP routes above, which already get this right
+  // via Express's own `trust proxy` handling for req.ip) lets any client
+  // set that header. Taking [0] would trust client-controlled input for
+  // every socket rate limit below (create/join/settings/action).
+  // Reproduced against production first, per this project's standard: 8
+  // create-room calls with a distinct forged leading XFF value each,
+  // against the currently-deployed (pre-this-fix) backend. Only 5 of 8
+  // succeeded -- the real limit -- so Railway's edge is evidently already
+  // overwriting or stripping inbound client-supplied XFF rather than
+  // appending to it, and the bypass does not reproduce live. Switching to
+  // .pop() (the hop closest to this process, matching trust-proxy-1
+  // semantics) is still strictly more correct and costs nothing if that
+  // assumption about Railway's edge ever changes.
+  const ip = socket.handshake.headers['x-forwarded-for']?.split(',').pop()?.trim() || socket.handshake.address || 'unknown';
 
   socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
 
@@ -345,6 +386,7 @@ io.on('connection', (socket) => {
     socketRooms[socket.id] = code;
     socket.emit('room-created', { code, slot: 1, secret });
     broadcastLobby();
+    logEvent('room_created', code);
   });
 
   socket.on('join-room', ({ code, playerName, pawnIcon } = {}) => {
@@ -362,6 +404,11 @@ io.on('connection', (socket) => {
     socket.emit('room-joined', { code: code.toUpperCase(), slot, secret, players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
     io.to(code.toUpperCase()).emit('player-joined', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
     broadcastLobby();
+    // Funnel milestone: the room stopped being a solo host waiting alone.
+    // Gated on ===2 (not >=2) so a 3rd/4th joiner into a larger room, or a
+    // re-join after a pre-start departure brings the room back through 2,
+    // doesn't double-log the same milestone for the same room.
+    if (room.players.length === 2) logEvent('second_player_joined', room.code);
     // Games no longer auto-start on fill — the host starts explicitly via
     // 'start-game' (below), watching players arrive Gartic-Phone style and
     // adjusting settings first. numPlayers is now a cap, not a target.
@@ -424,6 +471,7 @@ io.on('connection', (socket) => {
     // below), so this is always the true seat count, not just the cap.
     io.to(code).emit('game-start', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.players.length });
     broadcastLobby();
+    logEvent('game_started', code, room.players.length);
   });
 
   socket.on('reconnect-attempt', ({ code, secret } = {}) => {
@@ -466,6 +514,12 @@ io.on('connection', (socket) => {
     }
     room.actionLog.push({ type: action.type, ts: Date.now() });
     if (room.actionLog.length > 200) room.actionLog.shift();
+    // Funnel milestone: the client already emits syncAction('game-over', ...)
+    // on a real win, and game-action already relays every action type here,
+    // so this needs no client change -- just reading a signal that already
+    // exists. actionLog (above) would also show this, but isn't queryable
+    // in SQL and isn't retained once a room is cleaned up.
+    if (action.type === 'game-over') logEvent('game_finished', code);
     if (action.type === 'chat' && action.data) {
       // Never trust a client-supplied chat name — stamp the sender's own
       // server-sanitized name to prevent stored XSS and name spoofing.
