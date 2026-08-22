@@ -124,6 +124,18 @@
     border:2px dashed rgba(200,200,220,.4)!important;cursor:pointer;
   }
   .cell.bplace:hover{background:rgba(200,200,220,.18)!important;transform:scale(1.12);z-index:6;}
+  /* Tap-to-confirm staging (coarse pointers only, see armCell()) -- the
+     first tap on a committing action (move/barricade/temp-barricade/trap)
+     stages it here instead of acting immediately; a second tap on the
+     same cell, or the #tap-confirm-bar's OK button, commits it. */
+  .cell.pending{
+    background:rgba(255,122,47,.28)!important;
+    border:2px solid var(--accent)!important;
+    box-shadow:0 0 0 3px rgba(255,122,47,.25),0 0 18px rgba(255,122,47,.45);
+    transform:scale(1.16);z-index:7;
+    animation:pulse-cell-pending 1s ease-in-out infinite;
+  }
+  @keyframes pulse-cell-pending{0%,100%{box-shadow:0 0 0 0 rgba(255,122,47,.35)}50%{box-shadow:0 0 0 5px rgba(255,122,47,.15)}}
 
 
   /* Ghost barricade preview on hover */
@@ -897,6 +909,30 @@
   .dc-box p{font-size:.82rem;color:var(--muted);}
   .dc-timer{font-size:2rem;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent);}
 
+  /* Tap-to-confirm bar (coarse pointers only) -- lives outside #board-wrap
+     so it never inherits the board's mobile "zoom" scaling (see armCell()
+     in the script below). Fixed to the viewport, not the board, since
+     computing a precise on-cell position across the zoom/-moz-transform
+     split used for mobile board scaling isn't worth the cross-browser
+     risk for a transient confirm step. z-index sits below the settings/
+     disconnect overlays (300) so those still take priority if opened
+     mid-tap. */
+  #tap-confirm-bar{
+    display:none;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+    z-index:200;background:var(--surface);border:1px solid var(--border);
+    border-radius:12px;padding:8px 8px 8px 14px;
+    align-items:center;gap:10px;
+    box-shadow:0 8px 28px rgba(0,0,0,.4);
+  }
+  #tap-confirm-bar.show{display:flex;}
+  #tap-confirm-label{font-size:.78rem;font-family:'DM Mono',monospace;color:var(--text);white-space:nowrap;}
+  .tap-confirm-btn{
+    border:none;border-radius:8px;padding:8px 14px;font-size:.85rem;font-weight:700;
+    cursor:pointer;font-family:inherit;
+  }
+  .tap-confirm-cancel{background:var(--surface2);color:var(--muted);}
+  .tap-confirm-ok{background:var(--accent);color:#fff;}
+
 
 
 
@@ -1665,6 +1701,7 @@
   @media(prefers-reduced-motion:reduce){
     .float-pawn{transition:none;}
     .cell.reachable{animation:none;}
+    .cell.pending{animation:none;}
     .glow-p1,.glow-p2,.glow-p3,.glow-p4{animation:none;}
   }
 </style>
@@ -2237,6 +2274,13 @@
     <div class="dc-timer" id="dc-timer">30</div>
     <button class="btn bp" onclick="dismissDc()" style="width:180px;">Continue Playing</button>
   </div>
+</div>
+
+<!-- ── TAP-TO-CONFIRM (coarse pointers only, see armCell() in script) ── -->
+<div id="tap-confirm-bar">
+  <span id="tap-confirm-label"></span>
+  <button class="tap-confirm-btn tap-confirm-cancel" onclick="cancelPendingTap()">✕</button>
+  <button class="tap-confirm-btn tap-confirm-ok" onclick="confirmPendingTap()">OK</button>
 </div>
 
 <div id="win">
@@ -4944,7 +4988,70 @@ function updateGlowOverlay() {
   }
 }
 
-function renderAll() { renderBoard(); renderSidebar(); updateGlowOverlay(); if(window.innerWidth>700) setTimeout(scaleToFit,0); if(mpIsOnline) updateOnlineTurnUI(); }
+// ── Tap-to-confirm (mobile: measured ~19.6x19.6px cells at 390px width,
+// well under a usable tap target) ──────────────────────────────────
+// A committing board action (move/barricade/temp-barricade/trap) on a
+// coarse pointer stages instead of firing immediately: first tap
+// highlights the cell and shows #tap-confirm-bar; a second tap on the
+// SAME cell, or the bar's OK button, commits it. Any other tap re-stages
+// rather than committing, so a mis-tap can't silently act. Fine pointers
+// (mouse) are untouched -- armCell() assigns the handler directly, byte-
+// for-byte the previous click-to-act behavior.
+let pendingTap = null; // { er, ec, div, fn } -- the one currently-staged action
+
+function isCoarsePointer() {
+  return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+
+function armCell(div, er, ec, label, fn) {
+  if (!isCoarsePointer()) { div.onclick = fn; return; }
+  div.onclick = () => {
+    if (pendingTap && pendingTap.er === er && pendingTap.ec === ec) {
+      clearPendingTap();
+      fn();
+    } else {
+      stagePendingTap(er, ec, div, label, fn);
+    }
+  };
+}
+
+function stagePendingTap(er, ec, div, label, fn) {
+  // Only one staged cell at a time -- if a different cell was already
+  // staged, drop its highlight (its div is still live: staging never
+  // triggers a render, only a commit or a real game action does).
+  if (pendingTap && pendingTap.div) pendingTap.div.classList.remove('pending');
+  pendingTap = { er, ec, div, fn };
+  div.classList.add('pending');
+  const bar = document.getElementById('tap-confirm-bar');
+  const lbl = document.getElementById('tap-confirm-label');
+  if (lbl) lbl.textContent = label;
+  if (bar) bar.classList.add('show');
+}
+
+function confirmPendingTap() {
+  if (!pendingTap) return;
+  const fn = pendingTap.fn;
+  clearPendingTap();
+  fn();
+}
+
+function cancelPendingTap() {
+  clearPendingTap();
+}
+
+function clearPendingTap() {
+  if (pendingTap && pendingTap.div) pendingTap.div.classList.remove('pending');
+  pendingTap = null;
+  const bar = document.getElementById('tap-confirm-bar');
+  if (bar) bar.classList.remove('show');
+}
+
+function renderAll() {
+  // Any re-render -- a turn change, an opponent's move arriving over the
+  // socket, a phase switch -- must never let a stale staged tap commit.
+  clearPendingTap();
+  renderBoard(); renderSidebar(); updateGlowOverlay(); if(window.innerWidth>700) setTimeout(scaleToFit,0); if(mpIsOnline) updateOnlineTurnUI();
+}
 
 function renderBoard() {
   const container = document.getElementById('board');
@@ -5051,14 +5158,14 @@ function renderBoard() {
           div.onclick = () => { selPawn=null; reachable=[]; phase='pick-pawn'; renderAll(); };
         } else if (reachable.find(x=>x.er===er&&x.ec===ec)) {
           div.classList.add('reachable','clickable');
-          div.onclick = () => moveTo(er, ec);
+          armCell(div, er, ec, 'Move here?', () => moveTo(er, ec));
         }
       }
       if (phase==='place-barricade') {
         const ct = getCell(er,ec);
         if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<BOTTOM_ROW && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
-          div.onclick = () => placeBarricade(er, ec);
+          armCell(div, er, ec, 'Place barricade here?', () => placeBarricade(er, ec));
           const ghost = document.createElement('div');
           ghost.className = 'barr-ghost';
           div.appendChild(ghost);
@@ -5068,7 +5175,7 @@ function renderBoard() {
         const ct = getCell(er,ec);
         if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<BOTTOM_ROW && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
-          div.onclick = () => placeTempBarricade(er, ec);
+          armCell(div, er, ec, 'Place temporary barricade here?', () => placeTempBarricade(er, ec));
           const ghost = document.createElement('div');
           ghost.className = 'barr-ghost';
           div.appendChild(ghost);
@@ -5079,7 +5186,7 @@ function renderBoard() {
         const ct = getCell(er,ec);
         if (ct && ct.type!=='goal' && !barAt(er,ec) && !pawnAt(er,ec) && er<BOTTOM_ROW && !traps.find(t=>t.er===er&&t.ec===ec)) {
           div.classList.add('bplace','clickable');
-          div.onclick = () => placeTrap(er, ec);
+          armCell(div, er, ec, 'Place trap here?', () => placeTrap(er, ec));
         }
       }
       // Trap flash — briefly visible
