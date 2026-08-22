@@ -2121,7 +2121,17 @@
 <!-- ── WAITING ROOM ── -->
 <div id="waiting-screen">
   <div class="waiting-box">
-    <h2>Your Room is Open</h2>
+    <!-- Corner close, matching the Settings/How-To-Play modal pattern
+         (.settings-top / .settings-close) -- sits in the box's own first
+         row, so it's reachable without scrolling regardless of how tall
+         the host-settings block below gets. The text "Leave Room" button
+         further down still exists for anyone who scrolls to it, but this
+         is the always-visible exit; a user shouldn't have to find a
+         scrollbar to get out of a room they just created. -->
+    <div class="settings-top" style="width:100%;">
+      <h2>Your Room is Open</h2>
+      <div class="settings-close" onclick="leaveRoom()" title="Leave room">✕</div>
+    </div>
     <div id="waiting-mode-label" style="font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);"></div>
 
     <!-- Invite -- the loudest thing on this screen, not a muted click-to-copy
