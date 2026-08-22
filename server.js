@@ -95,6 +95,11 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // Added for account-linked avatars, so a logged-in player's chosen
+    // character follows them across devices instead of living only in
+    // localStorage. IF NOT EXISTS keeps this idempotent against the
+    // existing table on every boot, same pattern as CREATE TABLE above.
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(24)`);
     // Server-side growth funnel (Phase 0 Layer 2). Client-side analytics
     // (Vercel Web Analytics) can say how many people visited; it can't say
     // how many actually played, because a bounce never opens a socket. This
@@ -184,7 +189,7 @@ app.post('/auth/register', authRateLimit('register', MAX_REGISTERS_PER_IP), asyn
     );
     const user = result.rows[0];
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, username: user.username });
+    res.json({ token, username: user.username, avatar: null });
   } catch(e) {
     console.error('Register error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -201,15 +206,40 @@ app.post('/auth/login', authRateLimit('login', MAX_LOGINS_PER_IP), async (req, r
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(400).json({ error: 'Invalid username or password' });
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, username: user.username });
+    res.json({ token, username: user.username, avatar: user.avatar || null });
   } catch(e) {
     console.error('Login error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-app.get('/auth/me', verifyToken, (req, res) => {
-  res.json({ username: req.user.username });
+app.get('/auth/me', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT avatar FROM users WHERE id = $1', [req.user.id]);
+    res.json({ username: req.user.username, avatar: result.rows[0]?.avatar || null });
+  } catch(e) {
+    console.error('/auth/me error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Save the account-linked avatar. Reuses cleanIcon's charset+length
+// allowlist (defined below, alongside its socket-side sibling) since this
+// value flows through the exact same `href="#${id}"` interpolation client-
+// side. Rate-limited on the existing 'register' bucket rather than a new
+// one -- an authenticated route already needs a valid JWT, so abuse
+// potential here is much lower than the unauthenticated auth routes it
+// shares a limiter family with.
+app.put('/auth/avatar', verifyToken, authRateLimit('avatar', MAX_REGISTERS_PER_IP), async (req, res) => {
+  const avatar = cleanIcon(req.body?.avatar);
+  if (!avatar) return res.status(400).json({ error: 'Invalid avatar' });
+  try {
+    await pool.query('UPDATE users SET avatar = $1 WHERE id = $2', [avatar, req.user.id]);
+    res.json({ avatar });
+  } catch(e) {
+    console.error('/auth/avatar error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // ── Name generation (fallback for guests) ────────────────────────
@@ -228,11 +258,28 @@ function validNumPlayers(n) {
   const v = parseInt(n, 10);
   return (v >= 2 && v <= 4) ? v : 2;
 }
+// Avatar ids are sprite-symbol references (e.g. "avatar-fox"), interpolated
+// client-side into `href="#${id}"` -- so this is a hard allowlist-shaped
+// boundary, not just a length cap. The 8-char slice this replaces silently
+// truncated more than half the shipped marking ids (mark-diamond,
+// mark-cross, mark-moon, mark-bolt, mark-ring all exceed 8 chars), which
+// broke the truncated id's <use> reference on every OTHER client in the
+// room. A charset+length regex avoids duplicating the client's icon
+// catalogue here (which would drift), while still rejecting anything that
+// isn't a plausible symbol id.
 function cleanIcon(icon) {
   if (typeof icon !== 'string') return '';
-  // Same sanitization approach as cleanName() for consistency, even though
-  // the 8-char cap alone makes this low-impact in practice.
-  return icon.replace(/[<>"'`]/g, '').slice(0, 8);
+  return /^[a-z0-9_-]{1,24}$/.test(icon) ? icon : '';
+}
+
+// Colors are claimed independently of seat (slot) -- see 'claim-color'
+// below. Assigns the lowest 1-4 not already held by another connected/
+// pending player in the room, honoring `preferred` if it's free.
+function assignColor(room, preferred) {
+  const taken = new Set(room.players.filter(p => !p.departed).map(p => p.color));
+  if (preferred >= 1 && preferred <= 4 && !taken.has(preferred)) return preferred;
+  for (let c = 1; c <= 4; c++) if (!taken.has(c)) return c;
+  return 1; // unreachable in practice (rooms cap at 4 players) but never leave color undefined
 }
 
 // Strip reconnect secrets before a players array is broadcast to a room —
@@ -364,7 +411,7 @@ io.on('connection', (socket) => {
 
   socket.emit('lobby-update', { rooms: getRoomList(), online: io.engine.clientsCount });
 
-  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic, pawnIcon } = {}) => {
+  socket.on('create-room', ({ playerName, numPlayers, mode, isPublic, pawnIcon, avatar, color } = {}) => {
     if (!checkRate(ip, 'create', MAX_ROOMS_PER_IP)) { socket.emit('join-error', 'Too many rooms created. Please wait.'); return; }
     const name = cleanName(playerName);
     // mode used to be echoed back only, so any value was harmless. PR #18
@@ -380,7 +427,12 @@ io.on('connection', (socket) => {
     const np = roomMode.startsWith('duel') ? 2 : validNumPlayers(numPlayers);
     const code = generateRoomCode();
     const secret = generateSecret();
-    const player = { id: socket.id, name, slot: 1, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) };
+    // Wire-compat during the deploy window between this server change and its
+    // matching frontend change: an older client still sends `pawnIcon`, a
+    // newer one sends `avatar` -- accept either, and write both keys so
+    // either client version can read the field back out of the roster.
+    const iconValue = cleanIcon(avatar ?? pawnIcon);
+    const player = { id: socket.id, name, slot: 1, secret, connected: true, pawnIcon: iconValue, avatar: iconValue, color: assignColor({ players: [] }, parseInt(color, 10)) };
     rooms[code] = { code, host: name, hostId: socket.id, players: [player], numPlayers: np, mode: roomMode, isPublic: !!isPublic, started: false, createdAt: Date.now(), lastActivity: Date.now(), gameState: null, actionLog: [] };
     socket.join(code);
     socketRooms[socket.id] = code;
@@ -389,7 +441,7 @@ io.on('connection', (socket) => {
     logEvent('room_created', code);
   });
 
-  socket.on('join-room', ({ code, playerName, pawnIcon } = {}) => {
+  socket.on('join-room', ({ code, playerName, pawnIcon, avatar, color } = {}) => {
     if (!checkRate(ip, 'join', MAX_JOINS_PER_IP)) { socket.emit('join-error', 'Too many join attempts.'); return; }
     const room = getRoom(code);
     if (!room) { socket.emit('join-error', 'Room not found.'); return; }
@@ -397,7 +449,8 @@ io.on('connection', (socket) => {
     if (room.players.length >= room.numPlayers) { socket.emit('join-error', 'Room is full.'); return; }
     const secret = generateSecret();
     const slot = room.players.length + 1;
-    room.players.push({ id: socket.id, name: cleanName(playerName), slot, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) });
+    const iconValue = cleanIcon(avatar ?? pawnIcon);
+    room.players.push({ id: socket.id, name: cleanName(playerName), slot, secret, connected: true, pawnIcon: iconValue, avatar: iconValue, color: assignColor(room, parseInt(color, 10)) });
     room.lastActivity = Date.now();
     socket.join(code.toUpperCase());
     socketRooms[socket.id] = code.toUpperCase();
@@ -412,6 +465,27 @@ io.on('connection', (socket) => {
     // Games no longer auto-start on fill — the host starts explicitly via
     // 'start-game' (below), watching players arrive Gartic-Phone style and
     // adjusting settings first. numPlayers is now a cap, not a target.
+  });
+
+  // Any seated player (not host-only): claim one of the 4 palette colors,
+  // independent of seat/slot -- lets a player in slot 3 render as blue, say.
+  // Only valid pre-start; rejects silently (no join-error) on any invalid
+  // request since this is a cosmetic action a stale/racing UI can easily
+  // retry, not a flow a player needs an error surfaced for.
+  socket.on('claim-color', ({ color } = {}) => {
+    if (!checkRate(ip, 'settings', MAX_SETTINGS_PER_IP)) return;
+    const code = socketRooms[socket.id];
+    const room = code && rooms[code];
+    if (!room || room.started) return;
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+    const c = parseInt(color, 10);
+    if (!(c >= 1 && c <= 4)) return;
+    const heldBy = room.players.find(p => !p.departed && p.id !== socket.id && p.color === c);
+    if (heldBy) return;
+    player.color = c;
+    room.lastActivity = Date.now();
+    io.to(code).emit('player-joined', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers, isPublic: room.isPublic });
   });
 
   // Host-only: change mode/powerups/max-players/public-private while the
