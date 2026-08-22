@@ -55,6 +55,14 @@
   .logo span{color:var(--accent);}
   .header-sub{font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted);}
 
+  /* Own-connection indicator (#conn-dot/#conn-label) -- setConnStatus()
+     has looked these ids up on every connect/disconnect/connect_error
+     since before this markup existed; restoring them here is the whole
+     fix. Colors match the existing hp-join-error red / copy-confirm
+     green already used elsewhere in this file. */
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:#FF4040;flex-shrink:0;transition:background .2s;}
+  .conn-dot.connected{background:#3cc45a;}
+
   /* ── Layout ── */
   .main{
     display:flex;gap:16px;padding:16px;
@@ -625,8 +633,15 @@
     #board-wrap { zoom: 0.44 !important; }
     body.board-duel #board-wrap { zoom: 0.8 !important; -moz-transform: scale(0.8) !important; }
     .sidebar .panel { min-width: 120px !important; }
-  }
-    .main { padding: 6px; gap: 6px; }
+    /* The block used to close one line early (a stray `}` sat where this
+       .main rule now is), which put .main's 6px padding/gap at the
+       stylesheet's top level -- applying unconditionally, at every width,
+       and silently overriding the desktop .main rule (line 59, padding/
+       gap:16px, no !important) since equal-specificity rules resolve by
+       source order. !important is added here (matching every other rule
+       in this block) since it's now genuinely scoped to <=380px and needs
+       to beat the 700px block's own !important padding/gap. */
+    .main { padding: 6px !important; gap: 6px !important; }
   }
 
 
@@ -1720,7 +1735,7 @@
 <div id="setup" style="display:none;">
   <div class="sbox">
     <div class="setup-header">
-      <button class="btn bg" onclick="showHomepage()" style="width:auto;padding:7px 14px;font-size:.76rem;">← Home</button>
+      <button id="home-btn-setup" class="btn bg" onclick="showHomepage()" style="width:auto;padding:7px 14px;font-size:.76rem;">← Home</button>
       <h2>Play <span>Sabotage</span></h2>
       <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
     </div>
@@ -2128,7 +2143,7 @@
 <div id="rooms-screen">
   <div class="rooms-box">
     <div class="rooms-header">
-      <button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button>
+      <button id="home-btn-rooms" class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button>
       <h2>Open Rooms</h2>
       <button class="rooms-refresh-btn" onclick="refreshLobby()" title="Refresh">↻</button>
     </div>
@@ -2154,7 +2169,7 @@
 <div id="local-screen">
   <div class="local-box">
     <div class="rooms-header">
-      <button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button>
+      <button id="home-btn-local" class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button>
       <h2>Play on This Device</h2>
       <span style="width:22px;"></span>
     </div>
@@ -2222,19 +2237,33 @@
 <div id="win">
   <div class="wb">
     <div class="wi">🏆</div>
-    <div class="wt" id="wmsg">Player 1 Wins!</div>
+    <!-- Filled at runtime by showWin()/the "left the game" path below --
+         was previously "Player 1 Wins!" as placeholder copy, which read
+         as a real stale-state bug during the 2026-08-20 play test until
+         traced back to being static markup. -->
+    <div class="wt" id="wmsg"></div>
     <div class="ws">First pawn to reach the goal</div>
     <div id="win-buttons" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;width:180px;">
       <button class="btn bp" id="rematch-btn" style="display:none;" onclick="requestRematch()">🔄 Rematch</button>
       <div id="rematch-status" style="font-size:.72rem;font-family:'DM Mono',monospace;color:var(--muted);text-align:center;display:none;"></div>
-      <button class="btn bg" onclick="showHomepage()">← Home</button>
+      <button id="home-btn-win" class="btn bg" onclick="showHomepage()">← Home</button>
     </div>
   </div>
 </div>
 
 <header>
-  <div style="display:flex;align-items:center;gap:10px;"><button class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Sabotage</span></div></div>
+  <div style="display:flex;align-items:center;gap:10px;"><button id="home-btn-header" class="hp-nav-btn" onclick="showHomepage()" style="padding:6px 12px;font-size:.75rem;">← Home</button><div class="logo">Play <span>Sabotage</span></div></div>
   <div style="display:flex;align-items:center;gap:12px;">
+    <!-- setConnStatus() (JS) already looks these ids up on every connect/
+         disconnect/connect_error/server-offline event -- it's been a
+         live no-op since #mp-screen's chrome was deleted, so your OWN
+         disconnect has been invisible (another player's is shown via
+         #dc-overlay, which is unrelated and unaffected). Quiet by
+         default; only draws the eye when disconnected. -->
+    <div id="conn-status" style="display:none;align-items:center;gap:5px;" title="Connection status">
+      <span id="conn-dot" class="conn-dot"></span>
+      <span id="conn-label" class="header-sub" style="font-size:.7rem;font-family:'DM Mono',monospace;">Connected</span>
+    </div>
     <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playsabotage.com</div>
     <div id="sync-btn" onclick="manualSync()" title="Sync game state" style="display:none;cursor:pointer;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);padding:4px 8px;border:1px solid var(--border);border-radius:6px;transition:all .13s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">↻ Sync</div>
     <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
@@ -3773,6 +3802,12 @@ function manualSync() {
 function updateSyncBtn() {
   const btn = document.getElementById('sync-btn');
   if (btn) btn.style.display = mpIsOnline ? 'block' : 'none';
+  // Connection status only means anything in an online game -- local/CPU
+  // play has no socket to report on. Same mpIsOnline gate as sync-btn,
+  // toggled at the same call sites (game start, reconnect), so it never
+  // needs its own separate call site.
+  const conn = document.getElementById('conn-status');
+  if (conn) conn.style.display = mpIsOnline ? 'flex' : 'none';
 }
 
 
@@ -5204,7 +5239,8 @@ function animDice(v) { const el=document.getElementById('dface'); el.classList.r
 function pnm(p) { return isCPU(p)?`CPU ${p}`:PNMS[p]; }
 function glog(msg,hi=false) { const g=document.getElementById('glog'); const d=document.createElement('div'); d.className='gli'+(hi?' hi':''); d.textContent=msg; g.insertBefore(d,g.firstChild); }
 function showWin(p) {
-  document.getElementById('wmsg').textContent=`${pnm(p)} Wins! 🎉`;
+  const wmsg = document.getElementById('wmsg');
+  if (wmsg) wmsg.textContent = `${pnm(p)} Wins! 🎉`;
   document.getElementById('win').classList.add('show');
   glog(`🏆 ${pnm(p)} wins!`,true);
   // Show rematch button in online games
