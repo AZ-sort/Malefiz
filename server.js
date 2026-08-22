@@ -326,13 +326,17 @@ io.on('connection', (socket) => {
   socket.on('create-room', ({ playerName, numPlayers, mode, isPublic, pawnIcon } = {}) => {
     if (!checkRate(ip, 'create', MAX_ROOMS_PER_IP)) { socket.emit('join-error', 'Too many rooms created. Please wait.'); return; }
     const name = cleanName(playerName);
-    const np = validNumPlayers(numPlayers);
     // mode used to be echoed back only, so any value was harmless. PR #18
     // made it load-bearing (room.mode.startsWith('duel') in
     // update-room-settings below), so an unwhitelisted mode -- null,
     // a number, an object -- now throws there. Whitelist at creation too,
     // not just on update.
     const roomMode = VALID_MODES.includes(mode) ? mode : 'classic';
+    // Duel is a 2-player board (BOARDS.duel in the client has only 2 entry
+    // points) -- couple the cap to the mode here too, not just on
+    // update-room-settings, so create-room can't hand back a duel room
+    // with a 3-4 seat cap that join-room would then happily fill.
+    const np = roomMode.startsWith('duel') ? 2 : validNumPlayers(numPlayers);
     const code = generateRoomCode();
     const secret = generateSecret();
     const player = { id: socket.id, name, slot: 1, secret, connected: true, pawnIcon: cleanIcon(pawnIcon) };
@@ -372,7 +376,19 @@ io.on('connection', (socket) => {
     const code = socketRooms[socket.id];
     const room = code && rooms[code];
     if (!room || room.started || socket.id !== room.hostId) return;
-    if (VALID_MODES.includes(mode)) room.mode = mode;
+    // Validate the mode BEFORE committing it. Duel's board (client-side
+    // BOARDS.duel) only has 2 entry points -- switching to duel with 3-4
+    // already seated used to silently leave room.numPlayers unchanged
+    // (the seat guard below is a "never shrink below seated" no-op, not a
+    // clamp) while room.mode was already duel, orphaning players 3/4 with
+    // no pawns, no turn, and no error. Reject the switch instead.
+    const nextMode = VALID_MODES.includes(mode) ? mode : room.mode;
+    const maxForMode = nextMode.startsWith('duel') ? 2 : 4;
+    if (room.players.length > maxForMode) {
+      socket.emit('join-error', `Duel supports 2 players. Remove ${room.players.length - maxForMode} to switch.`);
+      return;
+    }
+    room.mode = nextMode;
     const isDuel = room.mode.startsWith('duel');
     let np = validNumPlayers(numPlayers);
     if (isDuel) np = 2;
@@ -390,9 +406,23 @@ io.on('connection', (socket) => {
     const room = code && rooms[code];
     if (!room || room.started || socket.id !== room.hostId) return;
     if (room.players.length < 2) return;
+    // Defence in depth: update-room-settings/create-room now reject a
+    // mode/seat-count mismatch at the source, but a forged emit could
+    // still reach here with room.mode and room.players.length desynced.
+    const maxForMode = room.mode.startsWith('duel') ? 2 : 4;
+    if (room.players.length > maxForMode) {
+      socket.emit('join-error', 'Too many players for this game mode.');
+      return;
+    }
     room.started = true;
     room.lastActivity = Date.now();
-    io.to(code).emit('game-start', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.numPlayers });
+    // Emit the actual seated count, not the lobby cap (room.numPlayers) --
+    // a 4-cap room started with only 3 seated used to make every client
+    // create a 4th pawn set for nobody, which turn rotation would then
+    // stall on forever. Slots are contiguous 1..players.length: the
+    // pre-start disconnect handler reindexes on removal (see 'disconnect'
+    // below), so this is always the true seat count, not just the cap.
+    io.to(code).emit('game-start', { players: publicPlayers(room.players, room.hostId), mode: room.mode, numPlayers: room.players.length });
     broadcastLobby();
   });
 
@@ -473,6 +503,13 @@ io.on('connection', (socket) => {
           if (room.players.length === 0) {
             delete rooms[code];
           } else {
+            // Reindex to contiguous slots 1..N. Pre-start, there's no
+            // reconnect-to-your-slot expectation (that only applies once
+            // room.started, via the secret-keyed 60s grace window above),
+            // so it's safe to renumber -- and necessary, since start-game
+            // now sends room.players.length as the seat count and relies
+            // on slots being contiguous 1..length.
+            room.players.forEach((p, i) => { p.slot = i + 1; });
             // Promote the next remaining player if the host just left —
             // the room otherwise has no one who can start it or change settings.
             if (wasHost) room.hostId = room.players[0].id;
