@@ -2112,6 +2112,11 @@
         </label>
         <span class="hp-private-label"><svg class="icon"><use href="#icon-lock"></use></svg> Private Room — code-only, hidden from Rooms</span>
       </div>
+      <!-- update-room-settings failures (e.g. Duel rejected because 3-4
+           are already seated) land here via the shared 'join-error'
+           listener -- previously silent, so a rejected mode switch just
+           snapped the dropdown back with no explanation. -->
+      <div id="wait-settings-error" style="font-size:.7rem;color:#FF4040;font-family:'DM Mono',monospace;display:none;"></div>
     </div>
 
     <div style="font-size:.8rem;color:var(--muted);">
@@ -5550,12 +5555,23 @@ function connectSocket() {
   });
 
   socket.on('join-error', (msg) => {
-    // Show in mp-screen or homepage whichever is visible
-    ['join-error', 'hp-join-error'].forEach(id => {
+    // Also reused by update-room-settings/start-game rejections (e.g. the
+    // Duel seat-count guard), not just room-join failures -- so this now
+    // targets the waiting room's error line too, whichever is visible.
+    ['join-error', 'hp-join-error', 'wait-settings-error'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.textContent = msg; el.style.display = 'block';
         setTimeout(() => el.style.display = 'none', 4000); }
     });
+    // A rejected update-room-settings call doesn't re-fire 'player-joined'
+    // (the server returns before broadcasting), so the host's dropdowns --
+    // already optimistically flipped by waitModeChanged()/hostUpdateSettings()
+    // before the server replied -- would otherwise keep showing the
+    // rejected choice. Re-sync them to the last confirmed mpRoomMode/
+    // mpRoomNumPlayers so the UI snaps back to what's actually true.
+    if (mpIsHost && document.getElementById('waiting-screen')?.classList.contains('show')) {
+      renderWaitingSettings();
+    }
   });
 
   socket.on('game-start', ({ players, mode, numPlayers }) => {
@@ -5965,13 +5981,27 @@ function startOnlineGame(players, mode, npOnline) {
   document.getElementById('setup').style.display = 'none';
 
   // Configure game settings from server
-  numPlayers = npOnline;
   cpuMode = 'none';
   powerupsEnabled = String(mode).toLowerCase().includes('power');
   // Board follows mode: duel rooms use the 2-player duel board
   const isDuel = String(mode).toLowerCase().includes('duel');
-  setBoard(isDuel ? 'duel' : 'classic');
-  if (isDuel) numPlayers = 2;
+  const boardId = isDuel ? 'duel' : 'classic';
+  setBoard(boardId);
+  // Trust the board's own declared cap (BOARDS[boardId].maxPlayers,
+  // already defined, previously read by nothing) instead of a blind
+  // "if (isDuel) numPlayers = 2" that ignored how many players the
+  // server actually sent. That used to let a mode/seat-count mismatch
+  // (see server.js update-room-settings) drop players 3/4 into a
+  // rendered game with no pawns of their own and no indication anything
+  // was wrong. Server-side guards should make this unreachable now --
+  // fail loudly instead of silently if it ever isn't.
+  const cap = (BOARDS[boardId] || BOARDS.classic).maxPlayers;
+  if (players.length > cap) {
+    console.error(`startOnlineGame: got ${players.length} players for a ${boardId} board (cap ${cap}) -- refusing to start.`);
+    showHomepage();
+    return;
+  }
+  numPlayers = Math.min(npOnline, cap);
 
   // Map server players to game slots
   // Our slot = mpSlot, others are opponents
