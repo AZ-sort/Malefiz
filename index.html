@@ -425,6 +425,7 @@
     box-shadow:0 24px 60px rgba(0,0,0,.5);
     animation:pop .28s cubic-bezier(.34,1.56,.64,1);
     max-height:80vh;overflow-y:auto;
+    max-height:80dvh; /* same dvh progressive enhancement, see .waiting-box */
   }
   .settings-box::-webkit-scrollbar{width:3px;}
   .settings-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
@@ -456,6 +457,7 @@
     background:var(--surface);border:1px solid var(--border);
     border-radius:16px;padding:28px 28px 24px;width:420px;
     max-height:82vh;overflow-y:auto;
+    max-height:82dvh; /* same dvh progressive enhancement, see .waiting-box */
     display:flex;flex-direction:column;gap:18px;
     box-shadow:0 24px 60px rgba(0,0,0,.5);
     animation:pop .28s cubic-bezier(.34,1.56,.64,1);
@@ -871,6 +873,20 @@
        below; this box just didn't have tall enough content to expose it
        until now. */
     max-height:calc(100vh - 48px);overflow-y:auto;
+    /* Progressive enhancement, not a fix for a confirmed root cause --
+       100vh is computed against the browser chrome's collapsed max
+       viewport on mobile, which can leave this box's true bottom
+       (Start/Leave Room) below the actually-visible fold even though
+       overflow-y:auto is set, if the fold lands mid-box before any
+       scroll gesture. 100dvh tracks the *current* visible viewport
+       instead. Declared as a second, later value on the same property:
+       browsers that don't understand `dvh` treat the whole declaration
+       as invalid and keep the 100vh rule above; browsers that do
+       support it apply this one, per the normal CSS cascade -- no
+       @supports query needed. The corner-close-button fix (PR #27)
+       already guarantees a reachable exit regardless of either unit;
+       this only tightens the box's actual sizing to match. */
+    max-height:calc(100dvh - 48px);
     display:flex;flex-direction:column;gap:20px;align-items:center;
     text-align:center;animation:pop .3s cubic-bezier(.34,1.56,.64,1);
   }
@@ -1380,6 +1396,9 @@
     border-radius: 16px; padding: 26px; width: 440px;
     max-width: calc(100vw - 32px);
     max-height: calc(100vh - 48px); overflow-y: auto;
+    /* Same dvh progressive enhancement as .waiting-box above -- see that
+       comment for why. Ignored by browsers without `dvh` support. */
+    max-height: calc(100dvh - 48px);
     display: flex; flex-direction: column; gap: 14px;
     animation: pop .3s cubic-bezier(.34,1.56,.64,1);
   }
