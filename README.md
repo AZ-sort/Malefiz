@@ -32,6 +32,23 @@ The server needs a Postgres connection and the environment variables below. Ther
 | `JWT_SECRET` | Signs auth tokens. **The server refuses to start in production if this is unset** — there is no fallback secret in production, by design (a hardcoded fallback used to ship in this repo; it was a real vulnerability, see the security section below). |
 | `PGSSLROOTCERT` | CA certificate (PEM) for the Postgres TLS connection. Railway's Postgres presents a self-signed chain with no publicly-trusted CA, so this must be set for the deploy environment or **every database query fails outright** (not a silent degradation — you'll see it immediately in the logs and in every DB-backed request). |
 
+## Optional environment variables
+
+| Variable | Purpose |
+|---|---|
+| `MAX_ROOMS_PER_IP`, `MAX_JOINS_PER_IP`, `MAX_ACTIONS_PER_IP`, `MAX_SETTINGS_PER_IP` | Per-IP rate-limit ceilings (defaults: 5, 20, 300, 30 per 60s). Unset by default — only set these to temporarily raise the ceiling for a load-test window (see `loadtest.js` below), e.g. `railway variables --set MAX_ACTIONS_PER_IP=3000`, then unset (or delete via the dashboard) immediately after. Never leave a raised value on the production service outside a deliberate test window. |
+
+## Load testing
+
+`loadtest.js` ramps concurrent sockets (default steps: 50 → 100 → 200 → 400) against a running deployment, paired into private 2-player rooms, and reports connect success rate plus `game-action` round-trip latency at each step:
+
+```
+npm install   # pulls the socket.io-client devDependency
+node loadtest.js https://malefiz-production.up.railway.app 400
+```
+
+Rooms are always created private, so the live public lobby is never touched. Because the rate limits above are per-IP, running this from a single machine will hit `checkRate()` well before it hits real server capacity — see the comment at the top of the script for why, and raise the `MAX_*_PER_IP` env vars above for the test window if that happens. Cross-reference the script's client-side numbers with `railway logs --service Malefiz` for the same window; server-side memory pressure or restarts won't show up client-side.
+
 ## Standing maintenance obligations
 
 Two things about this repo are easy to forget and will cause quiet production breakage if missed:
