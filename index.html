@@ -1695,7 +1695,14 @@
   /* ── Pawn Icon Picker ── */
   .pawn-picker-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* auto-fill at the tile's own fixed size (not repeat(5, 1fr)) -- a
+       hardcoded 5 columns of 56px tiles needs 304px, which doesn't fit
+       this modal's ~256px content width and forced a horizontal scrollbar
+       nobody wanted. Letting the column count follow available width
+       instead means it can never overflow sideways again, regardless of
+       modal width or how large this set grows. */
+    grid-template-columns: repeat(auto-fill, 56px);
+    justify-content: center;
     gap: 6px;
     margin-top: 8px;
     /* Real character art needs more room than the old 8-shape geometric
@@ -1704,6 +1711,8 @@
     max-height: 260px;
     overflow-y: auto;
   }
+  .pawn-picker-grid::-webkit-scrollbar { width: 3px; }
+  .pawn-picker-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .pawn-icon-option {
     width: 56px;
     height: 56px;
