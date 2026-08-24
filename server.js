@@ -313,10 +313,16 @@ function generateSecret() {
 // ── Rate limiting ─────────────────────────────────────────────────
 const rateLimits = {};
 const RATE_WINDOW_MS = 60 * 1000;
-const MAX_ROOMS_PER_IP = 5;
-const MAX_JOINS_PER_IP = 20;
-const MAX_ACTIONS_PER_IP = 300;
-const MAX_SETTINGS_PER_IP = 30;
+// Overridable via env for load-test windows only — e.g. `railway variables --set
+// MAX_ACTIONS_PER_IP=3000` before a ramp, then `--set MAX_ACTIONS_PER_IP=` (or the
+// dashboard's delete) to restore the default afterward. Defaults are unchanged from
+// before this override existed; a bad/missing env value falls back to the default,
+// it never silently disables the limit (Number('') and Number(undefined) are NaN,
+// and NaN || default evaluates to default).
+const MAX_ROOMS_PER_IP = Number(process.env.MAX_ROOMS_PER_IP) || 5;
+const MAX_JOINS_PER_IP = Number(process.env.MAX_JOINS_PER_IP) || 20;
+const MAX_ACTIONS_PER_IP = Number(process.env.MAX_ACTIONS_PER_IP) || 300;
+const MAX_SETTINGS_PER_IP = Number(process.env.MAX_SETTINGS_PER_IP) || 30;
 
 // Settings a host is allowed to send via update-room-settings — whitelisted
 // rather than relayed raw, since (unlike at create time) this value is now
