@@ -3089,6 +3089,12 @@ function scaleToFit() {
     const scaledH = naturalH * scale;
     boardWrap.style.height = naturalH + 'px'; // keep natural for measurement
     boardWrap.style.marginBottom = (scaledH - naturalH) + 'px'; // negative margin to close gap
+
+    // Reposition any active move hit-targets (index.html, see
+    // layoutMobileHitTargets()) for the new scale -- they're measured in
+    // fixed viewport coordinates, so a resize/rotation leaves them stale
+    // until they're recomputed against the board's new on-screen position.
+    layoutMobileHitTargets();
   } else {
     // Desktop: scale the whole inner layout
     const inner = document.getElementById('scaler-inner');
@@ -5257,6 +5263,61 @@ function cancelPendingTap() {
   clearPendingTap();
 }
 
+// ── Mobile "big hit target" overlay for move destinations ───────────────
+// Classic's cells render too small to reliably tap (see
+// TAP_CONFIRM_THRESHOLD_PX above), but the visible cell itself can't just
+// be made bigger -- growing it would re-widen the board past scaleToFit's
+// computed scale and reopen the overflow bug PR #34 fixed. Instead, once a
+// pawn is selected, each legal destination gets an invisible larger tap
+// target layered OUTSIDE #board-wrap's scaled subtree -- the same reason
+// #tap-confirm-bar lives outside it: a transform on an ancestor shrinks a
+// child's rendered box right back down, so a bigger hit area has to live
+// outside that transform to actually render bigger. Legal moves are
+// dice-constrained (rarely more than a handful, from forks in the path),
+// so this stays cheap and uncrowded. Where two destinations sit close
+// together, each target is clamped to at most half the distance to its
+// nearest neighbor -- ambiguity between two destinations is worse than a
+// small target, never better. This is purely additive: the original small
+// cell keeps its own armCell()-driven click handler underneath as a
+// fallback, and since this overlay is topmost, it naturally takes over the
+// tap and fires the move immediately, without staging -- which is also why
+// this needs no change to needsTapConfirm() itself.
+let moveHitTargetCells = []; // {er, ec, div}, populated by renderBoard() during phase 'move'
+const MOVE_HIT_TARGET_PX = 44;
+
+function layoutMobileHitTargets() {
+  let layer = document.getElementById('mobile-hit-targets');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'mobile-hit-targets';
+    layer.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:50;';
+    document.body.appendChild(layer);
+  }
+  layer.innerHTML = '';
+
+  if (!isCoarsePointer() || phase !== 'move' || !moveHitTargetCells.length) return;
+
+  const centers = moveHitTargetCells.map(({er, ec, div}) => {
+    const r = div.getBoundingClientRect();
+    return { er, ec, cx: r.left + r.width / 2, cy: r.top + r.height / 2, halfCell: Math.min(r.width, r.height) / 2 };
+  });
+
+  centers.forEach((c, i) => {
+    let half = MOVE_HIT_TARGET_PX / 2;
+    centers.forEach((other, j) => {
+      if (i === j) return;
+      half = Math.min(half, Math.hypot(c.cx - other.cx, c.cy - other.cy) / 2);
+    });
+    half = Math.max(half, c.halfCell); // never shrink below the real cell's own size
+
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;left:${c.cx - half}px;top:${c.cy - half}px;` +
+      `width:${half * 2}px;height:${half * 2}px;pointer-events:auto;border-radius:50%;`;
+    t.onclick = () => moveTo(c.er, c.ec);
+    layer.appendChild(t);
+  });
+}
+
 function clearPendingTap() {
   if (pendingTap && pendingTap.div) pendingTap.div.classList.remove('pending');
   pendingTap = null;
@@ -5277,6 +5338,7 @@ function renderBoard() {
   container.style.width = BOARD_W + 'px';
   container.style.height = (BOARD_H + homeAreaH) + 'px';
   container.style.position = 'relative';
+  moveHitTargetCells = [];
 
   // Preserve the pawn-layer div — clear everything else
   const pawnLayer = document.getElementById('pawn-layer');
@@ -5373,6 +5435,7 @@ function renderBoard() {
         } else if (reachable.find(x=>x.er===er&&x.ec===ec)) {
           div.classList.add('reachable','clickable');
           armCell(div, er, ec, 'Move here?', () => moveTo(er, ec));
+          moveHitTargetCells.push({er, ec, div});
         }
       }
       if (phase==='place-barricade') {
@@ -5414,6 +5477,8 @@ function renderBoard() {
 
     container.appendChild(div);
   });
+
+  layoutMobileHitTargets();
 
   // ---- BOARD POWERUPS ----
   // Powerups are rendered INSIDE their cell divs (like barricades)
