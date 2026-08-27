@@ -1497,6 +1497,16 @@
   .pu-dropdown-name { font-size: .8rem; font-weight: 700; margin-bottom: 2px; }
   .pu-dropdown-desc { font-size: .7rem; color: var(--muted); line-height: 1.5; }
 
+  /* Language selector dropdown items (homepage nav) */
+  .hp-lang-item {
+    display: block; width: 100%; text-align: left;
+    padding: 8px; border-radius: 8px; border: none; background: none;
+    color: var(--text); font-size: .8rem; font-family: inherit;
+    cursor: pointer; transition: background .12s;
+  }
+  .hp-lang-item:hover { background: var(--surface2); }
+  .hp-lang-item.active { color: var(--accent); font-weight: 700; }
+
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   /* ── In-game Chat ── */
@@ -1907,22 +1917,31 @@
   <nav class="hp-nav">
     <div class="hp-logo">Play <span>Sabotage</span></div>
     <div class="hp-nav-links">
-      <button class="hp-nav-btn" onclick="openHTP()" title="How to Play"><svg class="icon"><use href="#icon-dice"></use></svg><span class="btn-label">How to Play</span></button>
-      <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()" title="Log In"><svg class="icon"><use href="#icon-person"></use></svg><span class="btn-label">Log In</span></button>
+      <button class="hp-nav-btn" onclick="openHTP()" title="How to Play" data-i18n-title="navHowToPlay"><svg class="icon"><use href="#icon-dice"></use></svg><span class="btn-label" data-i18n="navHowToPlay">How to Play</span></button>
+      <button class="hp-account-btn" id="account-btn" onclick="handleAccountBtn()" title="Log In" data-i18n-title="navLogIn"><svg class="icon"><use href="#icon-person"></use></svg><span class="btn-label" data-i18n="navLogIn">Log In</span></button>
       <div class="hp-nav-dropdown">
-        <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')" title="Powerups"><svg class="icon"><use href="#icon-bolt"></use></svg><span class="btn-label">Powerups ▾</span></button>
+        <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')" title="Powerups"><svg class="icon"><use href="#icon-bolt"></use></svg><span class="btn-label" data-i18n="navPowerups">Powerups</span> ▾</button>
         <div class="hp-nav-dropdown-menu" id="pu-dropdown">
-          <div class="hp-nav-dropdown-title">Powerups Guide</div>
+          <div class="hp-nav-dropdown-title" data-i18n="navPowerupsGuideTitle">Powerups Guide</div>
         </div>
       </div>
-      <button class="hp-nav-btn" onclick="openSettings()" title="Settings"><svg class="icon"><use href="#icon-gear"></use></svg><span class="btn-label">Settings</span></button>
+      <div class="hp-nav-dropdown" id="lang-dropdown-wrap">
+        <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')" title="Language"><span class="btn-label" id="lang-btn-label">English</span> ▾</button>
+        <div class="hp-nav-dropdown-menu" id="lang-dropdown-menu" style="min-width:140px;">
+          <button class="hp-lang-item" data-lang="en" onclick="setLanguage('en')">English</button>
+          <button class="hp-lang-item" data-lang="de" onclick="setLanguage('de')">Deutsch</button>
+          <button class="hp-lang-item" data-lang="es" onclick="setLanguage('es')">Español</button>
+          <button class="hp-lang-item" data-lang="fr" onclick="setLanguage('fr')">Français</button>
+        </div>
+      </div>
+      <button class="hp-nav-btn" onclick="openSettings()" title="Settings" data-i18n-title="navSettings"><svg class="icon"><use href="#icon-gear"></use></svg><span class="btn-label" data-i18n="navSettings">Settings</span></button>
     </div>
   </nav>
 
   <!-- Hero -->
   <div class="hp-hero">
     <h1 class="hp-wordmark">Play <span>Sabotage</span></h1>
-    <p class="hp-tagline">Block. Race. Sabotage.</p>
+    <p class="hp-tagline" data-i18n="heroTagline">Block. Race. Sabotage.</p>
     <div class="hp-stats">
       <div class="hp-stats-dot"></div>
       <span id="hp-online-count">— players online</span>
@@ -1937,8 +1956,8 @@
 
       <!-- Your avatar + name -->
       <div class="hp-identity-row">
-        <button class="hp-pawn-identity" id="pawn-btn" onclick="openAvatarModal()" title="Change your avatar"></button>
-        <input class="hp-name-input" id="hp-name-input" maxlength="20" placeholder="Your name" oninput="onHpNameInput(this.value)">
+        <button class="hp-pawn-identity" id="pawn-btn" onclick="openAvatarModal()" title="Change your avatar" data-i18n-title="avatarBtnTitle"></button>
+        <input class="hp-name-input" id="hp-name-input" maxlength="20" placeholder="Your name" data-i18n-placeholder="namePlaceholder" oninput="onHpNameInput(this.value)">
       </div>
 
       <!-- Three doors: Host a room, browse Rooms, or play Local. Settings
@@ -1948,22 +1967,22 @@
         <button class="hp-door hp-door-primary" id="hp-create-btn" onclick="hpCreateRoom()">
           <svg class="icon"><use href="#icon-globe"></use></svg>
           <span class="hp-door-text">
-            <span class="hp-door-label">Host</span>
-            <span class="hp-door-sub">Start a room, invite friends</span>
+            <span class="hp-door-label" data-i18n="doorHostLabel">Host</span>
+            <span class="hp-door-sub" data-i18n="doorHostSub">Start a room, invite friends</span>
           </span>
         </button>
         <button class="hp-door" id="hp-rooms-btn" onclick="showRoomsScreen()">
           <svg class="icon"><use href="#icon-list"></use></svg>
           <span class="hp-door-text">
-            <span class="hp-door-label">Rooms</span>
-            <span class="hp-door-sub">Join an open game</span>
+            <span class="hp-door-label" data-i18n="doorRoomsLabel">Rooms</span>
+            <span class="hp-door-sub" data-i18n="doorRoomsSub">Join an open game</span>
           </span>
         </button>
         <button class="hp-door" id="hp-local-btn" onclick="showLocalPlayScreen()">
           <svg class="icon"><use href="#icon-cpu"></use></svg>
           <span class="hp-door-text">
-            <span class="hp-door-label">Local Play</span>
-            <span class="hp-door-sub">Pass & play, or vs bots</span>
+            <span class="hp-door-label" data-i18n="doorLocalLabel">Local Play</span>
+            <span class="hp-door-sub" data-i18n="doorLocalSub">Pass & play, or vs bots</span>
           </span>
         </button>
       </div>
@@ -1977,10 +1996,10 @@
 
 <!-- SEO text — outside game, only visible on homepage -->
 <div id="seo-text" style="max-width:700px;margin:16px auto 0;padding:0 24px 24px;text-align:center;">
-  <p style="font-size:.68rem;color:var(--muted);line-height:1.8;font-family:'Sora',sans-serif;">
+  <p style="font-size:.68rem;color:var(--muted);line-height:1.8;font-family:'Sora',sans-serif;" data-i18n="seoDescription">
     Play Sabotage is a free online multiplayer board game inspired by Malefiz and Barricade. Race your pawns to the goal, block opponents with barricades, and use powerups to sabotage your way to victory. Play with 1–4 players online, challenge a friend, play with your partner, or test yourself against the AI. No download required — play instantly in your browser.
   </p>
-  <p style="font-size:.65rem;color:var(--muted);opacity:0.6;line-height:1.6;font-family:'DM Mono',monospace;margin-top:8px;">
+  <p style="font-size:.65rem;color:var(--muted);opacity:0.6;line-height:1.6;font-family:'DM Mono',monospace;margin-top:8px;" data-i18n="seoTags">
     Free • No download • 1–4 players • Online multiplayer • vs AI • Malefiz • Barricade
   </p>
 </div>
@@ -1990,9 +2009,9 @@
      during gameplay, so it only reads as "visible" on the homepage). -->
 <div id="hp-footer" style="max-width:700px;margin:0 auto 24px;padding:0 24px;text-align:center;">
   <p style="font-size:.65rem;color:var(--muted);opacity:0.6;font-family:'DM Mono',monospace;">
-    <a href="/privacy.html" style="color:inherit;text-decoration:underline;">Privacy</a>
+    <a href="/privacy.html" style="color:inherit;text-decoration:underline;" data-i18n="footerPrivacy">Privacy</a>
     &nbsp;·&nbsp;
-    <a href="/terms.html" style="color:inherit;text-decoration:underline;">Terms</a>
+    <a href="/terms.html" style="color:inherit;text-decoration:underline;" data-i18n="footerTerms">Terms</a>
   </p>
 </div>
 
@@ -4260,11 +4279,17 @@ async function submitAuth() {
 // drawn icon-person glyph instead of the 👤 emoji it replaced. Username is
 // set via .textContent, not string-concatenated into innerHTML, so a
 // crafted username can't inject markup here.
-function setAccountBtnLabel(text) {
+// i18nKey: pass 'navLogIn' for the static logged-out label so it stays
+// reactive to setLanguage() afterward (rebuilding innerHTML here would
+// otherwise drop the data-i18n attribute the generic translator relies
+// on). Omit it for a real username -- that's never translated.
+function setAccountBtnLabel(text, i18nKey) {
   const btn = document.getElementById('account-btn');
   if (!btn) return;
   btn.innerHTML = '<svg class="icon"><use href="#icon-person"></use></svg><span class="btn-label"></span>';
-  btn.querySelector('.btn-label').textContent = text;
+  const label = btn.querySelector('.btn-label');
+  label.textContent = text;
+  if (i18nKey) label.setAttribute('data-i18n', i18nKey);
 }
 
 function setLoggedIn(username, token, avatar) {
@@ -4299,7 +4324,7 @@ function continueAsGuest() {
   hideAuthModal();
   // mpUsername stays as the randomly generated (or previously-picked,
   // see loadGuestUsername) guest name
-  setAccountBtnLabel('Log In');
+  setAccountBtnLabel(t('navLogIn'), 'navLogIn');
   const nameInput = document.getElementById('hp-name-input');
   if (nameInput) { nameInput.disabled = false; nameInput.value = mpUsername; }
 }
@@ -4312,7 +4337,7 @@ function handleAccountBtn() {
       loggedInUser = null;
       authToken = null;
       mpUsername = loadGuestUsername(); // restore the guest name they had before logging in, if any
-      setAccountBtnLabel('Log In');
+      setAccountBtnLabel(t('navLogIn'), 'navLogIn');
       const btn = document.getElementById('account-btn');
       if (btn) btn.classList.remove('logged-in');
       // Pawn identity stays visible after logout -- it's not an
@@ -6071,11 +6096,9 @@ function setConnStatus(connected) {
 // unaffected and still works.
 function showServerOffline() {
   setConnStatus(false);
-  const onlineEl = document.getElementById('hp-online-count');
-  const gamesEl = document.getElementById('hp-games-count');
+  hpStatsState = { mode: 'offline' };
+  renderHpStats();
   const hpEmpty = document.getElementById('hp-room-empty');
-  if (onlineEl) onlineEl.textContent = 'multiplayer server offline';
-  if (gamesEl) gamesEl.textContent = 'try Local Game below';
   if (hpEmpty) {
     hpEmpty.textContent = "Can't reach the multiplayer server right now — play a Local Game instead →";
     hpEmpty.style.display = 'block';
@@ -6793,6 +6816,138 @@ startPlayerTurn = function() {
 // applyGameState defined above
 
 
+// ── Homepage i18n ────────────────────────────────────────────────
+// Covers the landing screen only (nav, hero, play card, SEO blurb,
+// footer) -- not the Rooms/Local Play sub-screens, in-game UI, or the
+// auth modal, which stay English regardless of the selected language.
+// Translations (de/es/fr) are AI-authored, not native-reviewed.
+const TRANSLATIONS = {
+  en: {
+    navHowToPlay: 'How to Play', navLogIn: 'Log In', navPowerups: 'Powerups',
+    navPowerupsGuideTitle: 'Powerups Guide', navSettings: 'Settings',
+    heroTagline: 'Block. Race. Sabotage.',
+    heroOnlinePlaceholder: '— players online', heroRoomsPlaceholder: '— open rooms',
+    avatarBtnTitle: 'Change your avatar', namePlaceholder: 'Your name',
+    doorHostLabel: 'Host', doorHostSub: 'Start a room, invite friends',
+    doorRoomsLabel: 'Rooms', doorRoomsSub: 'Join an open game',
+    doorLocalLabel: 'Local Play', doorLocalSub: 'Pass & play, or vs bots',
+    seoDescription: 'Play Sabotage is a free online multiplayer board game inspired by Malefiz and Barricade. Race your pawns to the goal, block opponents with barricades, and use powerups to sabotage your way to victory. Play with 1–4 players online, challenge a friend, play with your partner, or test yourself against the AI. No download required — play instantly in your browser.',
+    seoTags: 'Free • No download • 1–4 players • Online multiplayer • vs AI • Malefiz • Barricade',
+    footerPrivacy: 'Privacy', footerTerms: 'Terms',
+    offlineOnline: 'multiplayer server offline', offlineRooms: 'try Local Game below',
+    fmtOnline: n => `${n} player${n===1?'':'s'} online`,
+    fmtRooms: n => `${n} open room${n===1?'':'s'}`,
+  },
+  de: {
+    navHowToPlay: 'Spielanleitung', navLogIn: 'Anmelden', navPowerups: 'Powerups',
+    navPowerupsGuideTitle: 'Powerups-Anleitung', navSettings: 'Einstellungen',
+    heroTagline: 'Blockieren. Rennen. Sabotieren.',
+    heroOnlinePlaceholder: '– Spieler online', heroRoomsPlaceholder: '– offene Räume',
+    avatarBtnTitle: 'Avatar ändern', namePlaceholder: 'Dein Name',
+    doorHostLabel: 'Hosten', doorHostSub: 'Raum erstellen, Freunde einladen',
+    doorRoomsLabel: 'Räume', doorRoomsSub: 'Offenem Spiel beitreten',
+    doorLocalLabel: 'Lokal spielen', doorLocalSub: 'Hot-Seat oder gegen Bots',
+    seoDescription: 'Play Sabotage ist ein kostenloses Multiplayer-Brettspiel im Browser, inspiriert von Malefiz und Barricade. Bewege deine Figuren zum Ziel, blockiere deine Gegner mit Barrikaden und setze Powerups ein, um sie zu sabotieren. Spiele online mit 1–4 Spielern, fordere einen Freund heraus, spiele mit deinem Partner oder teste dich gegen die KI. Kein Download nötig — spiel sofort im Browser.',
+    seoTags: 'Kostenlos • Kein Download • 1–4 Spieler • Online-Multiplayer • gegen KI • Malefiz • Barricade',
+    footerPrivacy: 'Datenschutz', footerTerms: 'AGB',
+    offlineOnline: 'Multiplayer-Server offline', offlineRooms: 'Lokales Spiel unten ausprobieren',
+    fmtOnline: n => `${n} Spieler online`,
+    fmtRooms: n => n===1 ? `${n} offener Raum` : `${n} offene Räume`,
+  },
+  es: {
+    navHowToPlay: 'Cómo jugar', navLogIn: 'Iniciar sesión', navPowerups: 'Potenciadores',
+    navPowerupsGuideTitle: 'Guía de potenciadores', navSettings: 'Ajustes',
+    heroTagline: 'Bloquea. Corre. Sabotea.',
+    heroOnlinePlaceholder: '– jugadores en línea', heroRoomsPlaceholder: '– salas abiertas',
+    avatarBtnTitle: 'Cambiar avatar', namePlaceholder: 'Tu nombre',
+    doorHostLabel: 'Crear sala', doorHostSub: 'Crea una sala, invita a amigos',
+    doorRoomsLabel: 'Salas', doorRoomsSub: 'Únete a una partida abierta',
+    doorLocalLabel: 'Juego local', doorLocalSub: 'Pasa y juega, o contra bots',
+    seoDescription: 'Play Sabotage es un juego de mesa multijugador gratuito para el navegador, inspirado en Malefiz y Barricade. Lleva tus fichas a la meta, bloquea a tus rivales con barricadas y usa potenciadores para sabotearlos. Juega online con 1 a 4 jugadores, reta a un amigo, juega con tu pareja o pon a prueba a la IA. Sin descargas — juega al instante en tu navegador.',
+    seoTags: 'Gratis • Sin descargas • 1–4 jugadores • Multijugador online • vs IA • Malefiz • Barricade',
+    footerPrivacy: 'Privacidad', footerTerms: 'Términos',
+    offlineOnline: 'servidor multijugador desconectado', offlineRooms: 'prueba el juego local abajo',
+    fmtOnline: n => `${n} jugador${n===1?'':'es'} en línea`,
+    fmtRooms: n => `${n} sala${n===1?'':'s'} abierta${n===1?'':'s'}`,
+  },
+  fr: {
+    navHowToPlay: 'Comment jouer', navLogIn: 'Connexion', navPowerups: 'Bonus',
+    navPowerupsGuideTitle: 'Guide des bonus', navSettings: 'Paramètres',
+    heroTagline: 'Bloque. Cours. Sabote.',
+    heroOnlinePlaceholder: '– joueurs en ligne', heroRoomsPlaceholder: '– parties ouvertes',
+    avatarBtnTitle: "Changer d'avatar", namePlaceholder: 'Ton nom',
+    doorHostLabel: 'Héberger', doorHostSub: 'Crée une partie, invite des amis',
+    doorRoomsLabel: 'Parties', doorRoomsSub: 'Rejoindre une partie ouverte',
+    doorLocalLabel: 'Jeu local', doorLocalSub: 'Passe-et-joue, ou contre des bots',
+    seoDescription: "Play Sabotage est un jeu de plateau multijoueur gratuit dans le navigateur, inspiré de Malefiz et Barricade. Fais avancer tes pions jusqu'au but, bloque tes adversaires avec des barricades et utilise des bonus pour les saboter. Joue en ligne à 1–4 joueurs, défie un ami, joue avec ton/ta partenaire, ou affronte l'IA. Aucun téléchargement — jouez instantanément dans votre navigateur.",
+    seoTags: 'Gratuit • Sans téléchargement • 1–4 joueurs • Multijoueur en ligne • vs IA • Malefiz • Barricade',
+    footerPrivacy: 'Confidentialité', footerTerms: 'Conditions',
+    offlineOnline: 'serveur multijoueur hors ligne', offlineRooms: 'essaie le jeu local ci-dessous',
+    fmtOnline: n => `${n} joueur${n===1?'':'s'} en ligne`,
+    fmtRooms: n => `${n} partie${n===1?'':'s'} ouverte${n===1?'':'s'}`,
+  },
+};
+const LANG_NAMES = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français' };
+let currentLang = 'en';
+// hpStatsState drives #hp-online-count/#hp-games-count so a language
+// switch can re-render whatever they're currently showing (placeholder,
+// live counts, or the offline message) instead of leaving stale text
+// from the previous language until the next server update.
+let hpStatsState = { mode: 'placeholder' };
+
+function t(key) {
+  return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || TRANSLATIONS.en[key] || key;
+}
+
+function renderHpStats() {
+  const onlineEl = document.getElementById('hp-online-count');
+  const gamesEl = document.getElementById('hp-games-count');
+  if (!onlineEl || !gamesEl) return;
+  const tr = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
+  if (hpStatsState.mode === 'offline') {
+    onlineEl.textContent = t('offlineOnline');
+    gamesEl.textContent = t('offlineRooms');
+  } else if (hpStatsState.mode === 'counts') {
+    onlineEl.textContent = tr.fmtOnline(hpStatsState.online);
+    gamesEl.textContent = tr.fmtRooms(hpStatsState.rooms);
+  } else {
+    onlineEl.textContent = t('heroOnlinePlaceholder');
+    gamesEl.textContent = t('heroRoomsPlaceholder');
+  }
+}
+
+function applyHomepageTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.getAttribute('data-i18n-title')); });
+  renderHpStats();
+  const langBtn = document.getElementById('lang-btn-label');
+  if (langBtn) langBtn.textContent = LANG_NAMES[currentLang];
+  document.querySelectorAll('.hp-lang-item').forEach(el => { el.classList.toggle('active', el.dataset.lang === currentLang); });
+  document.documentElement.lang = currentLang;
+}
+
+function setLanguage(lang) {
+  if (!TRANSLATIONS[lang]) return;
+  currentLang = lang;
+  try { localStorage.setItem('malefiz-lang', lang); } catch(e) {}
+  applyHomepageTranslations();
+  const dd = document.getElementById('lang-dropdown-wrap');
+  if (dd) dd.classList.remove('open');
+}
+
+(function initLang() {
+  let saved = null;
+  try { saved = localStorage.getItem('malefiz-lang'); } catch(e) {}
+  if (saved && TRANSLATIONS[saved]) {
+    currentLang = saved;
+  } else {
+    const nav = (navigator.language || '').slice(0, 2).toLowerCase();
+    if (TRANSLATIONS[nav]) currentLang = nav;
+  }
+  applyHomepageTranslations();
+})();
+
 // ── Homepage ─────────────────────────────────────────────────────
 let hpBoard = 'classic';   // 'classic' | 'duel'
 let hpPowerups = false;
@@ -6919,10 +7074,8 @@ function updateHpStats() {
 
 // Update stats display when lobby updates
 function updateHomepageStats(rooms, onlineCount) {
-  const onlineEl = document.getElementById('hp-online-count');
-  const gamesEl = document.getElementById('hp-games-count');
-  if (onlineEl) onlineEl.textContent = (onlineCount || 0) + ' player' + (onlineCount !== 1 ? 's' : '') + ' online';
-  if (gamesEl) gamesEl.textContent = rooms.length + ' open room' + (rooms.length !== 1 ? 's' : '');
+  hpStatsState = { mode: 'counts', online: onlineCount || 0, rooms: rooms.length };
+  renderHpStats();
 }
 
 // ── Lattice + barricade-trail background (homepage only) ──────────
