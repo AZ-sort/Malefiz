@@ -570,21 +570,16 @@
       max-width: 100% !important;
     }
 
-    /* Board wrap: zoom to fit iPhone width */
-    /* iPhone 13 = 390px. Board natural = ~770px. Zoom = 390/770 = ~0.5 */
+    /* Board wrap: scaled dynamically by scaleToFit() (JS) against the real
+       measured viewport width, replacing a fixed CSS zoom ratio that was
+       hardcoded for one assumed device width (390px) and didn't reliably
+       constrain layout on real iOS Safari. transform/margin-bottom are
+       set inline by JS at runtime -- not !important here so those inline
+       styles take effect. No board-specific override needed: the JS
+       measures whichever board (Classic/Duel) is actually rendered. */
     #board-wrap {
-      zoom: 0.49 !important;
-      -moz-transform: scale(0.49) !important;
-      -moz-transform-origin: top left !important;
-      transform: none !important;
       padding: 10px !important;
       flex-shrink: 0 !important;
-      margin-bottom: 0 !important;
-    }
-    /* Duel board is 9 cols (~416px natural) — nearly full-size on phones */
-    body.board-duel #board-wrap {
-      zoom: 0.9 !important;
-      -moz-transform: scale(0.9) !important;
     }
 
     /* Sidebar: full width below board */
@@ -657,8 +652,8 @@
   }
 
   @media (max-width: 380px) {
-    #board-wrap { zoom: 0.44 !important; }
-    body.board-duel #board-wrap { zoom: 0.8 !important; -moz-transform: scale(0.8) !important; }
+    /* Board scaling is dynamic (scaleToFit()) as of the mobile-scale fix
+       above -- no fixed-breakpoint zoom override needed here anymore. */
     .sidebar .panel { min-width: 120px !important; }
     /* The block used to close one line early (a stray `}` sat where this
        .main rule now is), which put .main's 6px padding/gap at the
@@ -3048,8 +3043,7 @@ let _scaleTimer = null;
 
 function scaleToFit() {
   if (animating) return;
-  if (window.innerWidth <= 700) return; // CSS zoom handles mobile
-  const isMobile = false;
+  const isMobile = window.innerWidth <= 700;
 
   if (isMobile) {
     const boardWrap = document.getElementById('board-wrap');
@@ -5227,7 +5221,7 @@ function renderAll() {
   // Any re-render -- a turn change, an opponent's move arriving over the
   // socket, a phase switch -- must never let a stale staged tap commit.
   clearPendingTap();
-  renderBoard(); renderSidebar(); updateGlowOverlay(); if(window.innerWidth>700) setTimeout(scaleToFit,0); if(mpIsOnline) updateOnlineTurnUI();
+  renderBoard(); renderSidebar(); updateGlowOverlay(); setTimeout(scaleToFit,0); if(mpIsOnline) updateOnlineTurnUI();
 }
 
 function renderBoard() {
