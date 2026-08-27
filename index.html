@@ -5184,24 +5184,46 @@ function updateGlowOverlay() {
   }
 }
 
-// ── Tap-to-confirm (mobile: measured ~19.6x19.6px cells at 390px width,
-// well under a usable tap target) ──────────────────────────────────
-// A committing board action (move/barricade/temp-barricade/trap) on a
-// coarse pointer stages instead of firing immediately: first tap
-// highlights the cell and shows #tap-confirm-bar; a second tap on the
-// SAME cell, or the bar's OK button, commits it. Any other tap re-stages
-// rather than committing, so a mis-tap can't silently act. Fine pointers
-// (mouse) are untouched -- armCell() assigns the handler directly, byte-
-// for-byte the previous click-to-act behavior.
+// ── Tap-to-confirm (mobile: Classic's cells render ~21px on a 390px phone,
+// well under a usable tap target -- Duel's ~40px cells don't have this
+// problem) ──────────────────────────────────────────────────────────
+// A committing board action (move/barricade/temp-barricade/trap) stages
+// instead of firing immediately, but only when BOTH the pointer is coarse
+// AND the cell's actual rendered size is below TAP_CONFIRM_THRESHOLD_PX
+// (see needsTapConfirm() below) -- so Duel, tablets, and landscape phones,
+// which already render large enough to tap directly, never pay this tax.
+// Staged: first tap highlights the cell and shows #tap-confirm-bar; a
+// second tap on the SAME cell, or the bar's OK button, commits it. Any
+// other tap re-stages rather than committing, so a mis-tap can't silently
+// act. Fine pointers (mouse) always fire immediately, unchanged from
+// before this gate existed.
 let pendingTap = null; // { er, ec, div, fn } -- the one currently-staged action
 
 function isCoarsePointer() {
   return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
 
+// Below this actual on-screen cell size (px), a tap is unreliable enough to
+// warrant staging + confirm. Measured live via getBoundingClientRect() --
+// unlike offsetWidth, this reflects the CSS transform scaleToFit applies to
+// #board-wrap, so the decision always matches what the player can actually
+// see and tap, with no dependency on scaleToFit's render-order timing (it
+// runs on a setTimeout after renderBoard, so a cached-scale value read at
+// render time could be one frame stale on a game's first render). Duel's
+// ~40px on-phone cells clear this threshold; Classic's ~21px cells don't --
+// gating on pointer type alone (the original PR #24 behavior) charged every
+// coarse-pointer player the confirm tax regardless of whether their board
+// actually needed it.
+const TAP_CONFIRM_THRESHOLD_PX = 40;
+
+function needsTapConfirm(div) {
+  if (!isCoarsePointer()) return false;
+  return div.getBoundingClientRect().width < TAP_CONFIRM_THRESHOLD_PX;
+}
+
 function armCell(div, er, ec, label, fn) {
-  if (!isCoarsePointer()) { div.onclick = fn; return; }
   div.onclick = () => {
+    if (!needsTapConfirm(div)) { fn(); return; }
     if (pendingTap && pendingTap.er === er && pendingTap.ec === ec) {
       clearPendingTap();
       fn();
