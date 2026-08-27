@@ -3089,12 +3089,6 @@ function scaleToFit() {
     const scaledH = naturalH * scale;
     boardWrap.style.height = naturalH + 'px'; // keep natural for measurement
     boardWrap.style.marginBottom = (scaledH - naturalH) + 'px'; // negative margin to close gap
-
-    // Reposition any active move hit-targets (index.html, see
-    // layoutMobileHitTargets()) for the new scale -- they're measured in
-    // fixed viewport coordinates, so a resize/rotation leaves them stale
-    // until they're recomputed against the board's new on-screen position.
-    layoutMobileHitTargets();
   } else {
     // Desktop: scale the whole inner layout
     const inner = document.getElementById('scaler-inner');
@@ -3122,7 +3116,15 @@ function scaleToFit() {
 // Debounced resize handler — waits 150ms after resize stops
 window.addEventListener('resize', () => {
   clearTimeout(_scaleTimer);
-  _scaleTimer = setTimeout(scaleToFit, 150);
+  // layoutMobileHitTargets() only needs to re-run here, on an actual
+  // viewport resize/rotation -- NOT from every renderAll()-triggered
+  // scaleToFit() call (that path already gets fresh hit-targets from
+  // renderBoard()'s own call at the end of its render). Calling it from
+  // inside scaleToFit() itself doubled the layout-forcing
+  // getBoundingClientRect() work on every single game action, since
+  // renderAll() schedules a scaleToFit() via setTimeout unconditionally,
+  // not just on resize.
+  _scaleTimer = setTimeout(() => { scaleToFit(); layoutMobileHitTargets(); }, 150);
 });
 
 // Run once after everything has rendered
