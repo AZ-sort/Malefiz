@@ -1171,13 +1171,13 @@
   .hp-identity-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
   }
   .hp-pawn-identity {
-    width: 48px;
-    height: 48px;
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
-    border: 2.5px solid var(--border);
+    border: 3px solid var(--border);
     background: var(--surface2);
     color: var(--accent);
     display: flex;
@@ -1189,7 +1189,7 @@
     padding: 0;
   }
   .hp-pawn-identity:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .hp-pawn-identity .icon { width: 22px; height: 22px; }
+  .hp-pawn-identity .icon { width: 36px; height: 36px; }
   .hp-name-input {
     flex: 1;
     min-width: 0;
@@ -1206,6 +1206,7 @@
   }
   .hp-name-input:focus, .hp-name-input:hover { border-color: var(--accent); }
   .hp-name-input:disabled { opacity: .6; cursor: not-allowed; }
+  .hp-name-input::placeholder { color: var(--muted); font-weight: 500; opacity: 1; }
 
   .hp-primary-cta {
     width: 100%;
@@ -1920,7 +1921,7 @@
       <!-- Your avatar + name -->
       <div class="hp-identity-row">
         <button class="hp-pawn-identity" id="pawn-btn" onclick="openAvatarModal()" title="Change your avatar" data-i18n-title="avatarBtnTitle"></button>
-        <input class="hp-name-input" id="hp-name-input" maxlength="20" placeholder="Your name" data-i18n-placeholder="namePlaceholder" oninput="onHpNameInput(this.value)">
+        <input class="hp-name-input" id="hp-name-input" maxlength="20" placeholder="Name" data-i18n-placeholder="namePlaceholder" oninput="onHpNameInput(this.value)">
       </div>
 
       <!-- Three doors: Host a room, browse Rooms, or play Local. Settings
@@ -4290,7 +4291,7 @@ function continueAsGuest() {
   // see loadGuestUsername) guest name
   setAccountBtnLabel(t('navLogIn'), 'navLogIn');
   const nameInput = document.getElementById('hp-name-input');
-  if (nameInput) { nameInput.disabled = false; nameInput.value = mpUsername; }
+  if (nameInput) { nameInput.disabled = false; nameInput.value = hasChosenGuestName() ? mpUsername : ''; }
 }
 
 function handleAccountBtn() {
@@ -4307,7 +4308,7 @@ function handleAccountBtn() {
       // Pawn identity stays visible after logout -- it's not an
       // account-gated feature, guests get it too.
       const nameInput = document.getElementById('hp-name-input');
-      if (nameInput) { nameInput.disabled = false; nameInput.value = mpUsername; }
+      if (nameInput) { nameInput.disabled = false; nameInput.value = hasChosenGuestName() ? mpUsername : ''; }
       const mpUser = document.getElementById('mp-username');
       if (mpUser) mpUser.textContent = mpUsername;
     }
@@ -4451,13 +4452,28 @@ function loadGuestUsername() {
   return genUsername();
 }
 
+// True only once the visitor has actually typed a name (onHpNameInput
+// persists it here). A fresh visitor's mpUsername is always a random
+// AdjectiveNounNN fallback (see loadGuestUsername) so they can still
+// join a game with no input at all — but that fallback shouldn't be
+// shown as if they'd chosen it. Same check loadGuestUsername uses.
+function hasChosenGuestName() {
+  try {
+    const saved = localStorage.getItem('guest-username');
+    return !!(saved && saved.trim());
+  } catch(e) { return false; }
+}
+
 // Populate the homepage identity row on load — avatar button and name
 // input both need an explicit first render since nothing else calls
-// updateAvatarBtn() for a guest who never logs in.
+// updateAvatarBtn() for a guest who never logs in. Only shows a real
+// value once the visitor has chosen one (hasChosenGuestName) -- until
+// then the field stays empty so the "Name" placeholder prompts them,
+// while mpUsername still holds the random fallback for actual play.
 function initHpIdentity() {
   updateAvatarBtn();
   const input = document.getElementById('hp-name-input');
-  if (input) input.value = mpUsername;
+  if (input) input.value = hasChosenGuestName() ? mpUsername : '';
 }
 document.addEventListener('DOMContentLoaded', initHpIdentity);
 
@@ -6804,7 +6820,7 @@ const TRANSLATIONS = {
     navPowerupsGuideTitle: 'Powerups Guide', navSettings: 'Settings',
     heroTagline: 'Block. Race. Sabotage.',
     heroOnlinePlaceholder: '— players online', heroRoomsPlaceholder: '— open rooms',
-    avatarBtnTitle: 'Change your avatar', namePlaceholder: 'Your name',
+    avatarBtnTitle: 'Change your avatar', namePlaceholder: 'Name',
     doorHostLabel: 'Host', doorHostSub: 'Start a room, invite friends',
     doorRoomsLabel: 'Rooms', doorRoomsSub: 'Join an open game',
     doorLocalLabel: 'Local Play', doorLocalSub: 'Pass & play, or vs bots',
@@ -6820,7 +6836,7 @@ const TRANSLATIONS = {
     navPowerupsGuideTitle: 'Powerups-Anleitung', navSettings: 'Einstellungen',
     heroTagline: 'Blockieren. Rennen. Sabotieren.',
     heroOnlinePlaceholder: '– Spieler online', heroRoomsPlaceholder: '– offene Räume',
-    avatarBtnTitle: 'Avatar ändern', namePlaceholder: 'Dein Name',
+    avatarBtnTitle: 'Avatar ändern', namePlaceholder: 'Name',
     doorHostLabel: 'Hosten', doorHostSub: 'Raum erstellen, Freunde einladen',
     doorRoomsLabel: 'Räume', doorRoomsSub: 'Offenem Spiel beitreten',
     doorLocalLabel: 'Lokal spielen', doorLocalSub: 'Hot-Seat oder gegen Bots',
@@ -6836,7 +6852,7 @@ const TRANSLATIONS = {
     navPowerupsGuideTitle: 'Guía de potenciadores', navSettings: 'Ajustes',
     heroTagline: 'Bloquea. Corre. Sabotea.',
     heroOnlinePlaceholder: '– jugadores en línea', heroRoomsPlaceholder: '– salas abiertas',
-    avatarBtnTitle: 'Cambiar avatar', namePlaceholder: 'Tu nombre',
+    avatarBtnTitle: 'Cambiar avatar', namePlaceholder: 'Nombre',
     doorHostLabel: 'Crear sala', doorHostSub: 'Crea una sala, invita a amigos',
     doorRoomsLabel: 'Salas', doorRoomsSub: 'Únete a una partida abierta',
     doorLocalLabel: 'Juego local', doorLocalSub: 'Pasa y juega, o contra bots',
@@ -6852,7 +6868,7 @@ const TRANSLATIONS = {
     navPowerupsGuideTitle: 'Guide des bonus', navSettings: 'Paramètres',
     heroTagline: 'Bloque. Cours. Sabote.',
     heroOnlinePlaceholder: '– joueurs en ligne', heroRoomsPlaceholder: '– parties ouvertes',
-    avatarBtnTitle: "Changer d'avatar", namePlaceholder: 'Ton nom',
+    avatarBtnTitle: "Changer d'avatar", namePlaceholder: 'Nom',
     doorHostLabel: 'Héberger', doorHostSub: 'Crée une partie, invite des amis',
     doorRoomsLabel: 'Parties', doorRoomsSub: 'Rejoindre une partie ouverte',
     doorLocalLabel: 'Jeu local', doorLocalSub: 'Passe-et-joue, ou contre des bots',
