@@ -33,8 +33,7 @@
     --text:#F0F6FF; --muted:#6888AA; --accent:#FF7A2F; --accent-h:#E8641A;
     --p1:#FF4040; --p2:#40D9A0; --p3:#FFD700; --p4:#5BAAFF;
     /* r,g,b triples of the same 4 colors -- lets home-area tints do
-       rgba(var(--pN-rgb), alpha), which a hex custom property can't.
-       applyTheme() overwrites both together per theme (see THEMES below). */
+       rgba(var(--pN-rgb), alpha), which a hex custom property can't. */
     --p1-rgb:255,64,64; --p2-rgb:64,217,160; --p3-rgb:255,215,0; --p4-rgb:91,170,255;
     --bar:#E8D4B8; --goal:#FFD700; --cell:#152440; --cellb:#2A4070;
     --radius:10px; --radius-sm:7px;
@@ -196,9 +195,9 @@
     display:flex;align-items:center;justify-content:center;
     gap:5px;flex-wrap:wrap;padding:8px 6px;
   }
-  /* Tints now key off claimed COLOR, not seat -- and use each theme's own
-     --pN-rgb triple (added to THEMES below) instead of the hardcoded RGB
-     this replaces, which never tracked the active theme. */
+  /* Tints key off claimed COLOR, not seat, and use the --pN-rgb custom
+     property (not a hardcoded rgb()) so rgba(var(--pN-rgb), alpha) works --
+     CSS can't hex-decode a custom property. */
   .home-bg-1{background:rgba(var(--p1-rgb),.1);border:1.5px solid rgba(var(--p1-rgb),.28);}
   .home-bg-2{background:rgba(var(--p2-rgb),.1);border:1.5px solid rgba(var(--p2-rgb),.28);}
   .home-bg-3{background:rgba(var(--p3-rgb),.1);border:1.5px solid rgba(var(--p3-rgb),.28);}
@@ -354,38 +353,6 @@
   .win-avatar:empty{display:none;}
   .wt{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;}
   .ws{font-size:.82rem;color:var(--muted);}
-
-
-  /* ── Themes ── */
-  .theme-toggle{
-    display:flex;align-items:center;justify-content:space-between;
-    cursor:pointer;user-select:none;
-  }
-  .theme-toggle h3{margin-bottom:0;}
-  .theme-arrow{
-    font-size:.7rem;color:var(--muted);
-    transition:transform .2s ease;display:inline-block;
-  }
-  .theme-arrow.open{transform:rotate(180deg);}
-  .theme-body{
-    overflow:hidden;
-    max-height:0;
-    transition:max-height .25s ease, margin-top .25s ease;
-    margin-top:0;
-  }
-  .theme-body.open{max-height:300px;margin-top:10px;}
-  .theme-grid{display:flex;flex-direction:column;gap:6px;}
-  .theme-btn{
-    display:flex;align-items:center;gap:7px;
-    padding:7px 8px;border-radius:var(--radius-sm);
-    border:1.5px solid var(--border);background:var(--surface2);
-    cursor:pointer;transition:all .13s;min-width:0;
-  }
-  .theme-btn:hover{border-color:var(--accent);background:rgba(124,106,255,.1);}
-  .theme-btn.active{border-color:var(--accent);background:rgba(124,106,255,.15);}
-  .theme-swatches{display:flex;gap:3px;flex-shrink:0;}
-  .theme-swatch{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.15);flex-shrink:0;}
-  .theme-name{font-size:.75rem;font-family:'DM Mono',monospace;color:var(--text);font-weight:500;}
 
 
   /* ── Settings modal ── */
@@ -581,9 +548,6 @@
       min-width: 140px !important;
       padding: 10px 12px !important;
     }
-
-    /* Hide log and theme panels on mobile */
-    #theme-panel-sidebar { display: none !important; }
 
     /* Dice area horizontal */
     .dice-a {
@@ -2052,10 +2016,6 @@
       <div class="settings-close" onclick="closeSettings()">✕</div>
     </div>
 
-    <div class="settings-section">
-      <div class="settings-section-label">🎨 Theme</div>
-      <div class="theme-grid" id="settings-theme-grid"></div>
-    </div>
     <div class="settings-section">
       <div class="settings-section-label">🔊 Sound</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
@@ -5575,93 +5535,6 @@ function showWin(p) {
 }
 
 
-// ================================================================
-// THEMES
-// ================================================================
-const THEMES = [
-  {
-    // Deep ink blue + vivid orange — high contrast, zero ambiguity
-    // Colorblind-safe: orange vs blue is the safest combo for all types
-    id: 'deep-ocean', name: 'Deep Ocean',
-    vars: {
-      '--bg':'#08111F','--surface':'#0E1C32','--surface2':'#152440',
-      '--border':'#1E3358','--text':'#F0F6FF','--muted':'#6888AA',
-      '--accent':'#FF7A2F','--accent-h':'#E8641A',
-      '--cell':'#152440','--cellb':'#2A4070',
-      '--bar':'#E8D4B8','--goal':'#FFD700',
-      '--p1':'#FF4040','--p2':'#40D9A0','--p3':'#FFD700','--p4':'#5BAAFF',
-      // r,g,b triples (not hex) so home-area tints can do
-      // rgba(var(--pN-rgb), alpha) -- CSS can't hex-decode a custom prop.
-      '--p1-rgb':'255,64,64','--p2-rgb':'64,217,160','--p3-rgb':'255,215,0','--p4-rgb':'91,170,255',
-    }
-  },
-  {
-    // Kyoto at night — aizome indigo dye + kohaku (amber) lantern glow
-    // Ref: Japanese ai-iro indigo textiles, kohaku amber lacquerware
-    id: 'kyoto-indigo', name: 'Kyoto Indigo',
-    vars: {
-      '--bg':'#0A1420','--surface':'#101F30','--surface2':'#17293D',
-      '--border':'#223A52','--text':'#F2F4EE','--muted':'#6E8AA0',
-      '--accent':'#E0972E','--accent-h':'#C27E1D',
-      '--cell':'#17293D','--cellb':'#2E4A66',
-      '--bar':'#E9DCC0','--goal':'#F4C542',
-      '--p1':'#FF5A4E','--p2':'#35C98C','--p3':'#F4C542','--p4':'#4FA8E0',
-      '--p1-rgb':'255,90,78','--p2-rgb':'53,201,140','--p3-rgb':'244,197,66','--p4-rgb':'79,168,224',
-    }
-  },
-  {
-    // Marrakech medina — Majorelle Blue (Jacques Majorelle's trademarked
-    // garden blue, #6050DC) + saffron gold, echoing zellige tilework
-    id: 'marrakech-medina', name: 'Marrakech Medina',
-    vars: {
-      '--bg':'#120F26','--surface':'#1C1740','--surface2':'#251D52',
-      '--border':'#3B2F72','--text':'#F5F2FF','--muted':'#9184BE',
-      '--accent':'#F0A500','--accent-h':'#C98600',
-      '--cell':'#251D52','--cellb':'#46368E',
-      '--bar':'#EADFC2','--goal':'#FFC94A',
-      '--p1':'#E0562E','--p2':'#2FBF8F','--p3':'#FFC94A','--p4':'#6C5CE0',
-      '--p1-rgb':'224,86,46','--p2-rgb':'47,191,143','--p3-rgb':'255,201,74','--p4-rgb':'108,92,224',
-    }
-  },
-  {
-    // Reykjavik polar night — deep arctic sky with aurora borealis glow
-    // Ref: aurora teal/green over a near-black night-sky base
-    id: 'aurora-night', name: 'Aurora Night',
-    vars: {
-      '--bg':'#050A12','--surface':'#0C1626','--surface2':'#122036',
-      '--border':'#1E3350','--text':'#EAF6F0','--muted':'#5E88A0',
-      '--accent':'#35E0A6','--accent-h':'#22B888',
-      '--cell':'#122036','--cellb':'#24406A',
-      '--bar':'#E4F2EA','--goal':'#FFDD57',
-      '--p1':'#FF4D6D','--p2':'#35E0A6','--p3':'#FFDD57','--p4':'#4C8DF0',
-      '--p1-rgb':'255,77,109','--p2-rgb':'53,224,166','--p3-rgb':'255,221,87','--p4-rgb':'76,141,240',
-    }
-  },
-];
-
-let activeTheme = 'deep-ocean';
-
-function applyTheme(themeId) {
-  const theme = THEMES.find(t => t.id === themeId);
-  if (!theme) return;
-  activeTheme = themeId;
-  const root = document.documentElement;
-  Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
-  // Update active state on buttons
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.theme === themeId);
-  });
-  // Re-render board to pick up new pawn colors
-  if (typeof renderAll === 'function') renderAll();
-  // Recolor homepage background pawns to match theme
-  if (typeof refreshHpBgColors === 'function') refreshHpBgColors();
-  // Save preference
-  try { localStorage.setItem('malefiz-theme', themeId); } catch(e){}
-}
-
-
-
-
 function openHTP() {
   document.getElementById('htp-modal').classList.add('show');
 }
@@ -5673,7 +5546,6 @@ document.getElementById('htp-modal').addEventListener('click', function(e) {
 });
 
 function openSettings() {
-  buildThemeGrid();
   document.getElementById('settings-modal').classList.add('show');
 }
 function closeSettings() {
@@ -5683,67 +5555,6 @@ function closeSettings() {
 document.getElementById('settings-modal').addEventListener('click', function(e) {
   if (e.target === this) closeSettings();
 });
-
-function toggleTheme() {
-  const body = document.getElementById('theme-body');
-  const arrow = document.getElementById('theme-arrow');
-  const open = body.classList.toggle('open');
-  arrow.classList.toggle('open', open);
-}
-
-function buildThemeGrid() {
-  ['settings-theme-grid', 'setup-theme-grid'].forEach(gridId => {
-    const grid = document.getElementById(gridId);
-    if (!grid) return;
-    grid.innerHTML = '';
-    THEMES.forEach(theme => {
-      const btn = document.createElement('div');
-      btn.className = 'theme-btn' + (theme.id === activeTheme ? ' active' : '');
-      btn.dataset.theme = theme.id;
-      btn.onclick = () => applyTheme(theme.id);
-
-      const swatches = document.createElement('div');
-      swatches.className = 'theme-swatches';
-      [theme.vars['--accent'], theme.vars['--p1'], theme.vars['--p2'], theme.vars['--p3']].forEach(col => {
-        const s = document.createElement('div');
-        s.className = 'theme-swatch';
-        s.style.background = col;
-        swatches.appendChild(s);
-      });
-
-      const name = document.createElement('div');
-      name.className = 'theme-name';
-      name.textContent = theme.name;
-
-      btn.appendChild(swatches);
-      btn.appendChild(name);
-      grid.appendChild(btn);
-    });
-  });
-}
-
-// Also rebuild setup grid when applyTheme is called so active state syncs
-const _origApply = applyTheme;
-applyTheme = function(themeId) {
-  _origApply(themeId);
-  // Sync active state on both grids
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.theme === themeId);
-  });
-};
-
-// Load saved theme on startup
-try {
-  const saved = localStorage.getItem('malefiz-theme');
-  if (saved && THEMES.find(t => t.id === saved)) {
-    applyTheme(saved);
-  } else {
-    applyTheme('deep-ocean');
-  }
-} catch(e) {}
-
-// Build theme grid when DOM is ready
-document.addEventListener('DOMContentLoaded', buildThemeGrid);
 
 function setPowerups(on) {
   powerupsEnabled = on;
@@ -7141,7 +6952,7 @@ function updateHomepageStats(rooms, onlineCount) {
     ];
   }
   function pickLatticeColor() {
-    // p4 (blue) reads best as a faint line color across both themes;
+    // p4 (blue) reads best as a faint line color on the dark background;
     // themeColors() keeps this in sync if the palette is ever restyled.
     return themeColors()[3];
   }
@@ -7234,11 +7045,6 @@ function updateHomepageStats(rooms, onlineCount) {
     if (raf) cancelAnimationFrame(raf);
   }
 
-  // Recolor when theme changes (name/global kept — called from Settings)
-  window.refreshHpBgColors = function() {
-    latticeColor = pickLatticeColor();
-  };
-
   window.addEventListener('resize', () => { if (running) resize(); });
 
   // Only animate while homepage is visible
@@ -7326,7 +7132,7 @@ function hpCreateRoom() {
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
 function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
-function startGame() { buildThemeGrid(); document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
+function startGame() { document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
 function resetGame() { document.getElementById('win').classList.remove('show'); showHomepage(); }
 
 </script>
