@@ -964,7 +964,7 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
   /* Homepage content must sit above the background layers */
-  .hp-nav, .hp-hero, .hp-preview, #seo-text { position: relative; z-index: 2; }
+  .hp-hero, .hp-preview, #seo-text { position: relative; z-index: 2; }
 
   .hp-nav {
     width: 100%;
@@ -974,6 +974,13 @@
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
+    /* .hp-nav must also outrank its *siblings*, not just the background layers --
+       it shares a parent with .hp-hero, and at an equal z-index the later sibling
+       (the hero) painted over the nav's entire stacking context, burying the
+       Powerups/Language dropdown menus (whose own z-index:999 is trapped inside
+       .hp-nav) under the wordmark image. */
+    position: relative;
+    z-index: 10;
   }
   .hp-logo {
     font-family: 'DM Mono', monospace;
@@ -1140,15 +1147,25 @@
     .join-code-input { font-size: .8rem; }
   }
 
-  /* Fix: on narrow phones (measured 390px), the four nav buttons plus the
-     logo overflowed the nav bar — .hp-nav-links' right edge sat past the
-     viewport, clipping "Settings" from view. Collapse to icon-only chips
-     instead of shrinking text further, which had already bottomed out. */
-  @media (max-width: 480px) {
+  /* Fix: on narrow phones (measured 390px) and again in a 481-577px band,
+     the five nav buttons plus the logo overflowed the nav bar --
+     .hp-nav-links' right edge sat past the viewport, pushing "Settings"
+     off-screen entirely and out of reach. Collapse to icon-only chips
+     instead of shrinking text further, which had already bottomed out.
+     Raised from 480px to 640px so the icon-only treatment covers that
+     whole overflowing band, not just the narrowest phones. */
+  @media (max-width: 640px) {
     .hp-nav { padding: 8px 12px; }
     .hp-nav-links { gap: 6px; }
     .hp-nav-links .hp-nav-btn,
-    .hp-nav-links .hp-account-btn { padding: 7px 9px; }
+    .hp-nav-links .hp-account-btn {
+      padding: 7px 9px;
+      /* Below the 44x44 touch-target minimum otherwise -- these were
+         measured as small as 31.9x33 at 390px wide. */
+      min-width: 44px;
+      min-height: 44px;
+      justify-content: center;
+    }
     .hp-nav-links .btn-label { display: none; }
   }
 
@@ -1432,7 +1449,14 @@
     box-shadow: 0 8px 32px rgba(0,0,0,.4);
     animation: pop .18s cubic-bezier(.34,1.4,.64,1);
   }
-  .hp-nav-dropdown:hover .hp-nav-dropdown-menu,
+  /* Hover-to-open only for real pointers. On touch, a tap fires emulated
+     hover AND the onclick 'open' toggle -- a second tap then removes .open
+     while :hover keeps the menu shown, so the button looks dead. Touch
+     relies solely on .open, which the click-outside listener below already
+     manages. */
+  @media (hover: hover) and (pointer: fine) {
+    .hp-nav-dropdown:hover .hp-nav-dropdown-menu { display: block; }
+  }
   .hp-nav-dropdown.open .hp-nav-dropdown-menu {
     display: block;
   }
@@ -1461,15 +1485,20 @@
   .pu-dropdown-name { font-size: .8rem; font-weight: 700; margin-bottom: 2px; }
   .pu-dropdown-desc { font-size: .7rem; color: var(--muted); line-height: 1.5; }
 
-  /* Language selector dropdown items (homepage nav) */
+  /* Language selector dropdown items (homepage nav). display:flex + min-height
+     (was display:block with no set height, measuring 24px tall on a real device)
+     brings each row up to the 44px touch-target minimum. */
   .hp-lang-item {
-    display: block; width: 100%; text-align: left;
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; text-align: left; min-height: 44px;
     padding: 8px; border-radius: 8px; border: none; background: none;
     color: var(--text); font-size: .8rem; font-family: inherit;
     cursor: pointer; transition: background .12s;
   }
   .hp-lang-item:hover { background: var(--surface2); }
   .hp-lang-item.active { color: var(--accent); font-weight: 700; }
+  /* Active language marked with a check too, not color alone. */
+  .hp-lang-item.active::after { content: '✓'; margin-left: 8px; }
 
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -1889,7 +1918,7 @@
         </div>
       </div>
       <div class="hp-nav-dropdown" id="lang-dropdown-wrap">
-        <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')" title="Language"><span class="btn-label" id="lang-btn-label">English</span> ▾</button>
+        <button class="hp-nav-btn" onclick="this.parentElement.classList.toggle('open')" title="Language"><svg class="icon"><use href="#icon-globe"></use></svg><span class="btn-label" id="lang-btn-label">English</span> ▾</button>
         <div class="hp-nav-dropdown-menu" id="lang-dropdown-menu" style="min-width:140px;">
           <button class="hp-lang-item" data-lang="en" onclick="setLanguage('en')">English</button>
           <button class="hp-lang-item" data-lang="de" onclick="setLanguage('de')">Deutsch</button>
