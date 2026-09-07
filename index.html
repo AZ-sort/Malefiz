@@ -116,6 +116,27 @@
   }
   .cell.reachable:hover{background:rgba(124,106,255,.35)!important;transform:scale(1.14);z-index:6;animation:none;}
   @keyframes pulse-cell{0%,100%{box-shadow:0 0 0 0 rgba(124,106,255,.3)}50%{box-shadow:0 0 0 4px rgba(124,106,255,.12)}}
+  /* A reachable cell that already holds a barricade is not an ordinary
+     destination -- land there exactly and you clear the barricade and get
+     to re-place it. Amber instead of move-purple so the two read as
+     different kinds of move at Classic's ~20px scaled cell, without a
+     legend. Must stay AFTER .cell.reachable / .cell.reachable:hover above:
+     both use !important, so source order decides at equal specificity. */
+  .cell.reachable.reach-bar{
+    background:rgba(255,176,54,.32)!important;
+    border:3px solid rgba(255,176,54,.95)!important;
+    animation:pulse-cell-bar 1.1s ease-in-out infinite;
+  }
+  .cell.reachable.reach-bar:hover{
+    background:rgba(255,176,54,.55)!important;transform:scale(1.14);z-index:6;animation:none;
+  }
+  .cell.reachable.reach-bar .barr{
+    box-shadow:0 0 0 1px rgba(20,14,0,.6),0 2px 6px rgba(0,0,0,.45);
+  }
+  @keyframes pulse-cell-bar{
+    0%,100%{box-shadow:0 0 0 0 rgba(255,176,54,.6)}
+    50%{box-shadow:0 0 0 7px rgba(255,176,54,.18)}
+  }
   .cell.selected-c{
     background:rgba(124,106,255,.28)!important;
     border:2px solid var(--accent)!important;
@@ -591,6 +612,10 @@
     .prow { padding: 5px 8px !important; margin-bottom: 3px !important; }
     .pnm { font-size: .75rem !important; }
     .phbox { font-size: .68rem !important; padding: 7px 10px !important; min-height: 38px !important; }
+
+    /* Log now renders (was display:none); keep it short on mobile so it
+       informs without pushing the board's controls further down the page. */
+    .glog { max-height: 90px !important; }
 
     header { padding: 10px 14px !important; }
     .logo { font-size: .9rem !important; }
@@ -2438,7 +2463,8 @@
       </div>
       <!-- Divider shown when chat is open -->
       <div id="log-divider" style="display:none;height:1px;background:var(--border);margin:8px 0;flex-shrink:0;"></div>
-      <div class="glog" id="glog" style="display:none;"></div>
+      <h3 style="flex-shrink:0;">Game Log</h3>
+      <div class="glog" id="glog"></div>
     </div>
   </div>
 </div></div></div>
@@ -5329,6 +5355,7 @@ function renderBoard() {
           div.onclick = () => { selPawn=null; reachable=[]; phase='pick-pawn'; renderAll(); };
         } else if (reachable.find(x=>x.er===er&&x.ec===ec)) {
           div.classList.add('reachable','clickable');
+          if (bar) div.classList.add('reach-bar'); // landing here clears the barricade
           armCell(div, er, ec, 'Move here?', () => moveTo(er, ec));
           moveHitTargetCells.push({er, ec, div});
         }
