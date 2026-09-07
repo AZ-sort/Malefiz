@@ -365,6 +365,16 @@
     flex-shrink:0;
   }
   .settings-btn:hover{background:var(--border);transform:rotate(30deg);}
+  /* Same round icon-button look as .settings-btn, but for the in-game rules
+     shortcut -- no rotate on hover (that's the gear's, not a "?"'s). */
+  .htp-header-btn{
+    width:36px;height:36px;border-radius:50%;
+    background:var(--surface2);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all .15s;font-size:1.05rem;font-weight:700;
+    flex-shrink:0;
+  }
+  .htp-header-btn:hover{background:var(--border);}
   #settings-modal{
     display:none;position:fixed;inset:0;z-index:150;
     background:rgba(10,10,18,.7);backdrop-filter:blur(6px);
@@ -2056,7 +2066,7 @@
       <div class="htp-section-title">🎯 Objective</div>
       <div class="htp-rule">
         <span class="htp-icon">🏆</span>
-        <span>Be the first player to move <b>any one of your 5 pawns</b> to the goal at the top of the board.</span>
+        <span>Be the first player to move <b>any one of your pawns</b> to the goal at the top of the board.</span>
       </div>
     </div>
 
@@ -2104,7 +2114,7 @@
       <div class="htp-section-title">🏠 Home Base</div>
       <div class="htp-rule">
         <span class="htp-icon">📦</span>
-        <span>Your 5 pawns start in your home base. To deploy one, simply <b>select it and move</b> — it enters the board at your entry point. Your dice roll counts from there.</span>
+        <span>Your pawns start in your home base. To deploy one, simply <b>select it and move</b> — it enters the board at your entry point. Your dice roll counts from there.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">🔄</span>
@@ -2116,15 +2126,15 @@
       <div class="htp-section-title">⚡ Powerups Mode</div>
       <div class="htp-rule">
         <span class="htp-icon">🎲</span>
-        <span><b>Double Roll</b> — Roll the dice twice and move the total.</span>
+        <span><b>Double Roll</b> — Roll the dice — your result is doubled this turn!</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">🚧</span>
-        <span><b>Temp Barricade</b> — Place an orange barricade that disappears after a few turns.</span>
+        <span><b>Temp Barricade</b> — Place an orange barricade that disappears after 3 rounds.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">🛡️</span>
-        <span><b>Shield</b> — Your pawns cannot be captured for several turns. Shielded pawns are also impassable.</span>
+        <span><b>Shield</b> — Your pawns cannot be captured for 3 rounds. Shielded pawns are also impassable.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">💣</span>
@@ -2145,7 +2155,7 @@
 <div id="powerup-modal">
   <div class="pu-box">
     <h2 id="pu-title">🎲 Double Roll</h2>
-    <p id="pu-desc">Roll two dice and move the higher number.</p>
+    <p id="pu-desc">Roll the dice — your result is doubled this turn!</p>
     <div class="pu-actions">
       <button class="btn bp" onclick="confirmPowerup()" style="flex:1">Use It!</button>
       <button class="btn bg" onclick="closePowerupModal()" style="flex:1">Cancel</button>
@@ -2391,6 +2401,7 @@
     </div>
     <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:var(--muted)" class="header-sub">playsabotage.com</div>
     <div id="sync-btn" onclick="manualSync()" title="Sync game state" style="display:none;cursor:pointer;font-size:.75rem;font-family:'DM Mono',monospace;color:var(--muted);padding:4px 8px;border:1px solid var(--border);border-radius:6px;transition:all .13s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">↻ Sync</div>
+    <div class="htp-header-btn" onclick="openHTP()" title="How to Play">?</div>
     <div class="settings-btn" onclick="openSettings()" title="Settings">⚙️</div>
   </div>
 </header>
@@ -2691,6 +2702,12 @@ let numPlayers = 2, cpuMode = 'none', cpuDiff = 'easy', powerupsEnabled = false;
 // onBoard=false → pawn is in reserve at home, not on the grid
 let pawns = {}, barricades = [], currentPlayer = 1;
 let diceVal = null, phase = 'roll', selPawn = null, reachable = [], gameOver = false;
+// Set by the reachable-destination search whenever a barricade truncated a
+// branch, so pickPawn() can tell a player *why* a pawn has no legal move
+// instead of just saying it doesn't. Proves *a* barricade contributed, not
+// that it was the only obstacle -- keep any message built from it phrased
+// so it stays true either way.
+let lastBlockedByBarricade = false;
 
 const PNMS  = {1:'Player 1',2:'Player 2',3:'Player 3',4:'Player 4'};
 
@@ -2748,6 +2765,7 @@ function initGame() {
 // reachMap: "er,ec" -> path array [{er,ec}, ...] from start to dest
 function getReachableWithPaths(startEr, startEc, steps, player) {
   const reachMap = {}; // dest key -> path array
+  lastBlockedByBarricade = false;
 
   // visited key: (er,ec,rem) — if we've been at this cell with this many
   // steps remaining before, the set of reachable destinations is identical
@@ -2775,7 +2793,7 @@ function getReachableWithPaths(startEr, startEc, steps, player) {
       const ner = er+dr, nec = ec+dc;
       if (ner===per && nec===pec) continue; // no immediate backtrack
       if (!isWalkable(ner,nec)) continue;
-      if (barAt(ner,nec) && rem > 1) continue; // can't pass through barricade
+      if (barAt(ner,nec) && rem > 1) { lastBlockedByBarricade = true; continue; } // can't pass through barricade
       path.push({er:ner, ec:nec});
       dfs(ner, nec, rem-1, er, ec, path);
       path.pop();
@@ -2802,6 +2820,7 @@ function getPathTo(pawn, targetEr, targetEc, steps) {
 // We run the DFS directly from entry without any temp pawn tricks.
 // pawnAt will not find our pawn there (it's still in reserve, onBoard=false).
 function getReachableFromEntry(player, steps) {
+  lastBlockedByBarricade = false;
   const [eer, eec] = ENTRY[player];
 
   // If own pawn is on entry, we can still deploy — the new pawn passes through.
@@ -2842,7 +2861,7 @@ function getReachableFromEntry(player, steps) {
       const ner = er+dr, nec = ec+dc;
       if (ner===per && nec===pec) continue;
       if (!isWalkable(ner,nec)) continue;
-      if (barAt(ner,nec) && rem > 1) continue;
+      if (barAt(ner,nec) && rem > 1) { lastBlockedByBarricade = true; continue; }
       path.push({er:ner, ec:nec});
       dfs(ner, nec, rem-1, er, ec, path);
       path.pop();
@@ -4512,7 +4531,12 @@ function pickPawn(pawn) {
   } else {
     reach = getReachable(pawn, diceVal);
   }
-  if (!reach.length) { glog('No valid moves for that pawn — try another'); return; }
+  if (!reach.length) {
+    glog(lastBlockedByBarricade
+      ? `No way to move that pawn exactly ${diceVal} — a barricade is blocking the route. Try another pawn.`
+      : `No way to move that pawn exactly ${diceVal} — try another pawn.`, true);
+    return;
+  }
   selPawn = pawn; reachable = reach; phase = 'move';
   renderAll();
 }
@@ -4615,7 +4639,7 @@ function finishMove(er, ec, bar, movingPawn) {
     barricades = barricades.filter(b=>!(b.er===er&&b.ec===ec));
     soundBarricadeCapture();
     phase = 'place-barricade';
-    glog(`${pnm(currentPlayer)} removed a barricade — place it anywhere`, true);
+    glog(`${pnm(currentPlayer)} landed exactly on a barricade and cleared it — nothing can pass through a barricade, so re-place this one where it hurts.`, true);
     renderAll();
     if (isCPU(currentPlayer)) {
       setTimeout(() => {
@@ -4641,7 +4665,7 @@ function placeBarricade(er, ec) {
   if (er >= BOTTOM_ROW) return; // bottom path row — no barricades
   barricades.push({er, ec});
   soundBarricadePlace();
-  glog(`${pnm(currentPlayer)} placed barricade`);
+  glog(`${pnm(currentPlayer)} placed the barricade — that route is blocked now.`);
   nextTurn(); renderAll();
 }
 
@@ -5492,7 +5516,7 @@ function renderSidebar() {
       <div class="pdot" style="background:${pcol(p)}"></div>
       ${seatAvatar ? `<span class="pav">${avatarSVG(seatAvatar, 18)}</span>` : ''}
       <div class="pnm">${cpu?'CPU '+p:escapeHtml(PNMS[p]||'')}</div>
-      <div class="ptg">${reserve}/5 home</div>
+      <div class="ptg">${reserve}/${PAWNS_PER_PLAYER} home</div>
       ${shielded?'<span class="ptg">🛡️</span>':''}
       ${act?'<div class="pbdg">TURN</div>':''}
     </div>`;
@@ -5500,15 +5524,22 @@ function renderSidebar() {
   document.getElementById('plist').innerHTML = h;
 
   const cpu = isCPU(currentPlayer);
+  // In solo-vs-CPU (cpuMode==='some'), seat 1 is the only human ever reading
+  // this box, so "you" needs no name. In local pass-and-play or online play
+  // more than one human shares this UI over time, so keep naming the seat.
+  const soloVsCPU = !mpIsOnline && cpuMode === 'some';
+  const reachHasBar = phase === 'move' && reachable.some(x => barAt(x.er, x.ec));
   const msgs = {
-    'roll': `${pnm(currentPlayer)} — Roll the dice`,
-    'pick-pawn': diceVal > 6 ? `🎲 DOUBLE ROLL: ${diceVal} steps — Pick a pawn!` : `Rolled ${diceVal} — Pick a pawn`,
-    'move': `Move exactly ${diceVal} steps`,
-    'place-barricade': 'Place barricade anywhere on board',
-    'place-temp-barricade': '🚧 Place your temp barricade — it lasts 3 turns',
+    'roll': soloVsCPU ? 'Roll the dice' : `${pnm(currentPlayer)} — Roll the dice`,
+    'pick-pawn': diceVal > 6 ? `🎲 DOUBLE ROLL: ${diceVal} steps — tap one of your glowing pawns!` : `Rolled ${diceVal} — tap one of your glowing pawns`,
+    'move': reachHasBar
+      ? `Move exactly ${diceVal} — tap a purple cell, or the gold one to take its barricade`
+      : `Move exactly ${diceVal} — tap a glowing purple cell`,
+    'place-barricade': "Barricade cleared — it's yours. Tap a dashed cell to drop it in an opponent's path.",
+    'place-temp-barricade': '🚧 Place your temp barricade — it lasts 3 rounds',
     'place-trap': '💣 Click any path cell to place your bomb',
   };
-  document.getElementById('phbox').innerHTML = `<small>PHASE</small>${cpu?pnm(currentPlayer)+' thinking…':(msgs[phase]||'')}`;
+  document.getElementById('phbox').innerHTML = `<small>NEXT</small>${cpu?pnm(currentPlayer)+' thinking…':(msgs[phase]||'')}`;
   const onlineBlock = mpIsOnline && currentPlayer !== mpSlot;
   const rbtn2 = document.getElementById('rbtn');
   rbtn2.disabled = phase!=='roll'||gameOver||cpu||onlineBlock;
@@ -6221,6 +6252,7 @@ function startOnlineGame(players, mode, npOnline) {
   document.getElementById('glog').innerHTML = '';
   initGame();
   renderAll();
+  glog('Beige bars are barricades — no pawn can pass through one. Land on one exactly and it becomes yours to re-place.');
   glog('Online game started! Good luck 🎮', true);
   updateOnlineTurnUI();
   updateSyncBtn();
@@ -6365,7 +6397,7 @@ function handleRemoteAction(action) {
           barricades = barricades.filter(b=>!(b.er===data.er&&b.ec===data.ec));
           soundBarricadeCapture();
           phase = 'place-barricade'; // must be set so place-barricade sync can apply
-          glog(`${pnm(currentPlayer)} removed a barricade — placing it...`, true);
+          glog(`${pnm(currentPlayer)} landed exactly on a barricade and cleared it — nothing can pass through a barricade, so they're re-placing it now.`, true);
         }
         // Don't run checkPowerupCollection on remote — handled by collect-powerup sync
         // checkPowerupCollection(data.er, data.ec);
@@ -6381,7 +6413,7 @@ function handleRemoteAction(action) {
     if (cell) {
       barricades.push({ er: data.er, ec: data.ec });
       soundBarricadePlace();
-      glog(`${pnm(currentPlayer)} placed a barricade`, true);
+      glog(`${pnm(currentPlayer)} placed the barricade — that route is blocked now.`, true);
       phase = 'roll'; // reset phase — next-turn-resolved will set currentPlayer
       renderAll();
     }
@@ -6861,6 +6893,7 @@ function startFromHomepage() {
   document.getElementById('glog').innerHTML = '';
   initGame();
   renderAll();
+  glog('Beige bars are barricades — no pawn can pass through one. Land on one exactly and it becomes yours to re-place.');
   glog('Game started!', true);
   if (isCPU(currentPlayer)) setTimeout(doCPU, 700);
 }
@@ -7132,7 +7165,7 @@ function hpCreateRoom() {
 function setNP(n) { numPlayers=n; [2,3,4].forEach(x=>document.getElementById('np'+x).classList.toggle('on',x===n)); }
 function setCPU(m) { cpuMode=m; document.getElementById('cnone').classList.toggle('on',m==='none'); document.getElementById('csome').classList.toggle('on',m==='some'); document.getElementById('dw').style.display=m==='some'?'block':'none'; }
 function setDiff(d) { cpuDiff=d; const mp={easy:'de',medium:'dm',hard:'dh2'}; ['easy','medium','hard'].forEach(x=>{const el=document.getElementById(mp[x]);if(el)el.classList.toggle('on',x===d);}); }
-function startGame() { document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
+function startGame() { document.getElementById('setup').style.display='none'; document.getElementById('glog').innerHTML=''; initGame(); renderAll(); setTimeout(scaleToFit,50); glog('Beige bars are barricades — no pawn can pass through one. Land on one exactly and it becomes yours to re-place.'); glog('Game started!',true); if(isCPU(currentPlayer)) setTimeout(doCPU,700); }
 function resetGame() { document.getElementById('win').classList.remove('show'); showHomepage(); }
 
 </script>
