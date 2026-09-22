@@ -944,7 +944,7 @@
   }
   #homepage.show { display: flex; }
 
-  /* ── Lattice + racing-pawns background (homepage only) ── */
+  /* ── Racing pawns + drifting glow background (homepage only) ── */
   #hp-bg-canvas {
     position: fixed;
     inset: 0;
@@ -6971,28 +6971,30 @@ function updateHomepageStats(rooms, onlineCount) {
   renderHpStats();
 }
 
-// ── Lattice + racing-pawns background (homepage only) ──────────────
+// ── Racing pawns + drifting glow background (homepage only) ────────
 // Intentionally placed BEFORE the network/auth init below: it has no
 // dependency on the multiplayer server, and must keep running even if
 // that server is unreachable and throws during its own setup.
 //
-// A faint tiled grid of path cells (the dominant motif — 112 of them
-// on the real board) with two pawns racing along the lattice toward
-// the top edge, one arriving first, then fading and restarting with
-// new colors and new routes. Fully passive — no pointer handling at
-// all — so it runs identically on desktop and touch; the earlier
-// cursor-following barricade trail was desktop-only (gated on
-// `hover:hover and pointer:fine`), which left the ~43% of visitors on
-// phones looking at a static grid. This version gives them motion too.
+// Two pawns race along an (invisible) lattice toward the top edge,
+// one arriving first, then fading and restarting with new colors and
+// new routes — over a large, soft, low-alpha radial glow that slowly
+// wanders the screen and cycles through the same four player colors.
+// Replaces an earlier faint ring-lattice pattern (PR #10, then PR
+// #47): direct feedback was that the dotted grid itself, not just its
+// motion, felt too busy. Fully passive — no pointer handling at all —
+// so it runs identically on desktop and touch; the original
+// cursor-following barricade trail (PR #10) was desktop-only (gated
+// on `hover:hover and pointer:fine`), which left the ~43% of visitors
+// on phones looking at a static background. This version animates for
+// everyone.
 (function() {
   const canvas = document.getElementById('hp-bg-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0, raf = null, running = false, dpr = 1;
 
-  const PITCH = 46;          // lattice grid spacing (px, CSS space)
-  const RING_R = 15;         // lattice cell ring radius
-  const RING_ALPHA = 0.055;  // lattice ring opacity — background, not foreground
+  const PITCH = 46; // route grid spacing (px, CSS space) — not drawn, just the node grid races run on
 
   const RACE_ALPHA = 0.20;        // peak route-line opacity
   const HEAD_ALPHA_MULT = 2.2;    // head dot is brighter than its trailing line
@@ -7005,19 +7007,15 @@ function updateHomepageStats(rooms, onlineCount) {
   const STEP_MS_PAIR = [240, 285]; // per-racer ms/cell, randomly assigned so one clearly wins
   const ROUTE_MAX_ATTEMPTS = 60;   // retries before a start column is abandoned
 
+  const GLOW_ALPHA_PEAK = 0.07;     // peak glow opacity at its center — stays ambient, never a spotlight
+  const GLOW_RADIUS_FRAC = 0.55;    // glow radius as a fraction of max(W,H) — large and soft-edged
+  const GLOW_DRIFT_MS_X = 27000;    // independent periods so the drift never feels mechanical
+  const GLOW_DRIFT_MS_Y = 19000;
+  const GLOW_COLOR_MS = 9000;       // ms spent crossfading into each of the 4 player colors
+
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  let latticeColor = '#5BAAFF';
   let pRgb = ['255,64,64', '64,217,160', '255,215,0', '91,170,255'];
-  function themeColors() {
-    const s = getComputedStyle(document.documentElement);
-    return [
-      s.getPropertyValue('--p1').trim() || '#FF4040',
-      s.getPropertyValue('--p2').trim() || '#40D9A0',
-      s.getPropertyValue('--p3').trim() || '#FFD700',
-      s.getPropertyValue('--p4').trim() || '#5BAAFF'
-    ];
-  }
   function themeRgb() {
     const s = getComputedStyle(document.documentElement);
     return [
@@ -7027,18 +7025,11 @@ function updateHomepageStats(rooms, onlineCount) {
       s.getPropertyValue('--p4-rgb').trim() || '91,170,255'
     ];
   }
-  function pickLatticeColor() {
-    // p4 (blue) reads best as a faint line color on the dark background;
-    // themeColors() keeps this in sync if the palette is ever restyled.
-    return themeColors()[3];
-  }
 
-  // ── Grid + lattice cache ──
-  // The lattice never changes shape, so it's stroked once into an
-  // offscreen canvas on resize and blitted with drawImage every frame,
-  // instead of re-stroking ~1000 arcs (42×24 at 1920×1080) per frame.
+  // ── Route grid model ──
+  // Not drawn — the lattice used to be visible rings, now it's just
+  // the invisible node grid the racing routes below are built on.
   let gridCols = 0, gridRows = 0;
-  let latticeCache = null;
   let keepOut = null; // {x0,y0,x1,y1} CSS px, or null on viewports with no side margin
 
   function computeKeepOut() {
@@ -7063,25 +7054,6 @@ function updateHomepageStats(rooms, onlineCount) {
     return x >= keepOut.x0 && x <= keepOut.x1 && y >= keepOut.y0 && y <= keepOut.y1;
   }
 
-  function buildLatticeCache() {
-    latticeCache = document.createElement('canvas');
-    latticeCache.width = canvas.width;
-    latticeCache.height = canvas.height;
-    const lctx = latticeCache.getContext('2d');
-    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    lctx.lineWidth = 1.5;
-    lctx.strokeStyle = latticeColor;
-    lctx.globalAlpha = RING_ALPHA;
-    for (let i = 0; i < gridCols; i++) {
-      for (let j = 0; j < gridRows; j++) {
-        lctx.beginPath();
-        lctx.arc(i * PITCH, j * PITCH, RING_R, 0, Math.PI * 2);
-        lctx.stroke();
-      }
-    }
-    lctx.globalAlpha = 1;
-  }
-
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
@@ -7094,7 +7066,47 @@ function updateHomepageStats(rooms, onlineCount) {
     gridCols = Math.ceil(W / PITCH) + 1;
     gridRows = Math.ceil(H / PITCH) + 1;
     computeKeepOut();
-    buildLatticeCache();
+  }
+
+  // ── Drifting color-glow ──
+  // A single soft radial gradient, redrawn each frame — cheaper than
+  // either the old per-frame ring-stroking or the lattice image blit
+  // it replaced. Position wanders via two out-of-phase sine waves
+  // (Lissajous-style) so the drift never lands on an obviously
+  // repeating loop within one viewing; color slowly crossfades through
+  // the same four player colors the racers use.
+  function glowPosition(now) {
+    return {
+      cx: W / 2 + Math.sin((now / GLOW_DRIFT_MS_X) * Math.PI * 2) * (W * 0.32),
+      cy: H / 2 + Math.cos((now / GLOW_DRIFT_MS_Y) * Math.PI * 2) * (H * 0.32)
+    };
+  }
+  function glowColor(now) {
+    const cycle = (now / GLOW_COLOR_MS) % 4;
+    const i0 = Math.floor(cycle) % 4;
+    const i1 = (i0 + 1) % 4;
+    const t = cycle - Math.floor(cycle);
+    const c0 = pRgb[i0].split(',').map(Number);
+    const c1 = pRgb[i1].split(',').map(Number);
+    return [0, 1, 2].map((k) => Math.round(c0[k] + (c1[k] - c0[k]) * t)).join(',');
+  }
+  function paintGlow(cx, cy, rgb) {
+    const R = Math.max(W, H) * GLOW_RADIUS_FRAC;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    grad.addColorStop(0, `rgba(${rgb}, ${GLOW_ALPHA_PEAK})`);
+    grad.addColorStop(1, `rgba(${rgb}, 0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+  function drawGlow(now) {
+    const { cx, cy } = glowPosition(now);
+    paintGlow(cx, cy, glowColor(now));
+  }
+  function drawStaticGlow() {
+    // Reduced-motion frame: fixed center, fixed color, no drift or
+    // color cycling — same "one still frame, then stop" contract the
+    // old lattice cache used.
+    paintGlow(W / 2, H / 2, pRgb[0]);
   }
 
   // ── Route building ──
@@ -7278,26 +7290,26 @@ function updateHomepageStats(rooms, onlineCount) {
   }
 
   function init() {
-    latticeColor = pickLatticeColor();
     pRgb = themeRgb();
-    resize(); // builds gridCols/rows, keepOut, and the lattice cache
+    resize(); // builds gridCols/rows and keepOut
     phase = 'idle';
     pauseUntil = performance.now() + 200;
     racers = [];
     goalPulse = null;
   }
 
-  function blitLattice() {
+  function clearFrame() {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (latticeCache) ctx.drawImage(latticeCache, 0, 0);
     ctx.restore();
   }
 
   function draw() {
-    blitLattice();
-    tickRace(performance.now());
+    clearFrame();
+    const now = performance.now();
+    drawGlow(now);
+    tickRace(now);
     raf = requestAnimationFrame(draw);
   }
 
@@ -7305,7 +7317,7 @@ function updateHomepageStats(rooms, onlineCount) {
     if (running) return;
     running = true;
     init();
-    if (prefersReduced) { blitLattice(); return; } // one static frame, no race loop
+    if (prefersReduced) { clearFrame(); drawStaticGlow(); return; } // one static frame, no race loop
     draw();
   }
   function stop() {
