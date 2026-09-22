@@ -944,7 +944,7 @@
   }
   #homepage.show { display: flex; }
 
-  /* ── Drifting pawns background (homepage only) ── */
+  /* ── Lattice + racing-pawns background (homepage only) ── */
   #hp-bg-canvas {
     position: fixed;
     inset: 0;
@@ -6971,17 +6971,19 @@ function updateHomepageStats(rooms, onlineCount) {
   renderHpStats();
 }
 
-// ── Lattice + barricade-trail background (homepage only) ──────────
+// ── Lattice + racing-pawns background (homepage only) ──────────────
 // Intentionally placed BEFORE the network/auth init below: it has no
 // dependency on the multiplayer server, and must keep running even if
 // that server is unreachable and throws during its own setup.
 //
-// Replaces the earlier drifting-pawns treatment with the board's own
-// vocabulary: a faint tiled grid of path cells (the dominant motif —
-// 112 of them on the real board), with cream barricade capsules that
-// snap onto the grid behind the cursor and fade, echoing SZ=40/GAP=4
-// (~44px pitch, see the board renderer) without needing to match it
-// exactly — the ratio is what carries the resemblance.
+// A faint tiled grid of path cells (the dominant motif — 112 of them
+// on the real board) with two pawns racing along the lattice toward
+// the top edge, one arriving first, then fading and restarting with
+// new colors and new routes. Fully passive — no pointer handling at
+// all — so it runs identically on desktop and touch; the earlier
+// cursor-following barricade trail was desktop-only (gated on
+// `hover:hover and pointer:fine`), which left the ~43% of visitors on
+// phones looking at a static grid. This version gives them motion too.
 (function() {
   const canvas = document.getElementById('hp-bg-canvas');
   if (!canvas) return;
@@ -6991,17 +6993,22 @@ function updateHomepageStats(rooms, onlineCount) {
   const PITCH = 46;          // lattice grid spacing (px, CSS space)
   const RING_R = 15;         // lattice cell ring radius
   const RING_ALPHA = 0.055;  // lattice ring opacity — background, not foreground
-  const TRAIL_LIFE = 1700;   // ms a barricade lives before fading out
-  const TRAIL_MAX = 44;      // cap so a stationary cursor can't grow this forever
-  const TRAIL_ALPHA = 0.18;  // peak barricade opacity — kept low so it reads as background
-  const BONE = '#EFE3C8';    // barricade cream, matches the in-game barricade color
 
-  const hasMouse = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  let mouseX = -9999, mouseY = -9999;
-  let trail = [];
+  const RACE_ALPHA = 0.20;        // peak route-line opacity
+  const HEAD_ALPHA_MULT = 2.2;    // head dot is brighter than its trailing line
+  const GOAL_PULSE_ALPHA = 0.30;
+  const GOAL_PULSE_MS = 700;
+  const GOAL_PULSE_MAX_R = 22;
+  const FADE_MS = 1200;            // both racers fade together, as one unit, after finishing
+  const PAUSE_MS_BASE = 3000;      // idle gap between races
+  const PAUSE_JITTER = 1500;
+  const STEP_MS_PAIR = [240, 285]; // per-racer ms/cell, randomly assigned so one clearly wins
+  const ROUTE_MAX_ATTEMPTS = 60;   // retries before a start column is abandoned
+
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   let latticeColor = '#5BAAFF';
+  let pRgb = ['255,64,64', '64,217,160', '255,215,0', '91,170,255'];
   function themeColors() {
     const s = getComputedStyle(document.documentElement);
     return [
@@ -7011,10 +7018,68 @@ function updateHomepageStats(rooms, onlineCount) {
       s.getPropertyValue('--p4').trim() || '#5BAAFF'
     ];
   }
+  function themeRgb() {
+    const s = getComputedStyle(document.documentElement);
+    return [
+      s.getPropertyValue('--p1-rgb').trim() || '255,64,64',
+      s.getPropertyValue('--p2-rgb').trim() || '64,217,160',
+      s.getPropertyValue('--p3-rgb').trim() || '255,215,0',
+      s.getPropertyValue('--p4-rgb').trim() || '91,170,255'
+    ];
+  }
   function pickLatticeColor() {
     // p4 (blue) reads best as a faint line color on the dark background;
     // themeColors() keeps this in sync if the palette is ever restyled.
     return themeColors()[3];
+  }
+
+  // ── Grid + lattice cache ──
+  // The lattice never changes shape, so it's stroked once into an
+  // offscreen canvas on resize and blitted with drawImage every frame,
+  // instead of re-stroking ~1000 arcs (42×24 at 1920×1080) per frame.
+  let gridCols = 0, gridRows = 0;
+  let latticeCache = null;
+  let keepOut = null; // {x0,y0,x1,y1} CSS px, or null on viewports with no side margin
+
+  function computeKeepOut() {
+    const hero = document.querySelector('.hp-hero');
+    const doors = document.querySelector('.hp-doors');
+    if (!hero || !doors) { keepOut = null; return; }
+    const r1 = hero.getBoundingClientRect();
+    const r2 = doors.getBoundingClientRect();
+    const x0 = Math.min(r1.left, r2.left) - PITCH / 2;
+    const y0 = Math.min(r1.top, r2.top) - PITCH / 2;
+    const x1 = Math.max(r1.right, r2.right) + PITCH / 2;
+    const y1 = Math.max(r1.bottom, r2.bottom) + PITCH / 2;
+    // Only frame the content with side-margin races when there's real
+    // margin to run them in; otherwise let routes use the full width.
+    if (x0 < PITCH * 2 || (W - x1) < PITCH * 2) { keepOut = null; return; }
+    keepOut = { x0, y0, x1, y1 };
+  }
+
+  function nodeInKeepOut(i, j) {
+    if (!keepOut) return false;
+    const x = i * PITCH, y = j * PITCH;
+    return x >= keepOut.x0 && x <= keepOut.x1 && y >= keepOut.y0 && y <= keepOut.y1;
+  }
+
+  function buildLatticeCache() {
+    latticeCache = document.createElement('canvas');
+    latticeCache.width = canvas.width;
+    latticeCache.height = canvas.height;
+    const lctx = latticeCache.getContext('2d');
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lctx.lineWidth = 1.5;
+    lctx.strokeStyle = latticeColor;
+    lctx.globalAlpha = RING_ALPHA;
+    for (let i = 0; i < gridCols; i++) {
+      for (let j = 0; j < gridRows; j++) {
+        lctx.beginPath();
+        lctx.arc(i * PITCH, j * PITCH, RING_R, 0, Math.PI * 2);
+        lctx.stroke();
+      }
+    }
+    lctx.globalAlpha = 1;
   }
 
   function resize() {
@@ -7026,70 +7091,213 @@ function updateHomepageStats(rooms, onlineCount) {
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gridCols = Math.ceil(W / PITCH) + 1;
+    gridRows = Math.ceil(H / PITCH) + 1;
+    computeKeepOut();
+    buildLatticeCache();
   }
 
-  if (hasMouse) {
-    window.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX; mouseY = e.clientY;
-      addTrail(mouseX, mouseY);
-    }, { passive: true });
-    window.addEventListener('mouseleave', () => { mouseX = -9999; mouseY = -9999; });
+  // ── Route building ──
+  // Biased random walk from the bottom row up to row 0 (the goal is
+  // the top edge of the viewport, not a point inside the hero — races
+  // climb up and off the top). Never revisits a node, never enters the
+  // keep-out zone; bails and returns null so the caller retries with a
+  // different start column rather than looping forever.
+  function tryRoute(startCol) {
+    let i = startCol, j = gridRows - 1;
+    if (i < 0 || i >= gridCols || nodeInKeepOut(i, j)) return null;
+    const visited = new Set([i + ',' + j]);
+    const path = [{ i, j }];
+    let guard = 0;
+    while (j > 0 && guard < gridCols * gridRows) {
+      guard++;
+      const wantUp = Math.random() < 0.7;
+      let ni = i, nj = j;
+      if (wantUp) { nj = j - 1; } else { ni = i + (Math.random() < 0.5 ? -1 : 1); }
+      let valid = ni >= 0 && ni < gridCols && nj >= 0 && !visited.has(ni + ',' + nj) && !nodeInKeepOut(ni, nj);
+      if (!valid) {
+        // fall back to the other kind of move once before giving up
+        if (wantUp) { ni = i + (Math.random() < 0.5 ? -1 : 1); nj = j; }
+        else { ni = i; nj = j - 1; }
+        valid = ni >= 0 && ni < gridCols && nj >= 0 && !visited.has(ni + ',' + nj) && !nodeInKeepOut(ni, nj);
+        if (!valid) return null;
+      }
+      i = ni; j = nj;
+      visited.add(i + ',' + j);
+      path.push({ i, j });
+    }
+    return j === 0 ? path : null;
   }
 
-  // Snap to the nearest lattice cell so barricades land on the grid,
-  // the way they do on the real board. Skips a duplicate push onto
-  // the same cell so a slow-moving cursor doesn't stack up alpha.
-  function addTrail(x, y) {
-    const cx = Math.round(x / PITCH) * PITCH;
-    const cy = Math.round(y / PITCH) * PITCH;
-    const last = trail[trail.length - 1];
-    if (last && last.x === cx && last.y === cy) return;
-    trail.push({ x: cx, y: cy, born: performance.now() });
-    if (trail.length > TRAIL_MAX) trail.shift();
+  function buildRoute(startCol) {
+    for (let attempt = 0; attempt < ROUTE_MAX_ATTEMPTS; attempt++) {
+      const route = tryRoute(startCol);
+      if (route) return route;
+    }
+    return null;
+  }
+
+  function pickStartColumns() {
+    if (keepOut) {
+      const leftCols = Math.max(1, Math.floor(keepOut.x0 / PITCH));
+      const rightColsStart = Math.min(gridCols - 1, Math.ceil(keepOut.x1 / PITCH));
+      const rightSpan = Math.max(1, (gridCols - 1) - rightColsStart);
+      const leftCol = Math.floor(Math.random() * leftCols);
+      const rightCol = Math.min(gridCols - 1, rightColsStart + Math.floor(Math.random() * rightSpan));
+      return [leftCol, rightCol];
+    }
+    const a = Math.floor(Math.random() * gridCols);
+    let b = Math.floor(Math.random() * gridCols);
+    if (gridCols > 3 && Math.abs(b - a) < gridCols * 0.3) b = (a + Math.floor(gridCols / 2)) % gridCols;
+    return [a, b];
+  }
+
+  // ── Race state machine: running -> fading -> idle -> running ──
+  let phase = 'idle';
+  let raceStart = 0, fadeStart = 0, pauseUntil = 0;
+  let racers = [];
+  let goalPulse = null;
+
+  function startRace() {
+    const pool = [0, 1, 2, 3];
+    const c1 = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    const c2 = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    const cols = pickStartColumns();
+    const routes = cols.map((startCol) => {
+      let route = buildRoute(startCol);
+      for (let t = 0; t < 8 && !route; t++) route = buildRoute(Math.floor(Math.random() * gridCols));
+      return route;
+    });
+    if (!routes[0] || !routes[1]) {
+      // No valid pair this cycle (e.g. a very small viewport) — skip and retry shortly.
+      phase = 'idle';
+      pauseUntil = performance.now() + 500;
+      return;
+    }
+    const steps = Math.random() < 0.5 ? STEP_MS_PAIR : STEP_MS_PAIR.slice().reverse();
+    racers = [
+      { route: routes[0], colorIdx: c1, stepMs: steps[0], finished: false },
+      { route: routes[1], colorIdx: c2, stepMs: steps[1], finished: false }
+    ];
+    goalPulse = null;
+    phase = 'running';
+    raceStart = performance.now();
+  }
+
+  function nodePx(node) { return { x: node.i * PITCH, y: node.j * PITCH }; }
+
+  function drawRacer(racer, now, alphaMult) {
+    const totalSteps = racer.route.length - 1;
+    const rawProgress = (now - raceStart) / racer.stepMs;
+    const segIdx = Math.min(Math.floor(rawProgress), totalSteps);
+    const t = segIdx >= totalSteps ? 1 : rawProgress - segIdx;
+    const rgb = pRgb[racer.colorIdx];
+
+    ctx.strokeStyle = `rgb(${rgb})`;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = RACE_ALPHA * alphaMult;
+    ctx.beginPath();
+    const start = nodePx(racer.route[0]);
+    ctx.moveTo(start.x, start.y);
+    for (let k = 1; k <= segIdx; k++) {
+      const p = nodePx(racer.route[k]);
+      ctx.lineTo(p.x, p.y);
+    }
+    let headX, headY;
+    if (segIdx >= totalSteps) {
+      const p = nodePx(racer.route[totalSteps]);
+      headX = p.x; headY = p.y;
+    } else {
+      const a = nodePx(racer.route[segIdx]);
+      const b = nodePx(racer.route[segIdx + 1]);
+      headX = a.x + (b.x - a.x) * t;
+      headY = a.y + (b.y - a.y) * t;
+      ctx.lineTo(headX, headY);
+    }
+    ctx.stroke();
+
+    ctx.globalAlpha = Math.min(1, RACE_ALPHA * HEAD_ALPHA_MULT * alphaMult);
+    ctx.fillStyle = `rgb(${rgb})`;
+    ctx.beginPath();
+    ctx.arc(headX, headY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    return { finished: segIdx >= totalSteps, headX, headY };
+  }
+
+  function drawGoalPulse(now, mult) {
+    const age = now - goalPulse.start;
+    if (age > GOAL_PULSE_MS) return;
+    const k = 1 - age / GOAL_PULSE_MS;
+    const r = Math.max(1, GOAL_PULSE_MAX_R * (age / GOAL_PULSE_MS));
+    ctx.globalAlpha = GOAL_PULSE_ALPHA * k * mult;
+    ctx.strokeStyle = `rgb(${pRgb[goalPulse.colorIdx]})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(goalPulse.x, goalPulse.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function tickRace(now) {
+    if (phase === 'idle') {
+      if (now >= pauseUntil) startRace();
+      return;
+    }
+    if (phase === 'running') {
+      let allFinished = true;
+      for (const r of racers) {
+        const res = drawRacer(r, now, 1);
+        if (res.finished) {
+          if (!r.finished) {
+            r.finished = true;
+            if (!goalPulse) goalPulse = { x: res.headX, y: res.headY, colorIdx: r.colorIdx, start: now };
+          }
+        } else {
+          allFinished = false;
+        }
+      }
+      if (goalPulse) drawGoalPulse(now, 1);
+      if (allFinished) { phase = 'fading'; fadeStart = now; }
+      return;
+    }
+    if (phase === 'fading') {
+      const k = Math.max(0, 1 - (now - fadeStart) / FADE_MS);
+      for (const r of racers) drawRacer(r, now, k);
+      if (goalPulse) drawGoalPulse(now, k);
+      if (k <= 0) {
+        phase = 'idle';
+        pauseUntil = now + PAUSE_MS_BASE + Math.random() * PAUSE_JITTER;
+        racers = [];
+        goalPulse = null;
+      }
+    }
   }
 
   function init() {
-    resize();
     latticeColor = pickLatticeColor();
-    trail = [];
+    pRgb = themeRgb();
+    resize(); // builds gridCols/rows, keepOut, and the lattice cache
+    phase = 'idle';
+    pauseUntil = performance.now() + 200;
+    racers = [];
+    goalPulse = null;
   }
 
-  function drawLattice() {
-    const cols = Math.ceil(W / PITCH) + 1;
-    const rows = Math.ceil(H / PITCH) + 1;
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = latticeColor;
-    ctx.globalAlpha = RING_ALPHA;
-    for (let i = 0; i < cols; i++) {
-      for (let j = 0; j < rows; j++) {
-        ctx.beginPath();
-        ctx.arc(i * PITCH, j * PITCH, RING_R, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function drawTrail(now) {
-    ctx.fillStyle = BONE;
-    for (let i = trail.length - 1; i >= 0; i--) {
-      const t = trail[i];
-      const age = now - t.born;
-      if (age > TRAIL_LIFE) { trail.splice(i, 1); continue; }
-      const k = 1 - age / TRAIL_LIFE;
-      const w = 30, h = 11;
-      ctx.globalAlpha = k * TRAIL_ALPHA;
-      ctx.beginPath();
-      ctx.roundRect(t.x - w / 2, t.y - h / 2, w, h, h / 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+  function blitLattice() {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (latticeCache) ctx.drawImage(latticeCache, 0, 0);
+    ctx.restore();
   }
 
   function draw() {
-    ctx.clearRect(0, 0, W, H);
-    drawLattice();
-    if (hasMouse && !prefersReduced) drawTrail(performance.now());
+    blitLattice();
+    tickRace(performance.now());
     raf = requestAnimationFrame(draw);
   }
 
@@ -7097,7 +7305,7 @@ function updateHomepageStats(rooms, onlineCount) {
     if (running) return;
     running = true;
     init();
-    if (prefersReduced) { draw(); cancelAnimationFrame(raf); return; } // draw one static frame, no trail
+    if (prefersReduced) { blitLattice(); return; } // one static frame, no race loop
     draw();
   }
   function stop() {
