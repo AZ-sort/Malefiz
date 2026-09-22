@@ -442,7 +442,9 @@
     border-radius:16px;padding:28px 28px 24px;width:420px;
     max-height:82vh;overflow-y:auto;
     max-height:82dvh; /* same dvh progressive enhancement, see .waiting-box */
-    display:flex;flex-direction:column;gap:18px;
+    display:flex;flex-direction:column;gap:14px; /* was 18px -- trimmed to offset the
+      diagrams' added height so the modal doesn't net grow, see the
+      2026-09-22 how-to-play log entry */
     box-shadow:0 24px 60px rgba(0,0,0,.5);
     animation:pop .28s cubic-bezier(.34,1.56,.64,1);
   }
@@ -450,7 +452,7 @@
   .htp-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
   .htp-top{display:flex;align-items:center;justify-content:space-between;}
   .htp-top h2{font-size:1.2rem;font-weight:700;letter-spacing:-.02em;}
-  .htp-section{display:flex;flex-direction:column;gap:8px;}
+  .htp-section{display:flex;flex-direction:column;gap:6px;}
   .htp-section-title{
     font-size:.68rem;font-family:'DM Mono',monospace;
     color:var(--accent);letter-spacing:.1em;text-transform:uppercase;
@@ -465,6 +467,15 @@
     text-align:center;margin-top:1px;
   }
   .htp-rule b{color:var(--accent);}
+  /* Diagram rules: the board picture stacks above its one-line caption,
+     rather than sitting beside it like the icon rules -- a wide, short
+     (~5:1) SVG reads better full-width than squeezed into the icon
+     column, especially at the 92vw mobile width above. Deliberately no
+     text inside the SVGs themselves (digits and ✓/✗ glyphs only) so a
+     language switch never has to redraw anything -- see the i18n note
+     near TRANSLATIONS. */
+  .htp-rule-diagram{flex-direction:column;gap:6px;}
+  .htp-diagram{display:block;width:100%;height:auto;}
 
 
   /* ── Active player glow ── */
@@ -2079,99 +2090,152 @@
 </div>
 
 
-<!-- HOW TO PLAY MODAL -->
+<!-- HOW TO PLAY MODAL
+     Diagrams (index.html search: htp-diagram) are drawn with the board's
+     own CSS custom properties (--cell/--cellb/--bar/--goal/the reachable-
+     cell colors) so they read as zoomed-in pictures of the real board,
+     not generic clip-art -- see the 2026-09-22 "how-to-play diagrams"
+     log entry for the full color-mapping table. Each SVG carries no
+     words, only digits and ✓/✗ glyphs, so translating the caption below
+     it is the only i18n work a language needs -- nothing to redraw. -->
 <div id="htp-modal">
   <div class="htp-box">
     <div class="htp-top">
-      <h2>How to Play</h2>
+      <h2 data-i18n="navHowToPlay">How to Play</h2>
       <div class="settings-close" onclick="closeHTP()">✕</div>
     </div>
 
     <div class="htp-section">
-      <div class="htp-section-title">🎯 Objective</div>
-      <div class="htp-rule">
-        <span class="htp-icon">🏆</span>
-        <span>Be the first player to move <b>any one of your pawns</b> to the goal at the top of the board.</span>
+      <div class="htp-section-title" data-i18n="htpObjectiveTitle">🎯 Objective</div>
+      <div class="htp-rule htp-rule-diagram">
+        <svg class="htp-diagram" viewBox="0 0 300 66" aria-hidden="true">
+          <circle cx="35" cy="33" r="13" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <circle cx="35" cy="33" r="7" fill="var(--p1)"/>
+          <line x1="52" y1="33" x2="222" y2="33" stroke="var(--muted)" stroke-width="3"/>
+          <polygon points="212,26 224,33 212,40" fill="var(--muted)"/>
+          <circle cx="260" cy="33" r="13" fill="#1c1a06" stroke="var(--goal)" stroke-width="3"/>
+        </svg>
+        <span data-i18n-html="htpObjectiveText">Move any one pawn to the <b>goal</b> at the top of the board.</span>
       </div>
     </div>
 
     <div class="htp-section">
-      <div class="htp-section-title">🎲 Taking a Turn</div>
-      <div class="htp-rule">
-        <span class="htp-icon">1️⃣</span>
-        <span><b>Roll the dice.</b> You must move exactly the number shown — no more, no less.</span>
+      <div class="htp-section-title" data-i18n="htpTurnTitle">🎲 Taking a Turn</div>
+      <div class="htp-rule htp-rule-diagram">
+        <svg class="htp-diagram" viewBox="0 0 300 66" aria-hidden="true">
+          <circle cx="30" cy="30" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <text x="30" y="34" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">1</text>
+          <line x1="43" y1="30" x2="70" y2="30" stroke="var(--muted)" stroke-width="2.5"/>
+          <polygon points="64,25 74,30 64,35" fill="var(--muted)"/>
+          <circle cx="85" cy="30" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <text x="85" y="34" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">2</text>
+          <line x1="98" y1="30" x2="125" y2="30" stroke="var(--muted)" stroke-width="2.5"/>
+          <polygon points="119,25 129,30 119,35" fill="var(--muted)"/>
+          <circle cx="140" cy="30" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <text x="140" y="34" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">3</text>
+          <line x1="140" y1="42" x2="140" y2="46" stroke="var(--accent)" stroke-width="2.5"/>
+          <polygon points="134,44 140,52 146,44" fill="var(--accent)"/>
+          <circle cx="140" cy="58" r="9" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <text x="140" y="62" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)">4</text>
+        </svg>
+        <span data-i18n-html="htpTurnDiagramText">Roll, then move <b>exactly</b> that many steps. Turn corners freely — you just can't double back.</span>
       </div>
       <div class="htp-rule">
-        <span class="htp-icon">2️⃣</span>
-        <span><b>Choose a pawn</b> — either one already on the board, or deploy a new one from your home base.</span>
-      </div>
-      <div class="htp-rule">
-        <span class="htp-icon">3️⃣</span>
-        <span><b>Move it exactly</b> that many steps. You can move in any direction and turn corners, but you cannot double back on the same move.</span>
-      </div>
-    </div>
-
-    <div class="htp-section">
-      <div class="htp-section-title">🚧 Barricades</div>
-      <div class="htp-rule">
-        <span class="htp-icon">🚫</span>
-        <span>You <b>cannot pass through</b> a barricade. You must go around, or land on it exactly to remove it.</span>
-      </div>
-      <div class="htp-rule">
-        <span class="htp-icon">✅</span>
-        <span>If you <b>land exactly</b> on a barricade, you remove it and get to <b>place it anywhere</b> on the board to block opponents. You cannot place it on the bottom row or the goal.</span>
-      </div>
-    </div>
-
-    <div class="htp-section">
-      <div class="htp-section-title">💥 Capturing</div>
-      <div class="htp-rule">
-        <span class="htp-icon">⚔️</span>
-        <span>If you land on a cell <b>occupied by an opponent's pawn</b>, their pawn is captured and sent back to their home base.</span>
-      </div>
-      <div class="htp-rule">
-        <span class="htp-icon">🤝</span>
-        <span>You <b>can pass over</b> any pawn — yours or an opponent's — without capturing it. Only landing on it counts.</span>
+        <span class="htp-icon">♟️</span>
+        <span data-i18n-html="htpTurnChooseText">Move a pawn already on the board, or <b>deploy a new one</b> from your home base.</span>
       </div>
     </div>
 
     <div class="htp-section">
-      <div class="htp-section-title">🏠 Home Base</div>
+      <div class="htp-section-title" data-i18n="htpBarricadesTitle">🚧 Barricades</div>
+      <div class="htp-rule htp-rule-diagram">
+        <svg class="htp-diagram" viewBox="0 0 300 66" aria-hidden="true">
+          <circle cx="25" cy="33" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <circle cx="25" cy="33" r="6" fill="var(--p1)"/>
+          <line x1="36" y1="33" x2="53" y2="33" stroke="var(--muted)" stroke-width="2.5"/>
+          <circle cx="65" cy="33" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <rect x="57" y="30" width="16" height="6" rx="2" fill="var(--bar)"/>
+          <text x="65" y="16" text-anchor="middle" font-size="13" font-weight="700" fill="var(--muted)">✗</text>
+          <path d="M 25,20 Q 65,2 105,20" stroke="var(--muted)" stroke-width="2.5" fill="none"/>
+          <polygon points="94,14 106,20 96,27" fill="var(--muted)"/>
+          <circle cx="115" cy="33" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <line x1="150" y1="8" x2="150" y2="58" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <circle cx="172" cy="33" r="6" fill="var(--p1)"/>
+          <line x1="178" y1="33" x2="183" y2="33" stroke="var(--p1)" stroke-width="2.5"/>
+          <circle cx="195" cy="33" r="11" fill="rgba(255,176,54,.32)" stroke="rgba(255,176,54,.95)" stroke-width="2.5"/>
+          <rect x="187" y="30" width="16" height="6" rx="2" fill="var(--bar)"/>
+          <text x="195" y="16" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">✓</text>
+          <path d="M 204,25 Q 230,8 254,23" stroke="var(--muted)" stroke-width="2" fill="none" stroke-dasharray="3,3"/>
+          <polygon points="248,17 258,23 249,29" fill="var(--muted)"/>
+          <rect x="257" y="27" width="16" height="6" rx="2" fill="var(--bar)"/>
+        </svg>
+        <span data-i18n-html="htpBarricadesText">You can't pass through a barricade — go around it, or <b>land on it exactly</b> to clear it and place it anywhere else (not the bottom row or the goal).</span>
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-section-title" data-i18n="htpCaptureTitle">💥 Capturing</div>
+      <div class="htp-rule htp-rule-diagram">
+        <svg class="htp-diagram" viewBox="0 0 300 66" aria-hidden="true">
+          <circle cx="25" cy="33" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <circle cx="25" cy="33" r="6" fill="var(--p1)"/>
+          <circle cx="95" cy="33" r="11" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <circle cx="95" cy="33" r="6" fill="var(--p2)"/>
+          <line x1="38" y1="33" x2="80" y2="33" stroke="var(--p1)" stroke-width="2.5"/>
+          <polygon points="74,28 84,33 74,38" fill="var(--p1)"/>
+          <circle cx="95" cy="55" r="7" fill="none" stroke="var(--p2)" stroke-width="2" stroke-dasharray="2,2"/>
+          <line x1="95" y1="45" x2="95" y2="48" stroke="var(--p2)" stroke-width="2" stroke-dasharray="2,2"/>
+          <polygon points="90,48 95,55 100,48" fill="var(--p2)"/>
+          <line x1="150" y1="8" x2="150" y2="58" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <circle cx="180" cy="33" r="10" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <circle cx="230" cy="33" r="10" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <circle cx="230" cy="33" r="6" fill="var(--p3)"/>
+          <circle cx="280" cy="33" r="10" fill="var(--cell)" stroke="var(--cellb)" stroke-width="2"/>
+          <path d="M 180,23 Q 230,2 280,23" stroke="var(--muted)" stroke-width="2.5" fill="none" stroke-dasharray="2,3"/>
+          <polygon points="270,17 282,23 272,29" fill="var(--muted)"/>
+          <text x="230" y="10" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">✓</text>
+        </svg>
+        <span data-i18n-html="htpCaptureText">Land on an opponent's pawn to send it home — but you can <b>pass over</b> any pawn freely.</span>
+      </div>
+    </div>
+
+    <div class="htp-section">
+      <div class="htp-section-title" data-i18n="htpHomeTitle">🏠 Home Base</div>
       <div class="htp-rule">
         <span class="htp-icon">📦</span>
-        <span>Your pawns start in your home base. To deploy one, simply <b>select it and move</b> — it enters the board at your entry point. Your dice roll counts from there.</span>
+        <span data-i18n-html="htpHomeText1">Select a pawn from home to <b>deploy it</b> — it enters at your entry point, and your roll counts from there.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">🔄</span>
-        <span>Captured pawns return to your home base and can be redeployed on a future turn.</span>
+        <span data-i18n-html="htpHomeText2">Captured pawns return home and can be <b>redeployed</b> on a later turn.</span>
       </div>
     </div>
 
     <div class="htp-section">
-      <div class="htp-section-title">⚡ Powerups Mode</div>
+      <div class="htp-section-title" data-i18n="htpPowerupsTitle">⚡ Powerups Mode</div>
       <div class="htp-rule">
         <span class="htp-icon">🎲</span>
-        <span><b>Double Roll</b> — Roll the dice — your result is doubled this turn!</span>
+        <span data-i18n-html="htpPuDoubleRoll"><b>Double Roll</b> — your dice result is doubled this turn.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">🚧</span>
-        <span><b>Temp Barricade</b> — Place an orange barricade that disappears after 3 rounds.</span>
+        <span data-i18n-html="htpPuTempBarricade"><b>Temp Barricade</b> — an orange barricade that disappears after 3 rounds.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">🛡️</span>
-        <span><b>Shield</b> — Your pawns cannot be captured for 3 rounds. Shielded pawns are also impassable.</span>
+        <span data-i18n-html="htpPuShield"><b>Shield</b> — your pawns can't be captured, and can't be passed through, for 3 rounds.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">💣</span>
-        <span><b>Bomb</b> — Place a hidden mine on any cell. The next pawn that lands on it is sent home.</span>
+        <span data-i18n-html="htpPuBomb"><b>Bomb</b> — a hidden mine on any cell. The next pawn to land on it is sent home.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">✨</span>
-        <span>Powerups appear on the board automatically. <b>Land on one to collect it</b> — you can hold up to 2 at a time. Use them before rolling.</span>
+        <span data-i18n-html="htpPuCollect"><b>Land on a powerup</b> to collect it — hold up to 2 at a time, and use them before you roll.</span>
       </div>
     </div>
 
-    <button class="btn bp" onclick="closeHTP()" style="margin-top:4px;">Got it!</button>
+    <button class="btn bp" onclick="closeHTP()" style="margin-top:4px;" data-i18n="htpGotIt">Got it!</button>
   </div>
 </div>
 
@@ -6709,9 +6773,14 @@ startPlayerTurn = function() {
 
 
 // ── Homepage i18n ────────────────────────────────────────────────
-// Covers the landing screen only (nav, hero, play card, SEO blurb,
-// footer) -- not the Rooms/Local Play sub-screens, in-game UI, or the
-// auth modal, which stay English regardless of the selected language.
+// Covers the landing screen (nav, hero, play card, SEO blurb, footer)
+// plus the How-to-Play modal -- not the Rooms/Local Play sub-screens,
+// in-game UI, or the auth modal, which stay English regardless of the
+// selected language. The modal is reachable in-game too (the '?'
+// header button and Settings), so a non-English player will see
+// translated rules text inside an otherwise-English game UI -- a
+// deliberate inconsistency: rules comprehension is where translation
+// pays for itself, the rest of the in-game chrome isn't.
 // Translations (de/es/fr) are AI-authored, not native-reviewed.
 const TRANSLATIONS = {
   en: {
@@ -6729,6 +6798,25 @@ const TRANSLATIONS = {
     offlineOnline: 'multiplayer server offline', offlineRooms: 'try Local Game below',
     fmtOnline: n => `${n} player${n===1?'':'s'} online`,
     fmtRooms: n => `${n} open room${n===1?'':'s'}`,
+    htpObjectiveTitle: '🎯 Objective',
+    htpObjectiveText: 'Move any one pawn to the <b>goal</b> at the top of the board.',
+    htpTurnTitle: '🎲 Taking a Turn',
+    htpTurnDiagramText: "Roll, then move <b>exactly</b> that many steps. Turn corners freely — you just can't double back.",
+    htpTurnChooseText: 'Move a pawn already on the board, or <b>deploy a new one</b> from your home base.',
+    htpBarricadesTitle: '🚧 Barricades',
+    htpBarricadesText: "You can't pass through a barricade — go around it, or <b>land on it exactly</b> to clear it and place it anywhere else (not the bottom row or the goal).",
+    htpCaptureTitle: '💥 Capturing',
+    htpCaptureText: "Land on an opponent's pawn to send it home — but you can <b>pass over</b> any pawn freely.",
+    htpHomeTitle: '🏠 Home Base',
+    htpHomeText1: 'Select a pawn from home to <b>deploy it</b> — it enters at your entry point, and your roll counts from there.',
+    htpHomeText2: 'Captured pawns return home and can be <b>redeployed</b> on a later turn.',
+    htpPowerupsTitle: '⚡ Powerups Mode',
+    htpPuDoubleRoll: '<b>Double Roll</b> — your dice result is doubled this turn.',
+    htpPuTempBarricade: '<b>Temp Barricade</b> — an orange barricade that disappears after 3 rounds.',
+    htpPuShield: "<b>Shield</b> — your pawns can't be captured, and can't be passed through, for 3 rounds.",
+    htpPuBomb: '<b>Bomb</b> — a hidden mine on any cell. The next pawn to land on it is sent home.',
+    htpPuCollect: '<b>Land on a powerup</b> to collect it — hold up to 2 at a time, and use them before you roll.',
+    htpGotIt: 'Got it!',
   },
   de: {
     navHowToPlay: 'Spielanleitung', navLogIn: 'Anmelden', navPowerups: 'Powerups',
@@ -6745,6 +6833,25 @@ const TRANSLATIONS = {
     offlineOnline: 'Multiplayer-Server offline', offlineRooms: 'Lokales Spiel unten ausprobieren',
     fmtOnline: n => `${n} Spieler online`,
     fmtRooms: n => n===1 ? `${n} offener Raum` : `${n} offene Räume`,
+    htpObjectiveTitle: '🎯 Ziel',
+    htpObjectiveText: 'Bringe eine deiner Figuren als Erstes ins <b>Ziel</b> am oberen Rand des Spielfelds.',
+    htpTurnTitle: '🎲 Ein Zug',
+    htpTurnDiagramText: 'Würfle, dann ziehe <b>genau</b> so viele Felder. Du darfst dabei um Ecken ziehen — nur nicht auf demselben Weg zurück.',
+    htpTurnChooseText: 'Ziehe eine Figur, die schon auf dem Feld steht, oder <b>setze eine neue ein</b> aus deiner Basis.',
+    htpBarricadesTitle: '🚧 Barrikaden',
+    htpBarricadesText: 'Du kannst nicht durch eine Barrikade ziehen — weiche aus, oder ziehe <b>genau darauf</b>, um sie zu entfernen und woanders neu zu platzieren (nicht in der untersten Reihe oder im Ziel).',
+    htpCaptureTitle: '💥 Schlagen',
+    htpCaptureText: 'Ziehst du auf die Figur eines Gegners, wird sie nach Hause geschickt — du kannst aber jede Figur einfach <b>überspringen</b>.',
+    htpHomeTitle: '🏠 Basis',
+    htpHomeText1: 'Wähle eine Figur aus deiner Basis, um sie <b>einzusetzen</b> — sie betritt das Feld an deinem Startpunkt, und dein Wurf zählt von dort.',
+    htpHomeText2: 'Geschlagene Figuren kehren zur Basis zurück und können später erneut <b>eingesetzt</b> werden.',
+    htpPowerupsTitle: '⚡ Powerups-Modus',
+    htpPuDoubleRoll: '<b>Doppelwurf</b> — dein Würfelergebnis wird für diesen Zug verdoppelt.',
+    htpPuTempBarricade: '<b>Temporäre Barrikade</b> — eine orangene Barrikade, die nach 3 Runden verschwindet.',
+    htpPuShield: '<b>Schild</b> — deine Figuren können 3 Runden lang nicht geschlagen oder übersprungen werden.',
+    htpPuBomb: '<b>Bombe</b> — eine versteckte Mine auf einem beliebigen Feld. Die nächste Figur, die dort landet, wird nach Hause geschickt.',
+    htpPuCollect: '<b>Ziehe auf ein Powerup</b>, um es einzusammeln — du kannst bis zu 2 gleichzeitig halten und sie vor dem Würfeln einsetzen.',
+    htpGotIt: 'Verstanden!',
   },
   es: {
     navHowToPlay: 'Cómo jugar', navLogIn: 'Iniciar sesión', navPowerups: 'Potenciadores',
@@ -6761,6 +6868,25 @@ const TRANSLATIONS = {
     offlineOnline: 'servidor multijugador desconectado', offlineRooms: 'prueba el juego local abajo',
     fmtOnline: n => `${n} jugador${n===1?'':'es'} en línea`,
     fmtRooms: n => `${n} sala${n===1?'':'s'} abierta${n===1?'':'s'}`,
+    htpObjectiveTitle: '🎯 Objetivo',
+    htpObjectiveText: 'Lleva cualquiera de tus fichas a la <b>meta</b>, en la parte superior del tablero.',
+    htpTurnTitle: '🎲 Tu turno',
+    htpTurnDiagramText: 'Tira el dado y avanza <b>exactamente</b> ese número de casillas. Puedes girar en las esquinas, pero no puedes retroceder por el mismo camino.',
+    htpTurnChooseText: 'Mueve una ficha que ya esté en el tablero, o <b>saca una nueva</b> de tu base.',
+    htpBarricadesTitle: '🚧 Barricadas',
+    htpBarricadesText: 'No puedes atravesar una barricada — rodéala, o <b>cae exactamente sobre ella</b> para retirarla y colocarla en cualquier otro lugar (excepto la fila inferior o la meta).',
+    htpCaptureTitle: '💥 Capturas',
+    htpCaptureText: 'Si caes sobre la ficha de un rival, la envías de vuelta a su base — pero puedes <b>saltar sobre</b> cualquier ficha libremente.',
+    htpHomeTitle: '🏠 Base',
+    htpHomeText1: 'Elige una ficha de tu base para <b>sacarla</b> — entra al tablero por tu punto de salida, y tu tirada cuenta desde ahí.',
+    htpHomeText2: 'Las fichas capturadas vuelven a la base y pueden <b>volver a salir</b> en un turno posterior.',
+    htpPowerupsTitle: '⚡ Modo Potenciadores',
+    htpPuDoubleRoll: '<b>Tirada doble</b> — el resultado del dado se duplica este turno.',
+    htpPuTempBarricade: '<b>Barricada temporal</b> — una barricada naranja que desaparece tras 3 rondas.',
+    htpPuShield: '<b>Escudo</b> — tus fichas no pueden ser capturadas, ni saltadas, durante 3 rondas.',
+    htpPuBomb: '<b>Bomba</b> — una mina oculta en cualquier casilla. La próxima ficha que caiga ahí vuelve a casa.',
+    htpPuCollect: '<b>Cae sobre un potenciador</b> para recogerlo — puedes tener hasta 2 a la vez, y usarlos antes de tirar.',
+    htpGotIt: '¡Entendido!',
   },
   fr: {
     navHowToPlay: 'Comment jouer', navLogIn: 'Connexion', navPowerups: 'Bonus',
@@ -6777,6 +6903,25 @@ const TRANSLATIONS = {
     offlineOnline: 'serveur multijoueur hors ligne', offlineRooms: 'essaie le jeu local ci-dessous',
     fmtOnline: n => `${n} joueur${n===1?'':'s'} en ligne`,
     fmtRooms: n => `${n} partie${n===1?'':'s'} ouverte${n===1?'':'s'}`,
+    htpObjectiveTitle: '🎯 Objectif',
+    htpObjectiveText: "Amène l'un de tes pions au <b>but</b>, en haut du plateau.",
+    htpTurnTitle: '🎲 Jouer un tour',
+    htpTurnDiagramText: "Lance le dé, puis avance <b>exactement</b> de ce nombre de cases. Tu peux tourner dans les angles, mais pas revenir en arrière sur le même trajet.",
+    htpTurnChooseText: "Déplace un pion déjà sur le plateau, ou <b>fais entrer un nouveau</b> depuis ta base.",
+    htpBarricadesTitle: '🚧 Barricades',
+    htpBarricadesText: "Tu ne peux pas traverser une barricade — contourne-la, ou <b>arrête-toi exactement dessus</b> pour la retirer et la replacer ailleurs (sauf la rangée du bas ou le but).",
+    htpCaptureTitle: '💥 Captures',
+    htpCaptureText: "Arrête-toi sur le pion d'un adversaire pour le renvoyer à sa base — mais tu peux <b>passer par-dessus</b> n'importe quel pion librement.",
+    htpHomeTitle: '🏠 Base',
+    htpHomeText1: "Choisis un pion dans ta base pour le <b>faire entrer</b> — il arrive à ton point d'entrée, et ton lancer compte à partir de là.",
+    htpHomeText2: "Les pions capturés reviennent à la base et peuvent être <b>réintroduits</b> à un tour suivant.",
+    htpPowerupsTitle: '⚡ Mode Bonus',
+    htpPuDoubleRoll: '<b>Double lancer</b> — le résultat de ton dé est doublé ce tour-ci.',
+    htpPuTempBarricade: '<b>Barricade temporaire</b> — une barricade orange qui disparaît après 3 tours.',
+    htpPuShield: "<b>Bouclier</b> — tes pions ne peuvent pas être capturés, ni survolés, pendant 3 tours.",
+    htpPuBomb: '<b>Bombe</b> — une mine cachée sur une case. Le prochain pion qui s\'y arrête est renvoyé à sa base.',
+    htpPuCollect: "<b>Arrête-toi sur un bonus</b> pour le ramasser — tu peux en garder jusqu'à 2 à la fois, à utiliser avant de lancer le dé.",
+    htpGotIt: 'Compris !',
   },
 };
 const LANG_NAMES = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français' };
@@ -6810,6 +6955,15 @@ function renderHpStats() {
 
 function applyHomepageTranslations() {
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  // data-i18n-html: same as data-i18n, but for strings that carry an
+  // inline <b> (the How-to-Play rules). Plain data-i18n uses textContent,
+  // which would silently strip that <b> out of the DOM -- not just on a
+  // language switch, but on the very first call this function ever makes
+  // (initLang() below runs it in English at page load), so every visitor
+  // would lose the bolded emphasis on first paint. TRANSLATIONS' *-html
+  // values are our own static constants, never user input, so innerHTML
+  // here is as safe as the plain-text keys above.
+  document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n-html')); });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.getAttribute('data-i18n-title')); });
   renderHpStats();
