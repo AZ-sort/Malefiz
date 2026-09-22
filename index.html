@@ -91,6 +91,15 @@
     background:var(--surface);border:1px solid var(--border);
     border-radius:14px;padding:14px;flex-shrink:0;
     display:inline-block;
+    /* Never stretch to match a taller sidebar (.main is align-items:stretch).
+       This keeps offsetHeight a stable, content-only measurement of the
+       board card itself -- the number scaleToFit() derives the whole
+       layout's scale from. Without this, opening chat or the Action panel
+       wrapping to another line changes #board-wrap's height, which changes
+       the scale, which visibly grows/shrinks the entire board every turn.
+       Mobile's .main is flex-direction:column with align-items:flex-start
+       !important, so this is a no-op there. */
+    align-self:flex-start;
   }
   #board{position:relative;}
 
@@ -309,7 +318,13 @@
   .phbox small{display:block;color:var(--muted);font-size:.62rem;margin-bottom:3px;letter-spacing:.08em;}
 
   /* Log */
-  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;max-height:180px;overflow-y:auto;}
+  /* No max-height here on desktop: the sidebar is now pinned to the board's
+     own height (see scaleToFit()'s measureLayout()), so flex:1;min-height:0
+     already bounds .glog correctly -- it fills whatever room is left after
+     the other panels, and scrolls past that. The old 180px cap just left
+     dead space below it whenever the board was taller than ~180px of log.
+     Mobile keeps its own max-height override further down. */
+  .glog{display:flex;flex-direction:column;gap:0;flex:1;min-height:56px;overflow-y:auto;}
   .glog::-webkit-scrollbar{width:3px;}
   .glog::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
   .gli{
@@ -974,7 +989,29 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
   /* Homepage content must sit above the background layers */
-  .hp-hero, .hp-preview, #seo-text { position: relative; z-index: 2; }
+  .hp-hero, .hp-preview, #seo-text, #hp-footer { position: relative; z-index: 2; }
+
+  /* #hp-footer is now a real child of #homepage's flex column (previously
+     it lived outside #homepage entirely -- see the markup comment where
+     it's defined). flex-shrink:0 means .hp-preview (flex:1, default
+     flex-shrink:1) is what yields first if the column doesn't fit
+     #homepage's overflow-y:hidden viewport, so the footer stays intact
+     on short windows instead of being clipped. */
+  #hp-footer {
+    width: 100%;
+    max-width: 700px;
+    margin: 0 auto 24px;
+    padding: 0 24px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  #hp-footer p {
+    font-size: .65rem;
+    color: var(--muted);
+    opacity: 0.6;
+    font-family: 'DM Mono', monospace;
+  }
+  #hp-footer a { color: inherit; text-decoration: underline; }
 
   .hp-nav {
     width: 100%;
@@ -1529,10 +1566,17 @@
     letter-spacing: .1em;
     text-transform: uppercase;
     margin: 0;
+    flex-shrink: 0;
   }
   .chat-log {
+    /* Was a hard-pinned 100px. Now the sidebar's total height is pinned to
+       the board's (see scaleToFit()), so in a short board mode (Duel) with
+       chat open, chat + log + the other panels can outgrow that pinned
+       envelope. Letting chat-log shrink first, down to a 56px floor, means
+       the game log (the more important of the two) is what keeps its
+       height -- see the matching flex:1;min-height:56px on .glog. */
     height: 100px;
-    min-height: 100px;
+    min-height: 56px;
     max-height: 100px;
     overflow-y: auto;
     display: flex;
@@ -1540,7 +1584,7 @@
     gap: 4px;
     font-size: .72rem;
     line-height: 1.5;
-    flex-shrink: 0;
+    flex-shrink: 1;
   }
   .chat-log::-webkit-scrollbar { width: 3px; }
   .chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -1562,6 +1606,7 @@
   .chat-input-row {
     display: flex;
     gap: 6px;
+    flex-shrink: 0; /* only .chat-log should give ground in a tight sidebar */
   }
   .chat-input {
     flex: 1;
@@ -1993,6 +2038,23 @@
     </div>
   </div>
 
+  <!-- Footer — a real child of #homepage, unlike its previous location.
+       It used to sit in body flow *outside* #homepage (right before
+       #seo-text below), which inverted its visibility: #homepage is
+       position:fixed;inset:0;z-index:100 with an opaque background, so it
+       covered the footer on the one screen where the footer belongs, while
+       during gameplay (where #homepage is display:none) the footer
+       rendered at the very top of the window, above the header, stealing
+       ~37px from #scaler and shrinking the board's computed scale. See the
+       2026-09-22 fix. -->
+  <div id="hp-footer">
+    <p>
+      <a href="/privacy.html" data-i18n="footerPrivacy">Privacy</a>
+      &nbsp;·&nbsp;
+      <a href="/terms.html" data-i18n="footerTerms">Terms</a>
+    </p>
+  </div>
+
   </div>
 
 </div>
@@ -2004,17 +2066,6 @@
   </p>
   <p style="font-size:.65rem;color:var(--muted);opacity:0.6;line-height:1.6;font-family:'DM Mono',monospace;margin-top:8px;" data-i18n="seoTags">
     Free • No download • 1–4 players • Online multiplayer • vs AI • Malefiz • Barricade
-  </p>
-</div>
-
-<!-- Footer — same visibility mechanism as #seo-text above (in normal
-     document flow, covered by other screens' fixed full-viewport overlays
-     during gameplay, so it only reads as "visible" on the homepage). -->
-<div id="hp-footer" style="max-width:700px;margin:0 auto 24px;padding:0 24px;text-align:center;">
-  <p style="font-size:.65rem;color:var(--muted);opacity:0.6;font-family:'DM Mono',monospace;">
-    <a href="/privacy.html" style="color:inherit;text-decoration:underline;" data-i18n="footerPrivacy">Privacy</a>
-    &nbsp;·&nbsp;
-    <a href="/terms.html" style="color:inherit;text-decoration:underline;" data-i18n="footerTerms">Terms</a>
   </p>
 </div>
 
@@ -2526,8 +2577,13 @@
     </div>
 
     <div class="panel" style="flex:1;min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;gap:0;">
-      <!-- Chat above log, only shown in online games -->
-      <div class="chat-panel hidden" id="chat-panel" style="flex-shrink:0;">
+      <!-- Chat above log, only shown in online games. flex-shrink is
+           intentionally NOT 0 here (unlike log-divider/h3 below): in a short
+           board mode (Duel) the sidebar's pinned height can be less than
+           chat+log's combined natural height, and this panel -- via
+           .chat-log's flex-shrink:1;min-height:56px -- is what's meant to
+           give ground first, so .glog keeps its height. See scaleToFit(). -->
+      <div class="chat-panel hidden" id="chat-panel">
         <h3>Chat</h3>
         <div class="chat-log" id="chat-log"></div>
         <div class="chat-input-row">
@@ -3110,13 +3166,56 @@ function animatePawnAlongPath(pawn, path, onDone) {
 
 
 // ── Viewport scaler ────────────────────────────────────────────
-// scaleToFit — only runs on load and resize, NEVER during gameplay
-// Measures the natural size once and caches it to avoid reflow thrashing
+// scaleToFit — only runs on load, on resize, and when the board layout
+// itself changes (game start / restore). NEVER during gameplay.
+//
+// This was already the intent, but renderAll() called it on every single
+// render (every roll, move, capture, powerup, chat message, socket event) --
+// so on desktop, where the scale is derived from #scaler-inner's live
+// content height, the whole board visibly grew and shrank every turn as the
+// sidebar's height changed (the Action panel re-wrapping to a different
+// number of lines was enough on its own). See the 2026-09-22 fix.
+//
+// The desktop branch now derives its natural size from #board-wrap alone
+// (align-self:flex-start in CSS keeps its height a stable, content-only
+// measurement -- BOARD_W/BOARD_H are fixed per board mode, so this cannot
+// change mid-game), then pins #scaler-inner to that height. That's what
+// stops the sidebar driving the layout: .sidebar (align-self:stretch)
+// receives exactly the board's height and can't exceed it, and its own log
+// panel (flex:1;min-height) absorbs the slack by scrolling instead.
 let _cachedScale = 1;
 let _scaleTimer = null;
 
+// Pins #scaler-inner to #board-wrap's natural (unstretched) height and
+// returns the resulting stable layout size. Only used by scaleToFit()'s
+// desktop branch.
+function measureLayout() {
+  const inner = document.getElementById('scaler-inner');
+  const boardWrap = document.getElementById('board-wrap');
+  const main = document.querySelector('.main');
+  if (!inner || !boardWrap || !main) return null;
+
+  // Clear anything the mobile branch may have left inline, or offsetHeight
+  // below reads back a stale pinned value instead of the real board size
+  // (matters when crossing the 700px breakpoint mid-game).
+  boardWrap.style.height = '';
+  boardWrap.style.marginBottom = '';
+
+  const mainPadY = parseFloat(getComputedStyle(main).paddingTop) + parseFloat(getComputedStyle(main).paddingBottom);
+  const h = boardWrap.offsetHeight + mainPadY; // board card only -- never the sidebar
+  if (!h || h <= mainPadY) return null;
+
+  // With a definite height, .sidebar's align-self:stretch resolves to
+  // exactly the board's height, and its log panel scrolls instead of
+  // growing the layout. Nothing in the sidebar can change `h` from here.
+  inner.style.height = h + 'px';
+
+  const w = inner.offsetWidth; // fixed board width + fixed 224px sidebar
+  if (!w) return null;
+  return { w, h };
+}
+
 function scaleToFit() {
-  if (animating) return;
   const isMobile = window.innerWidth <= 700;
 
   if (isMobile) {
@@ -3124,9 +3223,14 @@ function scaleToFit() {
     const inner = document.getElementById('scaler-inner');
     if (!boardWrap || !inner) return;
 
-    // Reset transforms
+    // Reset transforms and any pinned height/margin from a prior call --
+    // without this, offsetHeight below can read back a stale value after a
+    // board-mode switch (Classic <-> Duel) or a desktop->mobile crossing.
     boardWrap.style.transform = 'none';
+    boardWrap.style.height = '';
+    boardWrap.style.marginBottom = '';
     inner.style.transform = 'none';
+    inner.style.height = '';
 
     // Measure natural board width (includes padding)
     const naturalW = boardWrap.offsetWidth;
@@ -3145,7 +3249,7 @@ function scaleToFit() {
     boardWrap.style.height = naturalH + 'px'; // keep natural for measurement
     boardWrap.style.marginBottom = (scaledH - naturalH) + 'px'; // negative margin to close gap
   } else {
-    // Desktop: scale the whole inner layout
+    // Desktop: scale the whole inner layout, derived from the board alone
     const inner = document.getElementById('scaler-inner');
     const scaler = document.getElementById('scaler');
     if (!inner || !scaler) return;
@@ -3154,14 +3258,15 @@ function scaleToFit() {
     const boardWrap = document.getElementById('board-wrap');
     if (boardWrap) { boardWrap.style.transform = 'none'; boardWrap.style.marginBottom = '0'; }
 
-    inner.style.transform = 'none';
+    const nat = measureLayout(); // also clears stale mobile inline styles
+    if (!nat) return;
+
+    // offsetWidth/offsetHeight below are pre-transform border-box sizes, so
+    // there's no need to reset inner's own transform before measuring.
     const availH = scaler.offsetHeight;
     const availW = scaler.offsetWidth;
-    const naturalH = inner.offsetHeight;
-    const naturalW = inner.offsetWidth;
-    if (naturalH === 0 || naturalW === 0) return;
 
-    const scale = Math.min(availH / naturalH, availW / naturalW, 1);
+    const scale = Math.min(availH / nat.h, availW / nat.w, 1);
     _cachedScale = scale;
     inner.style.transform = `scale(${scale})`;
     inner.style.transformOrigin = 'top center';
@@ -3169,18 +3274,22 @@ function scaleToFit() {
 }
 
 // Debounced resize handler — waits 150ms after resize stops
-window.addEventListener('resize', () => {
+function scheduleScaleToFit(delay) {
   clearTimeout(_scaleTimer);
+  // If a pawn is mid-animation, wait for it rather than dropping this
+  // resize/rotation entirely -- scaleToFit() itself no longer self-guards
+  // on `animating` now that it's not called on every render.
+  if (animating) { _scaleTimer = setTimeout(() => scheduleScaleToFit(delay), 100); return; }
   // layoutMobileHitTargets() only needs to re-run here, on an actual
-  // viewport resize/rotation -- NOT from every renderAll()-triggered
-  // scaleToFit() call (that path already gets fresh hit-targets from
-  // renderBoard()'s own call at the end of its render). Calling it from
-  // inside scaleToFit() itself doubled the layout-forcing
-  // getBoundingClientRect() work on every single game action, since
-  // renderAll() schedules a scaleToFit() via setTimeout unconditionally,
-  // not just on resize.
-  _scaleTimer = setTimeout(() => { scaleToFit(); layoutMobileHitTargets(); }, 150);
-});
+  // viewport resize/rotation -- NOT on every render (that path already gets
+  // fresh hit-targets from renderBoard()'s own call at the end of its
+  // render).
+  _scaleTimer = setTimeout(() => { scaleToFit(); layoutMobileHitTargets(); }, delay);
+}
+window.addEventListener('resize', () => scheduleScaleToFit(150));
+// iOS Safari's own 'resize' on rotation isn't reliably late enough for the
+// new viewport dimensions to have settled.
+window.addEventListener('orientationchange', () => scheduleScaleToFit(250));
 
 // Run once after everything has rendered
 window.addEventListener('load', () => setTimeout(scaleToFit, 200));
@@ -5338,7 +5447,13 @@ function layoutMobileHitTargets() {
 }
 
 function renderAll() {
-  renderBoard(); renderSidebar(); updateGlowOverlay(); setTimeout(scaleToFit,0); if(mpIsOnline) updateOnlineTurnUI();
+  // No scaleToFit() here. It used to run on every render (every roll, move,
+  // capture, powerup, chat message and socket event), which is why the
+  // whole board visibly grew and shrank whenever the Action panel's text
+  // wrapped to a different number of lines. The board's own scale only
+  // changes when the board's *layout* changes -- see the explicit
+  // scaleToFit() calls at each game-start/restore site instead.
+  renderBoard(); renderSidebar(); updateGlowOverlay(); if(mpIsOnline) updateOnlineTurnUI();
 }
 
 function renderBoard() {
@@ -5971,6 +6086,7 @@ function connectSocket() {
     updateSyncBtn();
     glog('Reconnected!', true);
     showChat();
+    setTimeout(scaleToFit, 50);
   });
 
   socket.on('state-update', ({ gameState }) => {
@@ -6348,6 +6464,7 @@ function startOnlineGame(players, mode, npOnline) {
   updateOnlineTurnUI();
   updateSyncBtn();
   showChat();
+  setTimeout(scaleToFit, 50);
   // Push initial state to server immediately
   setTimeout(() => syncAction('state-init', {}), 500);
 }
@@ -7074,6 +7191,7 @@ function startFromHomepage() {
   document.getElementById('glog').innerHTML = '';
   initGame();
   renderAll();
+  setTimeout(scaleToFit, 50);
   glog('Beige bars are barricades — no pawn can pass through one. Land on one exactly and it becomes yours to re-place.');
   glog('Game started!', true);
   if (isCPU(currentPlayer)) setTimeout(doCPU, 700);
