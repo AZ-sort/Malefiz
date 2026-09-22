@@ -944,7 +944,7 @@
   }
   #homepage.show { display: flex; }
 
-  /* ── Racing pawns + drifting glow background (homepage only) ── */
+  /* ── Racing pawns over a static grain texture (homepage only) ── */
   #hp-bg-canvas {
     position: fixed;
     inset: 0;
@@ -959,7 +959,7 @@
     inset: 0;
     z-index: 1;
     pointer-events: none;
-    opacity: 0.035;
+    opacity: 0.1; /* was 0.035 — turned up to read as an actual texture, not just noise floor */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
   /* Homepage content must sit above the background layers */
@@ -6971,23 +6971,24 @@ function updateHomepageStats(rooms, onlineCount) {
   renderHpStats();
 }
 
-// ── Racing pawns + drifting glow background (homepage only) ────────
+// ── Racing pawns over a static grain texture (homepage only) ───────
 // Intentionally placed BEFORE the network/auth init below: it has no
 // dependency on the multiplayer server, and must keep running even if
 // that server is unreachable and throws during its own setup.
 //
 // Two pawns race along an (invisible) lattice toward the top edge,
 // one arriving first, then fading and restarting with new colors and
-// new routes — over a large, soft, low-alpha radial glow that slowly
-// wanders the screen and cycles through the same four player colors.
-// Replaces an earlier faint ring-lattice pattern (PR #10, then PR
-// #47): direct feedback was that the dotted grid itself, not just its
-// motion, felt too busy. Fully passive — no pointer handling at all —
-// so it runs identically on desktop and touch; the original
-// cursor-following barricade trail (PR #10) was desktop-only (gated
-// on `hover:hover and pointer:fine`), which left the ~43% of visitors
-// on phones looking at a static background. This version animates for
-// everyone.
+// new routes, over the plain --bg navy and the page's own static
+// #hp-grain noise layer (see its CSS above) — no independent moving
+// shape behind them. An earlier version (PR #48) added a drifting
+// color-glow here; direct feedback was that it didn't read well
+// alongside the racers — two separate things competing for attention
+// — and that texture, not more motion, was actually wanted. Fully
+// passive — no pointer handling at all — so it runs identically on
+// desktop and touch; the original cursor-following barricade trail
+// (PR #10) was desktop-only (gated on `hover:hover and pointer:fine`),
+// which left the ~43% of visitors on phones looking at a static
+// background. This version animates for everyone.
 (function() {
   const canvas = document.getElementById('hp-bg-canvas');
   if (!canvas) return;
@@ -7006,12 +7007,6 @@ function updateHomepageStats(rooms, onlineCount) {
   const PAUSE_JITTER = 1500;
   const STEP_MS_PAIR = [240, 285]; // per-racer ms/cell, randomly assigned so one clearly wins
   const ROUTE_MAX_ATTEMPTS = 60;   // retries before a start column is abandoned
-
-  const GLOW_ALPHA_PEAK = 0.07;     // peak glow opacity at its center — stays ambient, never a spotlight
-  const GLOW_RADIUS_FRAC = 0.55;    // glow radius as a fraction of max(W,H) — large and soft-edged
-  const GLOW_DRIFT_MS_X = 27000;    // independent periods so the drift never feels mechanical
-  const GLOW_DRIFT_MS_Y = 19000;
-  const GLOW_COLOR_MS = 9000;       // ms spent crossfading into each of the 4 player colors
 
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -7066,47 +7061,6 @@ function updateHomepageStats(rooms, onlineCount) {
     gridCols = Math.ceil(W / PITCH) + 1;
     gridRows = Math.ceil(H / PITCH) + 1;
     computeKeepOut();
-  }
-
-  // ── Drifting color-glow ──
-  // A single soft radial gradient, redrawn each frame — cheaper than
-  // either the old per-frame ring-stroking or the lattice image blit
-  // it replaced. Position wanders via two out-of-phase sine waves
-  // (Lissajous-style) so the drift never lands on an obviously
-  // repeating loop within one viewing; color slowly crossfades through
-  // the same four player colors the racers use.
-  function glowPosition(now) {
-    return {
-      cx: W / 2 + Math.sin((now / GLOW_DRIFT_MS_X) * Math.PI * 2) * (W * 0.32),
-      cy: H / 2 + Math.cos((now / GLOW_DRIFT_MS_Y) * Math.PI * 2) * (H * 0.32)
-    };
-  }
-  function glowColor(now) {
-    const cycle = (now / GLOW_COLOR_MS) % 4;
-    const i0 = Math.floor(cycle) % 4;
-    const i1 = (i0 + 1) % 4;
-    const t = cycle - Math.floor(cycle);
-    const c0 = pRgb[i0].split(',').map(Number);
-    const c1 = pRgb[i1].split(',').map(Number);
-    return [0, 1, 2].map((k) => Math.round(c0[k] + (c1[k] - c0[k]) * t)).join(',');
-  }
-  function paintGlow(cx, cy, rgb) {
-    const R = Math.max(W, H) * GLOW_RADIUS_FRAC;
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-    grad.addColorStop(0, `rgba(${rgb}, ${GLOW_ALPHA_PEAK})`);
-    grad.addColorStop(1, `rgba(${rgb}, 0)`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-  }
-  function drawGlow(now) {
-    const { cx, cy } = glowPosition(now);
-    paintGlow(cx, cy, glowColor(now));
-  }
-  function drawStaticGlow() {
-    // Reduced-motion frame: fixed center, fixed color, no drift or
-    // color cycling — same "one still frame, then stop" contract the
-    // old lattice cache used.
-    paintGlow(W / 2, H / 2, pRgb[0]);
   }
 
   // ── Route building ──
@@ -7307,9 +7261,7 @@ function updateHomepageStats(rooms, onlineCount) {
 
   function draw() {
     clearFrame();
-    const now = performance.now();
-    drawGlow(now);
-    tickRace(now);
+    tickRace(performance.now());
     raf = requestAnimationFrame(draw);
   }
 
@@ -7317,7 +7269,7 @@ function updateHomepageStats(rooms, onlineCount) {
     if (running) return;
     running = true;
     init();
-    if (prefersReduced) { clearFrame(); drawStaticGlow(); return; } // one static frame, no race loop
+    if (prefersReduced) { clearFrame(); return; } // one blank frame (grain is a CSS layer, not canvas), no race loop
     draw();
   }
   function stop() {
