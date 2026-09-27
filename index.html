@@ -3809,6 +3809,7 @@ function applyDoubleRoll() {
   // Reset snapshot so updateGlowOverlay actually rebuilds the board
   glowTurnSnapshot = '';
   renderAll();
+  checkNoLegalMove();
   return true;
 }
 
@@ -4718,6 +4719,39 @@ function rollDice() {
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn';
   renderAll();
+  checkNoLegalMove();
+}
+
+// True if some pawn belonging to `player` has at least one legal destination
+// for a roll of `steps` — same reserve/on-board pair bestMove() uses to build
+// its own candidate list (index.html bestMove()).
+function hasAnyLegalMove(player, steps) {
+  for (const pw of (pawns[player]||[])) {
+    const reach = pw.onBoard ? getReachable(pw, steps) : getReachableFromEntry(player, steps);
+    if (reach.length) return true;
+  }
+  return false;
+}
+
+// A human whose roll leaves every pawn boxed in (barricades, occupied entry,
+// etc.) used to just sit on 'pick-pawn' forever — pickPawn() only ever told
+// them to "try another pawn", and there was no other pawn to try. The CPU
+// path (doCPU) already passes the turn when bestMove() finds nothing; this
+// gives humans the same escape hatch instead of a hard lock. Called right
+// after a roll lands on 'pick-pawn', for both a normal roll and Double Roll.
+function checkNoLegalMove() {
+  if (isCPU(currentPlayer) || hasAnyLegalMove(currentPlayer, diceVal)) return;
+  const stuckPlayer = currentPlayer;
+  const stuckRoll = diceVal;
+  glog(`${pnm(stuckPlayer)} rolled ${stuckRoll} but has no legal move — turn passes.`, true);
+  // Small delay so the roll and the message actually register before the
+  // turn moves on, and so the rollDice sync wrapper (which fires right after
+  // this function returns) has already sent the 'roll' action first.
+  setTimeout(() => {
+    if (gameOver || phase !== 'pick-pawn' || currentPlayer !== stuckPlayer || diceVal !== stuckRoll) return;
+    if (mpIsOnline) syncAction('no-move', { diceVal: stuckRoll });
+    nextTurn();
+  }, 1400);
 }
 
 function pickPawn(pawn) {
@@ -6570,6 +6604,16 @@ function handleRemoteAction(action) {
     soundDice();
     glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
     phase = 'pick-pawn';
+    renderAll();
+  } else if (type === 'no-move') {
+    // Active player found no legal move and is about to call nextTurn()
+    // locally; mirror the message here and reset phase to 'roll' so the
+    // upcoming next-turn-resolved isn't mistaken for stale (applyNTR ignores
+    // one where phase!=='roll' && currentPlayer already matches data.currentPlayer
+    // — which a Skip Turn powerup could otherwise trigger by routing the turn
+    // straight back to this same stuck player).
+    glog(`${pnm(currentPlayer)} rolled ${data.diceVal} but has no legal move — turn passes.`, true);
+    phase = 'roll';
     renderAll();
   } else if (type === 'move' || type === 'deploy-pawn') {
     // Find pawn by id, or use first reserve pawn for deploy
