@@ -49,6 +49,23 @@ node loadtest.js https://malefiz-production.up.railway.app 400
 
 Rooms are always created private, so the live public lobby is never touched. Because the rate limits above are per-IP, running this from a single machine will hit `checkRate()` well before it hits real server capacity — see the comment at the top of the script for why, and raise the `MAX_*_PER_IP` env vars above for the test window if that happens. Cross-reference the script's client-side numbers with `railway logs --service Malefiz` for the same window; server-side memory pressure or restarts won't show up client-side.
 
+## AI simulation
+
+`tools/aisim.js` plays the CPU opponent against itself headlessly so AI changes can be judged on win rates and turn counts instead of manual play. Plain Node, no dependencies, no build step — it reads `index.html`, slices out the game `<script>`, and runs it in a `vm` context with a stubbed DOM and a virtual clock, so the real 700/430/480/200ms turn chain executes instantly but in the correct order. `index.html` is never modified.
+
+```
+node tools/aisim.js --matrix --seed 7              # full pairing table, both boards
+node tools/aisim.js --pairing hard:easy --games 20 # one pairing
+node tools/aisim.js --forced-win --trials 500      # does each tier take a win in front of it?
+node tools/aisim.js --bench                        # per-decision cost of the AI entry points
+```
+
+Same `--seed` means the same dice stream, so a before/after run attributes differences to the change rather than to luck. Paste the before/after table into any PR that touches the `// CPU AI` block.
+
+Two things it reports that manual play cannot: whether a pairing **stalls** (no pending timers and nobody has won — the turn loop dropped the baton, which is a real bug class here), and per-decision milliseconds. Node timings are roughly 3-5x faster than a mid-range phone, and the CPU's own pacing gives `bestMoveHard()` a 430ms window and `bestBarricade()` a 700ms one — so treat anything above ~25ms in Node as a mobile latency risk.
+
+Keep this under `tools/`. Vercel serves the repo root statically, so a root-level `.js` file is publicly fetchable (this is why `/server.js` and `/loadtest.js` are readable in production).
+
 ## Standing maintenance obligations
 
 Two things about this repo are easy to forget and will cause quiet production breakage if missed:
