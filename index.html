@@ -3817,25 +3817,30 @@ function closePowerupModal() {
   pendingPowerup = null;
 }
 
+// Take an item out of a player's inventory. One helper instead of the same
+// filter line repeated per powerup type, so the CPU path and the human path
+// cannot drift apart.
+function consumePowerup(player, pu) {
+  playerPowerups[player] = (playerPowerups[player] || []).filter(p => p.id !== pu.id);
+}
+
+// Run a powerup's effect. Shared by confirmPowerup() (human, via the modal) and
+// cpuUsePowerup() (CPU, called directly) so both spend items through exactly
+// the same code.
+function applyPowerup(player, pu) {
+  consumePowerup(player, pu);
+  if (pu.type === 'double')       activateDoubleRoll();
+  else if (pu.type === 'shield')  activateShield();
+  else if (pu.type === 'tempbar') activateTempBarricade();
+  else if (pu.type === 'trap')    activateTrap();
+}
+
 function confirmPowerup() {
   document.getElementById('powerup-modal').classList.remove('show');
   if (!pendingPowerup) return;
   const pu = pendingPowerup;
   pendingPowerup = null;
-
-  if (pu.type === 'double') {
-    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
-    activateDoubleRoll();
-  } else if (pu.type === 'shield') {
-    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
-    activateShield();
-  } else if (pu.type === 'tempbar') {
-    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
-    activateTempBarricade();
-  } else if (pu.type === 'trap') {
-    playerPowerups[currentPlayer] = (playerPowerups[currentPlayer] || []).filter(p => p.id !== pu.id);
-    activateTrap();
-  }
+  applyPowerup(currentPlayer, pu);
 }
 
 // ── Double Roll ─────────────────────────────────────────────────
@@ -5026,9 +5031,35 @@ function isCPU(p) { return cpuMode==='some' && p !== 1; } // player 1 is always 
 
 function doCPU() {
   if (gameOver) return;
+
+  // Spend a powerup before rolling, the same point in the turn the human is
+  // allowed to (clickPowerup requires phase === 'roll').
+  cpuMaybeUsePowerup();
+  if (gameOver) return;
+
   let roll = Math.floor(Math.random()*6)+1;
   // Reroll once if same as last roll (reduces jarring streaks)
   if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
+  // Double Roll, handled here because doCPU does its own rolling.
+  //
+  // This is the whole reason the CPU could never use a Double Roll: the flag is
+  // only read by applyDoubleRoll(), which is only called from rollDice(), which
+  // early-returns for CPU seats. doCPU duplicates rollDice's logic instead of
+  // calling it, so EVERY roll-phase feature silently skips the CPU -- worth
+  // remembering as a class of bug, not just this one instance.
+  if (doubleRollActive) {
+    doubleRollActive = false;
+    diceVal = roll * 2;
+    lastDiceVal = roll;
+    animDice(diceVal);
+    soundDice();
+    firstRollDone = true;
+    glog(`${pnm(currentPlayer)} rolled ${roll} × 2 = ${diceVal}! 🎲`, true);
+    glowTurnSnapshot = '';
+    phase = 'pick-pawn'; renderAll();
+    setTimeout(() => { cpuPickAndMove(); }, 430);
+    return;
+  }
   lastDiceVal = roll;
   diceVal = roll;
   animDice(diceVal);
@@ -5036,16 +5067,21 @@ function doCPU() {
   firstRollDone = true;
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn'; renderAll();
+  setTimeout(() => { cpuPickAndMove(); }, 430);
+}
+
+// Pick a pawn and commit the move. Split out of doCPU so the normal roll and
+// the Double Roll path share one implementation.
+function cpuPickAndMove() {
+  if (gameOver) return;
+  const mv = bestMove();
+  if (!mv) { nextTurn(); renderAll(); return; }
+  selPawn = mv.pawn; reachable = mv.reach; phase = 'move'; renderAll();
   setTimeout(() => {
-    const mv = bestMove();
-    if (!mv) { nextTurn(); renderAll(); return; }
-    selPawn = mv.pawn; reachable = mv.reach; phase = 'move'; renderAll();
-    setTimeout(() => {
-      moveTo(mv.target.er, mv.target.ec);
-      // Note: nextTurn() inside moveTo's callback already schedules doCPU if needed
-      // The place-barricade phase is handled after animation completes
-    }, 480);
-  }, 430);
+    moveTo(mv.target.er, mv.target.ec);
+    // Note: nextTurn() inside moveTo's callback already schedules doCPU if needed
+    // The place-barricade phase is handled after animation completes
+  }, 480);
 }
 
 // ================================================================
@@ -5270,10 +5306,16 @@ const WIN_SCORE = 10000;   // scoreTarget() returns exactly this for the goal
 // them, and strength falls monotonically as T rises above ~2. T=2 rather than
 // T=0 because it was stronger on Duel and near-identical on Classic, and a
 // little non-determinism makes the CPU less repetitive to play against.
+// puSkill: how well the tier SPENDS powerups, which is a separate axis from how
+// well it moves. Giving medium and hard the same powerup play was measurably
+// pointless -- it lifted both equally and left their separation unchanged at
+// ~57%. 'sharp' gets the two decisive plays (spot a Double Roll that reaches
+// the goal; aim a mine at the cell the enemy most wants); 'basic' spends
+// sensibly but sees neither; 'random' just fires something occasionally.
 const CPU_TIERS = {
-  easy:   { moveT: 28, barrT: 30, blunder: 0.15 },
-  medium: { moveT: 12, barrT: 14, blunder: 0    },
-  hard:   { moveT: 2,  barrT: 2,  blunder: 0    },
+  easy:   { moveT: 28, barrT: 30, blunder: 0.15, puSkill: 'random' },
+  medium: { moveT: 12, barrT: 14, blunder: 0,    puSkill: 'basic'  },
+  hard:   { moveT: 2,  barrT: 2,  blunder: 0,    puSkill: 'sharp'  },
 };
 function cpuTier() { return CPU_TIERS[cpuDiff] || CPU_TIERS.medium; }
 
@@ -5368,6 +5410,153 @@ function bestMove() {
 // bestBarricade() deliberately does NOT filter traps -- traps are hidden, and
 // filtering them would leak their positions to the AI. Retrying blindly keeps
 // the AI honest and covers any future placement rule for free.
+// ── CPU powerup use ─────────────────────────────────────────────
+//
+// The CPU could always COLLECT powerups but never spend them: clickPowerup()
+// and confirmPowerup() are only reachable from a DOM click handler. Since the
+// inventory caps at 2, a hoarding CPU also stopped being able to collect, so in
+// a Powerups game the human effectively played with items and the CPU without.
+// Measured cost: classic hard-vs-medium separation fell to 58.3% with powerups
+// on, against 73.3% without.
+//
+// These call activateX() directly -- never a simulated click -- and run BEFORE
+// the roll, mirroring clickPowerup()'s own `phase !== 'roll'` guard.
+
+// Placement powerups leave phase at 'place-temp-barricade' / 'place-trap' and
+// their place*() functions silently return on an illegal cell -- the same shape
+// as the barricade softlock. Walk candidates until one is accepted; if none
+// are, hand the phase back so the turn can continue.
+function cpuPlaceFrom(cands, placeFn, stuckPhase) {
+  for (const c of (cands || [])) {
+    placeFn(c.er, c.ec);
+    if (phase !== stuckPhase) return true;   // accepted; it reset phase to 'roll'
+  }
+  phase = 'roll';   // nothing legal -- never strand the turn mid-placement
+  return false;
+}
+
+// Where would the CPU most like to deny the enemy? The cell they can reach that
+// is closest to the goal, skipping anything our own pawns might step on.
+function cpuTrapCandidates() {
+  const threat = enemyThreatData(enemyPlayers()).hits;
+  const mine = new Set();
+  for (const pw of (pawns[currentPlayer] || [])) {
+    if (!pw.onBoard) continue;
+    for (let d = 1; d <= 6; d++) {
+      for (const t of getReachableCells(pw, d)) mine.add(`${t.er},${t.ec}`);
+    }
+  }
+  const out = [];
+  for (const key of threat.keys()) {
+    if (mine.has(key)) continue;                       // don't mine our own route
+    const [er, ec] = key.split(',').map(Number);
+    const cell = getCell(er, ec);
+    if (!cell || cell.type === 'goal') continue;
+    if (barAt(er, ec) || pawnAt(er, ec)) continue;
+    if (er >= BOTTOM_ROW) continue;
+    if (traps.find(t => t.er === er && t.ec === ec)) continue;
+    out.push({ er, ec });
+  }
+  return out;
+}
+
+function cpuBestTrapCell() {
+  let best = null, bestDist = 999;
+  for (const c of cpuTrapCandidates()) {
+    const d = distToGoal(c.er, c.ec);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best;
+}
+
+// Would doubling some roll land a pawn exactly on the goal this turn?
+// 'sharp' aims the mine at the cell the enemy most wants; 'basic' just drops it
+// on some cell they can reach. Same denial-of-space idea, much blunter.
+function cpuTrapCellFor(skill) {
+  if (skill === 'sharp') return cpuBestTrapCell();
+  const cands = cpuTrapCandidates();
+  return cands.length ? cands[Math.floor(Math.random() * cands.length)] : null;
+}
+
+function cpuDoubleRollWins() {
+  for (const r of [2, 4, 6, 8, 10, 12]) {
+    for (const pw of (pawns[currentPlayer] || [])) {
+      const reach = pw.onBoard ? getReachableCells(pw, r) : getReachableFromEntry(currentPlayer, r);
+      if (reach.some(t => t.er === GOAL[0] && t.ec === GOAL[1])) return true;
+    }
+  }
+  return false;
+}
+
+function cpuLeadDist() {
+  let best = 999;
+  for (const pw of (pawns[currentPlayer] || [])) {
+    if (pw.onBoard) best = Math.min(best, distToGoal(pw.er, pw.ec));
+  }
+  return best;
+}
+
+// Pick an item worth spending now, or null to hold. Called before the roll.
+function cpuChoosePowerup() {
+  const held = playerPowerups[currentPlayer] || [];
+  if (!held.length) return null;
+  const tier = cpuTier();
+  const skill = tier.puSkill || 'basic';
+  const has = (t) => held.find(p => p.type === t);
+  // A full inventory blocks further collection, so lower the bar rather than
+  // sit on two items for the rest of the game.
+  const full = held.length >= 2;
+
+  // Easy barely plans: it just occasionally fires something at random.
+  if (skill === 'random') {
+    return Math.random() < (full ? 0.35 : 0.2)
+      ? held[Math.floor(Math.random() * held.length)] : null;
+  }
+
+  const lead = cpuLeadDist();
+
+  // Decisive, and hard-only: a double that reaches the goal outright.
+  const dbl = has('double');
+  if (skill === 'sharp' && dbl && cpuDoubleRollWins()) return dbl;
+
+  // Shield only when there is something real to protect.
+  const shd = has('shield');
+  if (shd && !(shieldTurns[currentPlayer] > 0) && lead < (skill === 'sharp' ? 12 : 8)) {
+    const enemies = enemyPlayers();
+    for (const pw of (pawns[currentPlayer] || [])) {
+      if (pw.onBoard && cellUnderThreat(pw.er, pw.ec, enemies)) return shd;
+    }
+  }
+
+  // Board control is always worth something.
+  const tb = has('tempbar');
+  if (tb && (full || lead > 6)) return tb;
+  const tr = has('trap');
+  if (tr && (full || lead > 6) && cpuTrapCellFor(skill)) return tr;
+
+  // Tempo double: still a long way out, nothing better to do.
+  if (dbl && (full || lead > 12)) return dbl;
+  return null;
+}
+
+// Spend one powerup, resolving any placement it demands. Synchronous, so doCPU
+// can carry straight on to its roll afterwards.
+function cpuMaybeUsePowerup() {
+  if (!powerupsEnabled || gameOver || phase !== 'roll') return false;
+  const pu = cpuChoosePowerup();
+  if (!pu) return false;
+
+  applyPowerup(currentPlayer, pu);
+
+  if (phase === 'place-temp-barricade') {
+    cpuPlaceFrom(bestBarricade(true), placeTempBarricade, 'place-temp-barricade');
+  } else if (phase === 'place-trap') {
+    const cell = cpuTrapCellFor(cpuTier().puSkill || 'basic');
+    cpuPlaceFrom(cell ? [cell] : [], placeTrap, 'place-trap');
+  }
+  return true;
+}
+
 function cpuPlaceBarricade() {
   for (const pl of (bestBarricade(true) || [])) {
     placeBarricade(pl.er, pl.ec);
