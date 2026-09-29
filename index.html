@@ -2828,6 +2828,10 @@ const BOARDS = {
 
 // ── Active board state (rebuilt by setBoard) ─────────────────────
 let activeBoard = 'classic';
+// Goal-distance lookup table, invalidated by setBoard(). Declared here rather
+// than beside goalDistTable() because setBoard() is called during load and a
+// `let` further down the file would still be in its temporal dead zone.
+let _goalDistCache = null, _goalDistBoard = null;
 let CELL_MAP = {};
 let ENTRY = {};
 let GOAL = [4,9];
@@ -2843,6 +2847,7 @@ function addCell(er, ec, type) {
 function setBoard(id) {
   const b = BOARDS[id] || BOARDS.classic;
   activeBoard = BOARDS[id] ? id : 'classic';
+  _goalDistCache = null;   // geometry changed -- see goalDistTable()
   CELL_MAP = {};
   ENTRY = b.entries;
   GOAL = b.goal;
@@ -2888,6 +2893,10 @@ let numPlayers = 2, cpuMode = 'none', cpuDiff = 'easy', powerupsEnabled = false;
 // onBoard=false → pawn is in reserve at home, not on the grid
 let pawns = {}, barricades = [], currentPlayer = 1;
 let diceVal = null, phase = 'roll', selPawn = null, reachable = [], gameOver = false;
+// Last reachable-destination map, kept so moveTo() can send the exact path for
+// multiplayer sync. This was an implicit global (assigned, never declared); the
+// AI deliberately avoids writing it -- see getReachableCells().
+let lastReachMap = null;
 // Set by the reachable-destination search whenever a barricade truncated a
 // branch, so pickPawn() can tell a player *why* a pawn has no legal move
 // instead of just saying it doesn't. Proves *a* barricade contributed, not
@@ -2993,6 +3002,14 @@ function getReachableWithPaths(startEr, startEc, steps, player) {
 function getReachable(pawn, steps) {
   const map = getReachableWithPaths(pawn.er, pawn.ec, steps, pawn.player);
   lastReachMap = map; // save for sync
+  return Object.keys(map).map(k => { const [er,ec]=k.split(',').map(Number); return {er,ec}; });
+}
+
+// Same as getReachable(), minus the lastReachMap write. The AI evaluates
+// hundreds of hypothetical moves per turn and must never disturb the path the
+// multiplayer sync layer is holding for the move actually being made.
+function getReachableCells(pawn, steps) {
+  const map = getReachableWithPaths(pawn.er, pawn.ec, steps, pawn.player);
   return Object.keys(map).map(k => { const [er,ec]=k.split(',').map(Number); return {er,ec}; });
 }
 
@@ -4915,11 +4932,7 @@ function finishMove(er, ec, bar, movingPawn) {
     glog(`${pnm(currentPlayer)} landed exactly on a barricade and cleared it — nothing can pass through a barricade, so re-place this one where it hurts.`, true);
     renderAll();
     if (isCPU(currentPlayer)) {
-      setTimeout(() => {
-        const pl = bestBarricade();
-        if (pl) placeBarricade(pl.er, pl.ec); else nextTurn();
-        renderAll();
-      }, 700);
+      setTimeout(() => { cpuPlaceBarricade(); renderAll(); }, 700);
     }
   } else {
     nextTurn();
@@ -5043,25 +5056,50 @@ function doCPU() {
 
 // How many steps does it take to reach the goal from (er,ec)?
 // Uses BFS ignoring barricades (best-case path length)
-function distToGoal(er, ec) {
-  const GOAL_ER = GOAL[0], GOAL_EC = GOAL[1];
-  if (er === GOAL_ER && ec === GOAL_EC) return 0;
-  const visited = new Set();
-  const queue = [[er, ec, 0]];
-  visited.add(`${er},${ec}`);
-  while (queue.length) {
-    const [r, c, d] = queue.shift();
-    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-      const nr = r+dr, nc = c+dc;
-      if (nr===GOAL_ER && nc===GOAL_EC) return d+1;
-      const k = `${nr},${nc}`;
-      if (!visited.has(k) && isWalkable(nr,nc)) {
-        visited.add(k);
-        queue.push([nr, nc, d+1]);
+// Shortest step count from (er,ec) to the goal, ignoring barricades.
+//
+// PERF: this is the hottest function in the AI -- bestBarricade() alone called
+// it once per board cell, each time running a fresh BFS. It only ever consults
+// isWalkable(), so the answer is a pure function of board geometry: one BFS
+// *from* the goal yields every cell's distance at once. Distances are symmetric
+// on this undirected grid, so the table is exactly equivalent to the old
+// per-call search. Rebuilt only by setBoard().
+// Declared up with the board globals: setBoard() runs during load, long
+// before this point, so a `let` here would still be in its dead zone.
+function goalDistTable() {
+  if (_goalDistCache && _goalDistBoard === activeBoard) return _goalDistCache;
+  const tbl = new Map();
+  tbl.set(`${GOAL[0]},${GOAL[1]}`, 0);
+  let frontier = [[GOAL[0], GOAL[1]]], d = 0;
+  while (frontier.length) {
+    d++;
+    const next = [];
+    for (const [r, c] of frontier) {
+      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr = r+dr, nc = c+dc, k = `${nr},${nc}`;
+        if (tbl.has(k) || !isWalkable(nr, nc)) continue;
+        tbl.set(k, d);
+        next.push([nr, nc]);
       }
     }
+    frontier = next;
   }
-  return 999;
+  _goalDistCache = tbl; _goalDistBoard = activeBoard;
+  return tbl;
+}
+
+function distToGoal(er, ec) {
+  const tbl = goalDistTable();
+  const hit = tbl.get(`${er},${ec}`);
+  if (hit !== undefined) return hit;
+  // Off-board cell. The old BFS never required its *start* to be walkable,
+  // so mirror that: step to any walkable neighbour and add one.
+  let best = 999;
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const n = tbl.get(`${er+dr},${ec+dc}`);
+    if (n !== undefined && n + 1 < best) best = n + 1;
+  }
+  return best;
 }
 
 // Count barricades blocking the most direct path from (er,ec) to goal
@@ -5111,7 +5149,6 @@ function scoreTarget(er, ec, movingPawn) {
   if (barAt(er, ec)) {
     // How many barricades are currently on our best path?
     const barsNow = barricadesOnPath(movingPawn.er, movingPawn.ec);
-    const barsAfter = barricadesOnPath(er, ec);
     // Removing a barricade that's in our way is very valuable
     if (barsNow > 0) s += 20;
     else s += 8; // removing any barricade is still good (we get to place it)
@@ -5149,19 +5186,46 @@ function scoreTarget(er, ec, movingPawn) {
 
 // Can any enemy pawn reach (er,ec) on their next turn with ANY roll 1..6?
 // Used to avoid landing where we'd be captured.
-function cellUnderThreat(er, ec, byPlayers) {
+// Where the enemy can land, computed once per decision.
+//
+// PERF: cellUnderThreat() used to re-run up to 6 DFS sweeps per enemy pawn on
+// every call -- and scoreTargetHard() calls it twice per candidate while
+// sacrificeValueHard() ran the same sweeps a third time. One sweep per turn now.
+//
+// `hits` counts the (pawn, roll) pairs that reach a cell, which is strictly
+// more information than the old boolean: one enemy needing one exact roll is
+// not the same danger as three enemies reaching it on anything. Nothing reads
+// the count yet -- cellUnderThreat() keeps its boolean contract.
+//
+// Safe to cache for a whole decision: scoring never mutates the board, and
+// every AI entry point calls resetAiTurnCache() before it starts.
+let _threatCache = null, _threatCacheKey = '';
+function resetAiTurnCache() { _threatCache = null; _threatCacheKey = ''; }
+
+function enemyThreatData(byPlayers) {
+  const key = byPlayers.join(',');
+  if (_threatCache && _threatCacheKey === key) return _threatCache;
+  const hits = new Map(), byPawn = new Map();
   for (const p of byPlayers) {
     for (const pw of (pawns[p] || [])) {
       if (!pw.onBoard) continue;
-      // quick prune: manhattan distance must be <= 6
-      if (Math.abs(pw.er - er) + Math.abs(pw.ec - ec) > 6) continue;
+      const seen = new Set();
       for (let d = 1; d <= 6; d++) {
-        const reach = getReachable(pw, d);
-        if (reach.some(t => t.er === er && t.ec === ec)) return true;
+        for (const t of getReachableCells(pw, d)) {
+          const k = `${t.er},${t.ec}`;
+          hits.set(k, (hits.get(k) || 0) + 1);
+          seen.add(k);
+        }
       }
+      byPawn.set(`${pw.player}:${pw.id}`, seen);
     }
   }
-  return false;
+  _threatCache = { hits, byPawn }; _threatCacheKey = key;
+  return _threatCache;
+}
+
+function cellUnderThreat(er, ec, byPlayers) {
+  return enemyThreatData(byPlayers).hits.has(`${er},${ec}`);
 }
 
 // Enemy players list (everyone but current)
@@ -5214,11 +5278,8 @@ function sacrificeValueHard(er, ec, movingPawn) {
     for (const pw of (pawns[p] || [])) {
       if (!pw.onBoard) continue;
       if (Math.abs(pw.er - er) + Math.abs(pw.ec - ec) > 6) continue;
-      let canCapture = false;
-      for (let d = 1; d <= 6 && !canCapture; d++) {
-        if (getReachable(pw, d).some(t => t.er === er && t.ec === ec)) canCapture = true;
-      }
-      if (!canCapture) continue;
+      const pwReach = enemyThreatData(enemies).byPawn.get(`${pw.player}:${pw.id}`);
+      if (!pwReach || !pwReach.has(`${er},${ec}`)) continue;
       // Gain = how far this enemy pawn would be PULLED BACK to capture us.
       // If they're near the goal and must divert here, that's a big tempo swing.
       const enemyDist = distToGoal(pw.er, pw.ec);
@@ -5283,11 +5344,12 @@ function scoreTargetHard(er, ec, movingPawn) {
 }
 
 function bestMoveHard() {
+  resetAiTurnCache();
   let cands = [];
   for (const pw of (pawns[currentPlayer] || [])) {
     let reach;
     if (!pw.onBoard) reach = getReachableFromEntry(currentPlayer, diceVal);
-    else reach = getReachable(pw, diceVal);
+    else reach = getReachableCells(pw, diceVal);
     for (const t of reach) {
       cands.push({ pawn: pw, reach, target: t, score: scoreTargetHard(t.er, t.ec, pw) });
     }
@@ -5298,11 +5360,12 @@ function bestMoveHard() {
 }
 
 function bestMove() {
+  resetAiTurnCache();
   let cands = [];
   for (const pw of (pawns[currentPlayer]||[])) {
     let reach;
     if (!pw.onBoard) reach = getReachableFromEntry(currentPlayer, diceVal);
-    else reach = getReachable(pw, diceVal);
+    else reach = getReachableCells(pw, diceVal);
     for (const t of reach) {
       cands.push({pawn:pw, reach, target:t, score:scoreTarget(t.er, t.ec, pw)});
     }
@@ -5324,7 +5387,29 @@ function bestMove() {
   return cands[0];
 }
 
-function bestBarricade() {
+// Place the cleared barricade, retrying past any cell placeBarricade() rejects.
+//
+// SOFTLOCK FIX: placeBarricade() silently returns on an illegal cell -- notably
+// one hiding a trap ("can't place on a mine") -- and this used to be a single
+// unchecked call with no fallback. A rejected placement left phase stuck at
+// 'place-barricade' with no timer queued and no nextTurn(): the game was dead
+// and the human could never act again. On hard it could not even recover by
+// chance, since argmax re-picks the same rejected cell every time.
+//
+// bestBarricade() deliberately does NOT filter traps -- traps are hidden, and
+// filtering them would leak their positions to the AI. Retrying blindly keeps
+// the AI honest and covers any future placement rule for free.
+function cpuPlaceBarricade() {
+  for (const pl of (bestBarricade(true) || [])) {
+    placeBarricade(pl.er, pl.ec);
+    if (phase !== 'place-barricade') return true;   // accepted; it ran nextTurn()
+  }
+  nextTurn();   // nothing legal anywhere -- never strand the turn
+  return false;
+}
+
+function bestBarricade(wantList) {
+  resetAiTurnCache();
   // Find CPU's most advanced pawn (our lead pawn to protect)
   const myPawns = (pawns[currentPlayer]||[]).filter(pw=>pw.onBoard);
   let leadPawn = null;
@@ -5382,8 +5467,10 @@ function bestBarricade() {
       }
     }
 
-    // Avoid placing near the start — too easy to route around
-    if (er >= 15) score -= 25;
+    // Avoid placing near the start — too easy to route around.
+    // Was a hardcoded `er >= 15`, a Classic number: on Duel (BOTTOM_ROW 14)
+    // every such cell was already rejected above, so the rule never fired.
+    if (er >= BOTTOM_ROW - 2) score -= 25;
 
     // Slight preference for cells near the goal area
     if (hereToGoal <= 8) score += 10;
@@ -5405,15 +5492,23 @@ function bestBarricade() {
     cands.push({er, ec, score});
   });
 
-  if (!cands.length) return null;
+  if (!cands.length) return wantList ? [] : null;
   cands.sort((a,b) => b.score - a.score);
 
-  if (cpuDiff === 'easy') return cands[Math.floor(Math.random() * cands.length)];
-  if (cpuDiff === 'medium') {
+  // Tier selection below is untouched -- same choice and the same number of
+  // Math.random() calls as before, so an A/B run on one seed diverges only
+  // where a placement is actually rejected.
+  let pick;
+  if (cpuDiff === 'easy') pick = cands[Math.floor(Math.random() * cands.length)];
+  else if (cpuDiff === 'medium') {
     const pool = cands.slice(0, Math.max(1, Math.floor(cands.length * 0.25)));
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-  return cands[0];
+    pick = pool[Math.floor(Math.random() * pool.length)];
+  } else pick = cands[0];
+
+  if (!wantList) return pick;
+  // Retry order for cpuPlaceBarricade(): the CPU's real choice first, then
+  // every other legal cell by score as fallbacks.
+  return [pick].concat(cands.filter(c => c !== pick));
 }
 
 
