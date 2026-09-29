@@ -480,7 +480,10 @@ function cmdForcedWin(argv) {
       }
       S.diceVal = 1;
       S.phase = 'pick-pawn';
-      const mv = (tier === 'hard') ? ctx.bestMoveHard() : ctx.bestMove();
+      // bestMoveHard() only exists on trees that still have the separate hard
+      // scorer; every tier shares bestMove() once that layer is removed.
+      const mv = (tier === 'hard' && typeof ctx.bestMoveHard === 'function')
+        ? ctx.bestMoveHard() : ctx.bestMove();
       if (!mv) continue;
       valid++;
       if (mv.target.er === goal[0] && mv.target.ec === goal[1]) taken++;

@@ -5037,7 +5037,7 @@ function doCPU() {
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
   phase = 'pick-pawn'; renderAll();
   setTimeout(() => {
-    const mv = (cpuDiff === 'hard') ? bestMoveHard() : bestMove();
+    const mv = bestMove();
     if (!mv) { nextTurn(); renderAll(); return; }
     selPawn = mv.pawn; reachable = mv.reach; phase = 'move'; renderAll();
     setTimeout(() => {
@@ -5189,8 +5189,7 @@ function scoreTarget(er, ec, movingPawn) {
 // Where the enemy can land, computed once per decision.
 //
 // PERF: cellUnderThreat() used to re-run up to 6 DFS sweeps per enemy pawn on
-// every call -- and scoreTargetHard() calls it twice per candidate while
-// sacrificeValueHard() ran the same sweeps a third time. One sweep per turn now.
+// every single call. One sweep per decision now, shared by every caller.
 //
 // `hits` counts the (pawn, roll) pairs that reach a cell, which is strictly
 // more information than the old boolean: one enemy needing one exact roll is
@@ -5240,123 +5239,93 @@ function enemyPlayers() {
 //  - shielded pawns ignore threat
 //  - stronger reward for captures near goal & barricade grabs that clear our path
 
-// ── Staggered-cluster value: reward spreading pawns across DIFFERENT
-// distance-bands so any roll advances someone and barricades don't hard-stop us.
-// Returns a bonus for the resulting formation if movingPawn lands at (er,ec).
-function clusterValueHard(er, ec, movingPawn) {
-  const mine = (pawns[currentPlayer] || []).filter(p => p.onBoard && p !== movingPawn);
-  // Distance band of each pawn (bucketed) — we want VARIED bands, not duplicates.
-  const bands = new Set();
-  for (const p of mine) bands.add(Math.floor(distToGoal(p.er, p.ec) / 4));
-  const myBand = Math.floor(distToGoal(er, ec) / 4);
-  const activeCount = mine.length + 1;
+// ================================================================
+// DIFFICULTY
+//
+// Scores are in a dense, meaningful unit: the distance-to-goal term is exactly
+// 5 points per step, a capture is +25..+85, the hard threat penalty is
+// -60..-180. So a *temperature* expressed in those same units says directly
+// how much worse a move the CPU is willing to play.
+//
+// This replaces a top-k%-of-the-candidate-list scheme, which was relative to
+// how many candidates happened to exist. That list is padded by one identical
+// entry per pawn still in reserve, so the old medium tier's "top 30%" could
+// collapse to the top 2 of 7 and miss a forced win about half the time. A
+// score gap does not have that problem.
+//
+// blunder = chance per move of ignoring the scores entirely and playing any
+// legal (non-retreating) move, so easy stays beatable without being bizarre.
+//
+// All three tiers now share ONE scoring function. There used to be a second,
+// more elaborate one for hard (scoreTargetHard, with cluster/sacrifice/threat
+// terms). Measured head to head with seats alternated, it won only 36-44% of
+// games against the plain scorer across both boards and every temperature --
+// it looked more sophisticated and played slightly worse, so it is gone. What
+// actually makes the CPU stronger is withoutPointlessRetreats() below.
+// ================================================================
+const WIN_SCORE = 10000;   // scoreTarget() returns exactly this for the goal
+//
+// Temperatures picked off a measured strength curve, not guessed: a round
+// robin of every temperature against every other (576 games per board) ranked
+// them, and strength falls monotonically as T rises above ~2. T=2 rather than
+// T=0 because it was stronger on Duel and near-identical on Classic, and a
+// little non-determinism makes the CPU less repetitive to play against.
+const CPU_TIERS = {
+  easy:   { moveT: 28, barrT: 30, blunder: 0.15 },
+  medium: { moveT: 12, barrT: 14, blunder: 0    },
+  hard:   { moveT: 2,  barrT: 2,  blunder: 0    },
+};
+function cpuTier() { return CPU_TIERS[cpuDiff] || CPU_TIERS.medium; }
 
-  let s = 0;
-  // Reward having 2-3 pawns active in DIFFERENT bands (optionality vs barricades)
-  if (activeCount >= 2 && activeCount <= 3) s += 10;
-  if (!bands.has(myBand)) s += 12;         // this pawn adds a new band = more roll coverage
-  else s -= 4;                              // stacking same band = redundant, minor penalty
-  // Too many pawns out = just capture-bait; discourage a 4th/5th unless near goal
-  if (activeCount >= 4 && distToGoal(er, ec) > 6) s -= 14;
-  return s;
-}
-
-// ── Sacrifice evaluation: is deliberately exposing THIS pawn worth it?
-// Conservative + math-gated: only positive if the follow-up concretely hurts
-// the opponent more than losing our pawn costs us.
-function sacrificeValueHard(er, ec, movingPawn) {
-  const enemies = enemyPlayers();
-  const shielded = (shieldTurns[currentPlayer] || 0) > 0;
-  if (shielded) return 0;                      // can't be captured, not a sacrifice
-  if (!cellUnderThreat(er, ec, enemies)) return 0; // safe cell, not a sacrifice
-
-  const myLoss = Math.max(0, 40 - distToGoal(er, ec)); // losing an advanced pawn hurts more
-  let bestGain = 0;
-
-  // For each enemy that COULD capture us here, what does capturing cost THEM?
-  for (const p of enemies) {
-    for (const pw of (pawns[p] || [])) {
-      if (!pw.onBoard) continue;
-      if (Math.abs(pw.er - er) + Math.abs(pw.ec - ec) > 6) continue;
-      const pwReach = enemyThreatData(enemies).byPawn.get(`${pw.player}:${pw.id}`);
-      if (!pwReach || !pwReach.has(`${er},${ec}`)) continue;
-      // Gain = how far this enemy pawn would be PULLED BACK to capture us.
-      // If they're near the goal and must divert here, that's a big tempo swing.
-      const enemyDist = distToGoal(pw.er, pw.ec);
-      const hereDist = distToGoal(er, ec);
-      const pullBack = hereDist - enemyDist;      // >0 means they retreat to grab us
-      if (pullBack > 0) {
-        let gain = pullBack * 4;
-        if (enemyDist <= 8) gain += 30;           // baiting their near-goal leader backward = huge
-        bestGain = Math.max(bestGain, gain);
-      }
-    }
-  }
-  // Only a real sacrifice if the concrete gain outweighs our loss (with margin).
-  const net = bestGain - myLoss;
-  return net > 10 ? net : 0;
-}
-
-function scoreTargetHard(er, ec, movingPawn) {
-  let s = scoreTarget(er, ec, movingPawn); // reuse base heuristics
-
-  if (er === GOAL[0] && ec === GOAL[1]) return 100000; // guaranteed win dominates
-
-  const enemies = enemyPlayers();
-
-  // Evaluate deliberate-sacrifice value first so danger logic can defer to it.
-  const sacVal = sacrificeValueHard(er, ec, movingPawn);
-
-  // Danger: will we be capturable here next turn? (unless shielded or a worthwhile sacrifice)
-  const shielded = (shieldTurns[currentPlayer] || 0) > 0;
-  if (!shielded && sacVal === 0 && cellUnderThreat(er, ec, enemies)) {
-    // The closer this pawn is to goal, the more we hate losing it
-    const d = distToGoal(er, ec);
-    s -= 60 + Math.max(0, 30 - d) * 4;
-  }
-
-  // Reward safe progress: landing where NO enemy can reach us is valuable
-  if (!cellUnderThreat(er, ec, enemies)) s += 12;
-
-  // Extra: capturing a near-goal enemy is match-defining
-  const occ = pawnAt(er, ec);
-  if (occ && occ.player !== currentPlayer) {
-    const ed = distToGoal(occ.pawn.er, occ.pawn.ec);
-    if (ed <= 6) s += 40; // send back a pawn that was about to win
-  }
-
-  // ── Formation: staggered cluster for roll-coverage & barricade flexibility ──
-  // Only while no pawn is close enough to sprint in; once we can nearly win, commit.
-  const myClosest = Math.min(999, ...(pawns[currentPlayer]||[]).filter(p=>p.onBoard).map(p=>distToGoal(p.er,p.ec)));
-  const commitPhase = myClosest <= 7; // someone is close — switch to sprint mode
-  if (!commitPhase) {
-    s += clusterValueHard(er, ec, movingPawn);
-  } else {
-    // Commit: pour dice into the lead pawn, ignore spreading
-    if (movingPawn.onBoard && distToGoal(movingPawn.er, movingPawn.ec) === myClosest) s += 18;
-  }
-
-  // ── Conservative, math-gated sacrifice ──
-  // If landing here gets us captured but pulls an enemy (esp. their leader) back, it can be worth it.
-  s += sacVal;
-
-  return s;
-}
-
-function bestMoveHard() {
-  resetAiTurnCache();
-  let cands = [];
-  for (const pw of (pawns[currentPlayer] || [])) {
-    let reach;
-    if (!pw.onBoard) reach = getReachableFromEntry(currentPlayer, diceVal);
-    else reach = getReachableCells(pw, diceVal);
-    for (const t of reach) {
-      cands.push({ pawn: pw, reach, target: t, score: scoreTargetHard(t.er, t.ec, pw) });
-    }
-  }
+// Softmax over each candidate's gap to the best score. Expects `cands` sorted
+// descending. T <= 0 is argmax with a random tie-break.
+function pickByTemperature(cands, T) {
   if (!cands.length) return null;
-  cands.sort((a, b) => b.score - a.score);
-  return cands[0];
+  const best = cands[0].score;
+  if (T <= 0) {
+    let n = 1;
+    while (n < cands.length && cands[n].score === best) n++;
+    return cands[Math.floor(Math.random() * n)];
+  }
+  // Every gap is <= 0, so every weight is <= 1 and this cannot overflow.
+  let total = 0;
+  const w = new Array(cands.length);
+  for (let i = 0; i < cands.length; i++) {
+    w[i] = Math.exp((cands[i].score - best) / T);
+    total += w[i];
+  }
+  let r = Math.random() * total;
+  for (let i = 0; i < cands.length; i++) {
+    r -= w[i];
+    if (r <= 0) return cands[i];
+  }
+  return cands[cands.length - 1];
+}
+
+// Drop moves that walk away from the goal for no reason -- the single most
+// visible "this thing is broken" tell, and something the old easy tier did
+// deliberately. A backward move is still kept when it has a point: it takes a
+// barricade, captures, or escapes a cell the enemy can reach.
+//
+// Applied at every tier. Measured: with this filter on both sides, the AI wins
+// ~85% against the same scoring without it -- by a wide margin the single
+// biggest strength gain in this whole change, and much larger than any
+// difference between the two scoring functions.
+function withoutPointlessRetreats(cands, enemies) {
+  const kept = cands.filter(c => {
+    const pw = c.pawn;
+    if (!pw.onBoard) return true;                       // deploying isn't a retreat
+    const from = distToGoal(pw.er, pw.ec);
+    const to = distToGoal(c.target.er, c.target.ec);
+    if (to <= from) return true;
+    if (barAt(c.target.er, c.target.ec)) return true;   // taking a barricade
+    const occ = pawnAt(c.target.er, c.target.ec);
+    if (occ && occ.player !== currentPlayer) return true;   // capturing
+    if (cellUnderThreat(pw.er, pw.ec, enemies) &&
+        !cellUnderThreat(c.target.er, c.target.ec, enemies)) return true;  // fleeing
+    return false;
+  });
+  return kept.length ? kept : cands;   // never hand back an empty pool
 }
 
 function bestMove() {
@@ -5373,18 +5342,18 @@ function bestMove() {
   if (!cands.length) return null;
   cands.sort((a,b) => b.score - a.score);
 
-  if (cpuDiff === 'easy') {
-    // Easy: picks randomly from the worst 50% of moves
-    const pool = cands.slice(Math.floor(cands.length * 0.5));
-    return pool[Math.floor(Math.random() * pool.length)];
+  // Invariant: never decline a win. The old easy tier picked from the worst
+  // half of the list, and since a winning move scores WIN_SCORE and sorts to
+  // the front, it refused to win 500 times out of 500 in simulation.
+  if (cands[0].score >= WIN_SCORE) return cands[0];
+
+  const tier = cpuTier();
+  cands = withoutPointlessRetreats(cands, enemyPlayers());
+
+  if (tier.blunder && Math.random() < tier.blunder) {
+    return cands[Math.floor(Math.random() * cands.length)];
   }
-  if (cpuDiff === 'medium') {
-    // Medium: picks randomly from top 30% of moves
-    const pool = cands.slice(0, Math.max(1, Math.floor(cands.length * 0.3)));
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-  // Hard handled separately in doCPU via bestMoveHard()
-  return cands[0];
+  return pickByTemperature(cands, tier.moveT);
 }
 
 // Place the cleared barricade, retrying past any cell placeBarricade() rejects.
@@ -5495,15 +5464,10 @@ function bestBarricade(wantList) {
   if (!cands.length) return wantList ? [] : null;
   cands.sort((a,b) => b.score - a.score);
 
-  // Tier selection below is untouched -- same choice and the same number of
-  // Math.random() calls as before, so an A/B run on one seed diverges only
-  // where a placement is actually rejected.
-  let pick;
-  if (cpuDiff === 'easy') pick = cands[Math.floor(Math.random() * cands.length)];
-  else if (cpuDiff === 'medium') {
-    const pool = cands.slice(0, Math.max(1, Math.floor(cands.length * 0.25)));
-    pick = pool[Math.floor(Math.random() * pool.length)];
-  } else pick = cands[0];
+  // Easy used to place uniformly at random across every legal cell on the
+  // board, which is the most visible tell that the CPU isn't playing at all.
+  // Temperature keeps it weak but plausible.
+  const pick = pickByTemperature(cands, cpuTier().barrT) || cands[0];
 
   if (!wantList) return pick;
   // Retry order for cpuPlaceBarricade(): the CPU's real choice first, then
