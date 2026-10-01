@@ -72,6 +72,8 @@ const STATE_EPILOGUE = `
   get diceFaces(){return diceFaces},
   get leapActive(){return leapActive}, set leapActive(v){leapActive=v},
   get tempBarricades(){return tempBarricades},
+  get POWERUP_TYPES(){return POWERUP_TYPES},
+  get boardPowerups(){return boardPowerups},
   get bonusRolls(){return bonusRolls}, set bonusRolls(v){bonusRolls=v},
   get traps(){return traps}, get playerPowerups(){return playerPowerups},
   get turnCount(){return turnCount}, get activeBoard(){return activeBoard},

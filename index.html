@@ -3661,13 +3661,34 @@ function soundWin() {
 // turns. Players hold max 2 and must use one before rolling.
 // ================================================================
 
+// `weight` is the relative chance of this type spawning, NOT a gameplay stat.
+// Spawn type used to be a uniform pick over the registry, which meant every
+// type added to the game made every existing type rarer -- adding Leap alone
+// would have cut temp barricades from 25% of spawns to 20%, the opposite of
+// what the playtest asked for. Weights decouple "how many types exist" from
+// "how often each one shows up".
 const POWERUP_TYPES = {
-  'double':   { icon: '🎲', name: 'Double Roll',    desc: 'Roll two dice instead of one and move the total — 2 to 12 steps.' },
-  'tempbar':  { icon: '🚧', name: 'Temp Barricade', desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 turns.' },
-  'shield':   { icon: '🛡️', name: 'Shield',         desc: 'Your pawns cannot be captured for 3 turns.' },
-  'trap':     { icon: '💣', name: 'Bomb',           desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
-  'leap':     { icon: '🦘', name: 'Leap',           desc: 'Your next move jumps straight over barricades instead of being blocked by them.' },
+  'double':   { icon: '🎲', name: 'Double Roll',    weight: 1, desc: 'Roll two dice instead of one and move the total — 2 to 12 steps.' },
+  'tempbar':  { icon: '🚧', name: 'Temp Barricade', weight: 2, desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 full rounds.' },
+  'shield':   { icon: '🛡️', name: 'Shield',         weight: 1, desc: 'Your pawns cannot be captured for 3 full rounds.' },
+  'trap':     { icon: '💣', name: 'Bomb',           weight: 1, desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
+  'leap':     { icon: '🦘', name: 'Leap',           weight: 1, desc: 'Your next move jumps straight over barricades instead of being blocked by them.' },
 };
+
+// Weighted pick over POWERUP_TYPES. Falls back to weight 1 for any type that
+// forgets to declare one, so adding a type can never silently make it
+// unspawnable.
+function pickPowerupType() {
+  const types = Object.keys(POWERUP_TYPES);
+  let total = 0;
+  for (const t of types) total += (POWERUP_TYPES[t].weight ?? 1);
+  let r = Math.random() * total;
+  for (const t of types) {
+    r -= (POWERUP_TYPES[t].weight ?? 1);
+    if (r < 0) return t;
+  }
+  return types[types.length - 1];
+}
 
 // Board powerups: [{er, ec, type, turnsLeft}]
 let boardPowerups = [];
@@ -3770,8 +3791,7 @@ function trySpawnPowerup() {
     [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
   }
   const cell = candidates[0];
-  const types = Object.keys(POWERUP_TYPES);
-  const type = types[Math.floor(Math.random() * types.length)];
+  const type = pickPowerupType();
   const newPu = { er: cell.er, ec: cell.ec, type, maxAge: Math.floor(Math.random()*6)+10 };
   boardPowerups.push(newPu);
   nextSpawnAt = turnCount + Math.floor(Math.random()*2) + 2; // next in 2-3 turns
