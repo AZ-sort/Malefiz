@@ -297,6 +297,8 @@
     transition:box-shadow .15s;
   }
   #dface.spin{animation:sd .38s cubic-bezier(.4,0,.2,1);}
+  /* Two dice (Double Roll) share the one box, so shrink to fit. */
+  #dface.two{font-size:2.3rem;}
   @keyframes sd{
     0%{transform:rotate(0) scale(1)}
     25%{transform:rotate(22deg) scale(1.14)}
@@ -637,6 +639,8 @@
       justify-content: space-between !important;
       gap: 12px !important;
     }
+
+    #dface.two { font-size: 2.1rem !important; }
 
     #dface {
       width: 72px !important;
@@ -2306,7 +2310,7 @@
       <div class="htp-section-title" data-i18n="htpPowerupsTitle">⚡ Powerups Mode</div>
       <div class="htp-rule">
         <span class="htp-icon">🎲</span>
-        <span data-i18n-html="htpPuDoubleRoll"><b>Double Roll</b> — your dice result is doubled this turn.</span>
+        <span data-i18n-html="htpPuDoubleRoll"><b>Double Roll</b> — roll two dice instead of one and move the total.</span>
       </div>
       <div class="htp-rule">
         <span class="htp-icon">🚧</span>
@@ -2335,7 +2339,7 @@
 <div id="powerup-modal">
   <div class="pu-box">
     <h2 id="pu-title">🎲 Double Roll</h2>
-    <p id="pu-desc">Roll the dice — your result is doubled this turn!</p>
+    <p id="pu-desc">Roll two dice instead of one and move the total — 2 to 12 steps.</p>
     <div class="pu-actions">
       <button class="btn bp" onclick="confirmPowerup()" style="flex:1">Use It!</button>
       <button class="btn bg" onclick="closePowerupModal()" style="flex:1">Cancel</button>
@@ -2945,6 +2949,7 @@ function initGame() {
   initPowerups();
   anyPawnMoved = false;
   lastDiceVal = 0;
+  diceFaces = [];
 }
 
 // ================================================================
@@ -3624,13 +3629,13 @@ function soundWin() {
 
 // ================================================================
 // POWERUP SYSTEM
-// 3 powerups: Double Roll 🎲, Skip Turn ⏭️, Possession 👻
-// Spawn every 4 turns, max 4 on board, expire after 3 turns
-// Players hold max 2, must use before rolling
+// 4 powerups: Double Roll 🎲, Temp Barricade 🚧, Shield 🛡️, Bomb 💣
+// Spawn every 2-3 turns, max 8 on board (3 in duel), each expires after 10-15
+// turns. Players hold max 2 and must use one before rolling.
 // ================================================================
 
 const POWERUP_TYPES = {
-  'double':   { icon: '🎲', name: 'Double Roll',    desc: 'Roll the dice — your result is doubled this turn!' },
+  'double':   { icon: '🎲', name: 'Double Roll',    desc: 'Roll two dice instead of one and move the total — 2 to 12 steps.' },
   'tempbar':  { icon: '🚧', name: 'Temp Barricade', desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 turns.' },
   'shield':   { icon: '🛡️', name: 'Shield',         desc: 'Your pawns cannot be captured for 3 turns.' },
   'trap':     { icon: '💣', name: 'Bomb',           desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
@@ -3853,15 +3858,28 @@ function activateDoubleRoll() {
   renderAll();
 }
 
-// Hook into rollDice — roll normally then double the result
+// Hook into rollDice — roll TWO dice and move the total.
+//
+// This used to be one die times two, which can only ever produce an even
+// distance (2,4,6,8,10,12). Clearing a barricade requires landing on it
+// exactly, so that parity lock made every boosted move feel the same and put
+// half the board permanently out of reach. Two dice summed gives 2-12, odd
+// totals included.
+//
+// Deliberately does NOT touch lastDiceVal: that exists only to smooth
+// consecutive plain rolls, and a Double Roll is a different event. (The CPU
+// path used to set it here and the human path did not — now neither does.)
 function applyDoubleRoll() {
   if (!doubleRollActive) return false;
   doubleRollActive = false;
-  const r = Math.floor(Math.random() * 6) + 1;
-  diceVal = r * 2;
-  animDice(diceVal);
+  const r1 = Math.floor(Math.random() * 6) + 1;
+  const r2 = Math.floor(Math.random() * 6) + 1;
+  diceVal = r1 + r2;
+  diceFaces = [r1, r2];
+  animDice(diceVal, diceFaces);
   soundDice();
-  glog(`${pnm(currentPlayer)} rolled ${r} × 2 = ${diceVal}! 🎲`, true);
+  firstRollDone = true;
+  glog(`${pnm(currentPlayer)} rolled ${r1} + ${r2} = ${diceVal}! 🎲`, true);
   phase = 'pick-pawn';
   // Reset snapshot so updateGlowOverlay actually rebuilds the board
   glowTurnSnapshot = '';
@@ -4750,6 +4768,10 @@ document.addEventListener('DOMContentLoaded', initHpIdentity);
 // ── Auto-roll ──────────────────────────────────────────────────
 let autoRoll = false;
 let lastDiceVal = 0;
+// The individual die values behind diceVal: one entry for a normal roll, two
+// for a Double Roll. Kept alongside diceVal so the UI can show real dice
+// instead of trying to render an impossible single face for a total of 7-12.
+let diceFaces = [];
 let anyPawnMoved = false; // track if first move happened
 let firstRollDone = false;
 
@@ -4770,7 +4792,8 @@ function rollDice() {
   if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
   lastDiceVal = roll;
   diceVal = roll;
-  animDice(diceVal);
+  diceFaces = [roll];
+  animDice(diceVal, diceFaces);
   soundDice();
   firstRollDone = true;
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
@@ -4978,7 +5001,7 @@ function nextTurn() {
   if (gameOver) return;
   phase='roll'; diceVal=null; selPawn=null; reachable=[];
   doubleRollActive = false;
-  document.getElementById('dface').textContent='⚀';
+  resetDice();
   trySpawnPowerup();
   currentPlayer = advanceSlot(currentPlayer);
 
@@ -5037,9 +5060,6 @@ function doCPU() {
   cpuMaybeUsePowerup();
   if (gameOver) return;
 
-  let roll = Math.floor(Math.random()*6)+1;
-  // Reroll once if same as last roll (reduces jarring streaks)
-  if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
   // Double Roll, handled here because doCPU does its own rolling.
   //
   // This is the whole reason the CPU could never use a Double Roll: the flag is
@@ -5047,22 +5067,31 @@ function doCPU() {
   // early-returns for CPU seats. doCPU duplicates rollDice's logic instead of
   // calling it, so EVERY roll-phase feature silently skips the CPU -- worth
   // remembering as a class of bug, not just this one instance.
+  //
+  // Checked BEFORE drawing a plain roll so a Double Roll turn does not waste an
+  // RNG draw, and kept arithmetically identical to applyDoubleRoll().
   if (doubleRollActive) {
     doubleRollActive = false;
-    diceVal = roll * 2;
-    lastDiceVal = roll;
-    animDice(diceVal);
+    const d1 = Math.floor(Math.random()*6)+1;
+    const d2 = Math.floor(Math.random()*6)+1;
+    diceVal = d1 + d2;
+    diceFaces = [d1, d2];
+    animDice(diceVal, diceFaces);
     soundDice();
     firstRollDone = true;
-    glog(`${pnm(currentPlayer)} rolled ${roll} × 2 = ${diceVal}! 🎲`, true);
+    glog(`${pnm(currentPlayer)} rolled ${d1} + ${d2} = ${diceVal}! 🎲`, true);
     glowTurnSnapshot = '';
     phase = 'pick-pawn'; renderAll();
     setTimeout(() => { cpuPickAndMove(); }, 430);
     return;
   }
+  let roll = Math.floor(Math.random()*6)+1;
+  // Reroll once if same as last roll (reduces jarring streaks)
+  if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
   lastDiceVal = roll;
   diceVal = roll;
-  animDice(diceVal);
+  diceFaces = [roll];
+  animDice(diceVal, diceFaces);
   soundDice();
   firstRollDone = true;
   glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
@@ -6060,7 +6089,7 @@ function renderSidebar() {
   const reachHasBar = phase === 'move' && reachable.some(x => barAt(x.er, x.ec));
   const msgs = {
     'roll': soloVsCPU ? 'Roll the dice' : `${pnm(currentPlayer)} — Roll the dice`,
-    'pick-pawn': diceVal > 6 ? `🎲 DOUBLE ROLL: ${diceVal} steps — tap one of your glowing pawns!` : `Rolled ${diceVal} — tap one of your glowing pawns`,
+    'pick-pawn': diceFaces.length > 1 ? `🎲 DOUBLE ROLL: ${diceFaces.join(' + ')} = ${diceVal} steps — tap one of your glowing pawns!` : `Rolled ${diceVal} — tap one of your glowing pawns`,
     'move': reachHasBar
       ? `Move exactly ${diceVal} — tap a purple cell, or the gold one to take its barricade`
       : `Move exactly ${diceVal} — tap a glowing purple cell`,
@@ -6077,7 +6106,72 @@ function renderSidebar() {
 }
 
 const FACES = ['⚀','⚁','⚂','⚃','⚄','⚅'];
-function animDice(v) { const el=document.getElementById('dface'); el.classList.remove('spin'); void el.offsetWidth; el.classList.add('spin'); el.textContent=FACES[v-1]; }
+const DICE_TUMBLE_TICKS = 4;     // cosmetic frames before the result lands
+const DICE_TUMBLE_STEP_MS = 55;
+let _diceTumbleId = null;
+let _diceTumbleTick = 0;
+
+// Thin space so two dice read as two dice rather than one wide glyph.
+function diceGlyphs(faces) { return faces.map(f => FACES[f - 1] || '').join('\u2009'); }
+
+// Paint the die face(s). Presentation only — never touches game state.
+function paintDice(faces) {
+  const el = document.getElementById('dface');
+  if (!el) return;
+  el.textContent = diceGlyphs(faces);
+  if (faces.length > 1) el.classList.add('two'); else el.classList.remove('two');
+}
+
+// Back to the resting face, cancelling any in-flight tumble.
+function resetDice() {
+  diceFaces = [];
+  if (_diceTumbleId !== null) { clearTimeout(_diceTumbleId); _diceTumbleId = null; }
+  const el = document.getElementById('dface');
+  if (!el) return;
+  el.classList.remove('two');
+  el.textContent = '⚀';
+}
+
+// Split a bare total back into plausible dice, for callers that only have the
+// total (e.g. a sync payload from a client running an older build).
+function splitDiceTotal(v) {
+  const t = Number(v);
+  if (!t || t < 1) return [1];
+  if (t <= 6) return [t];
+  const a = Math.min(6, t - 1);
+  return [a, t - a];
+}
+
+// `v` is the total; `faces` the individual dice behind it. A Double Roll is two
+// dice summed, so a total of 7-12 is legitimate — this used to index FACES out
+// of bounds and paint the literal string "undefined".
+function animDice(v, faces) {
+  const el = document.getElementById('dface');
+  if (!el) return;
+  const finalFaces = (Array.isArray(faces) && faces.length)
+    ? faces.slice()
+    : (v >= 1 && v <= 6 ? [v] : splitDiceTotal(v));
+  if (_diceTumbleId !== null) { clearTimeout(_diceTumbleId); _diceTumbleId = null; }
+  el.classList.remove('spin'); void el.offsetWidth; el.classList.add('spin');
+  let reduced = false;
+  try {
+    reduced = typeof matchMedia === 'function'
+      && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch (e) {}
+  if (reduced || typeof setTimeout !== 'function') { paintDice(finalFaces); return; }
+  // Tumble through faces, then settle on the real result. Driven by a counter
+  // rather than Math.random() on purpose: the verification harness pins
+  // Math.random to check roll arithmetic, and a cosmetic animation must not
+  // consume draws or it would shift every seeded result.
+  let step = 0;
+  const tick = () => {
+    if (step >= DICE_TUMBLE_TICKS) { _diceTumbleId = null; paintDice(finalFaces); return; }
+    _diceTumbleTick++; step++;
+    paintDice(finalFaces.map((_, i) => ((_diceTumbleTick + i * 2) % 6) + 1));
+    _diceTumbleId = setTimeout(tick, DICE_TUMBLE_STEP_MS);
+  };
+  tick();
+}
 function pnm(p) { return isCPU(p)?`CPU ${p}`:PNMS[p]; }
 function glog(msg,hi=false) { const g=document.getElementById('glog'); const d=document.createElement('div'); d.className='gli'+(hi?' hi':''); d.textContent=msg; g.insertBefore(d,g.firstChild); }
 function showWin(p) {
@@ -6434,6 +6528,7 @@ function serializeGameState() {
       currentPlayer: currentPlayer,
       phase: phase,
       diceVal: diceVal,
+      diceFaces: diceFaces,
       gameOver: gameOver,
       shieldTurns: shieldTurns,
       playerPowerups: playerPowerups,
@@ -6461,6 +6556,10 @@ function applyGameState(stateStr) {
     if (s.numPlayers) numPlayers = s.numPlayers;
     if (typeof s.powerupsEnabled === 'boolean') powerupsEnabled = s.powerupsEnabled;
     gameOver = s.gameOver || false;
+    diceFaces = Array.isArray(s.diceFaces) ? s.diceFaces : [];
+    // Was serialized but never read back, so a Double Roll held across a
+    // reconnect or force-sync was silently lost.
+    doubleRollActive = !!s.doubleRollActive;
     shieldTurns = s.shieldTurns || {};
     playerPowerups = s.playerPowerups || {};
     boardPowerups = s.boardPowerups || [];
@@ -6884,9 +6983,14 @@ function handleRemoteAction(action) {
   const { type, data } = action;
   if (type === 'roll') {
     diceVal = data.diceVal;
-    animDice(diceVal);
+    // Older builds only sent the total; derive faces so the die still renders.
+    diceFaces = (Array.isArray(data.faces) && data.faces.length)
+      ? data.faces : splitDiceTotal(diceVal);
+    animDice(diceVal, diceFaces);
     soundDice();
-    glog(`${pnm(currentPlayer)} rolled ${diceVal}`, true);
+    glog(diceFaces.length > 1
+      ? `${pnm(currentPlayer)} rolled ${diceFaces.join(' + ')} = ${diceVal}! 🎲`
+      : `${pnm(currentPlayer)} rolled ${diceVal}`, true);
     phase = 'pick-pawn';
     renderAll();
   } else if (type === 'no-move') {
@@ -6973,7 +7077,7 @@ function handleRemoteAction(action) {
       currentPlayer = data.currentPlayer;
       phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
       doubleRollActive = false; animating = false;
-      document.getElementById('dface').textContent = '⚀';
+      resetDice();
       renderAll(); updateOnlineTurnUI(); startPlayerTurn();
     };
     if (animating) {
@@ -7016,7 +7120,7 @@ function handleRemoteAction(action) {
     currentPlayer = data.currentPlayer;
     phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
     doubleRollActive = false; animating = false;
-    document.getElementById('dface').textContent = '⚀';
+    resetDice();
     glowTurnSnapshot = '';
     renderAll();
     updateOnlineTurnUI();
@@ -7111,7 +7215,7 @@ rollDice = function() {
   // Only sync if the roll actually happened (phase changed from 'roll' to 'pick-pawn')
   // This prevents syncing stale diceVal if rollDice returned early
   if (mpIsOnline && phase === 'pick-pawn' && diceVal && diceVal !== diceValBefore) {
-    syncAction('roll', { diceVal });
+    syncAction('roll', { diceVal, faces: diceFaces });
   }
 };
 
@@ -7261,7 +7365,7 @@ const TRANSLATIONS = {
     htpHomeText1: 'Select a pawn from home to <b>deploy it</b> — it enters at your entry point, and your roll counts from there.',
     htpHomeText2: 'Captured pawns return home and can be <b>redeployed</b> on a later turn.',
     htpPowerupsTitle: '⚡ Powerups Mode',
-    htpPuDoubleRoll: '<b>Double Roll</b> — your dice result is doubled this turn.',
+    htpPuDoubleRoll: '<b>Double Roll</b> — roll two dice instead of one and move the total.',
     htpPuTempBarricade: '<b>Temp Barricade</b> — an orange barricade that disappears after 3 rounds.',
     htpPuShield: "<b>Shield</b> — your pawns can't be captured, and can't be passed through, for 3 rounds.",
     htpPuBomb: '<b>Bomb</b> — a hidden mine on any cell. The next pawn to land on it is sent home.',
@@ -7296,7 +7400,7 @@ const TRANSLATIONS = {
     htpHomeText1: 'Wähle eine Figur aus deiner Basis, um sie <b>einzusetzen</b> — sie betritt das Feld an deinem Startpunkt, und dein Wurf zählt von dort.',
     htpHomeText2: 'Geschlagene Figuren kehren zur Basis zurück und können später erneut <b>eingesetzt</b> werden.',
     htpPowerupsTitle: '⚡ Powerups-Modus',
-    htpPuDoubleRoll: '<b>Doppelwurf</b> — dein Würfelergebnis wird für diesen Zug verdoppelt.',
+    htpPuDoubleRoll: '<b>Doppelwurf</b> — würfle mit zwei Würfeln statt einem und zieh die Summe.',
     htpPuTempBarricade: '<b>Temporäre Barrikade</b> — eine orangene Barrikade, die nach 3 Runden verschwindet.',
     htpPuShield: '<b>Schild</b> — deine Figuren können 3 Runden lang nicht geschlagen oder übersprungen werden.',
     htpPuBomb: '<b>Bombe</b> — eine versteckte Mine auf einem beliebigen Feld. Die nächste Figur, die dort landet, wird nach Hause geschickt.',
@@ -7331,7 +7435,7 @@ const TRANSLATIONS = {
     htpHomeText1: 'Elige una ficha de tu base para <b>sacarla</b> — entra al tablero por tu punto de salida, y tu tirada cuenta desde ahí.',
     htpHomeText2: 'Las fichas capturadas vuelven a la base y pueden <b>volver a salir</b> en un turno posterior.',
     htpPowerupsTitle: '⚡ Modo Potenciadores',
-    htpPuDoubleRoll: '<b>Tirada doble</b> — el resultado del dado se duplica este turno.',
+    htpPuDoubleRoll: '<b>Tirada doble</b> — lanza dos dados en vez de uno y avanza el total.',
     htpPuTempBarricade: '<b>Barricada temporal</b> — una barricada naranja que desaparece tras 3 rondas.',
     htpPuShield: '<b>Escudo</b> — tus fichas no pueden ser capturadas, ni saltadas, durante 3 rondas.',
     htpPuBomb: '<b>Bomba</b> — una mina oculta en cualquier casilla. La próxima ficha que caiga ahí vuelve a casa.',
@@ -7366,7 +7470,7 @@ const TRANSLATIONS = {
     htpHomeText1: "Choisis un pion dans ta base pour le <b>faire entrer</b> — il arrive à ton point d'entrée, et ton lancer compte à partir de là.",
     htpHomeText2: "Les pions capturés reviennent à la base et peuvent être <b>réintroduits</b> à un tour suivant.",
     htpPowerupsTitle: '⚡ Mode Bonus',
-    htpPuDoubleRoll: '<b>Double lancer</b> — le résultat de ton dé est doublé ce tour-ci.',
+    htpPuDoubleRoll: '<b>Double lancer</b> — lance deux dés au lieu dun seul et avance la somme.',
     htpPuTempBarricade: '<b>Barricade temporaire</b> — une barricade orange qui disparaît après 3 tours.',
     htpPuShield: "<b>Bouclier</b> — tes pions ne peuvent pas être capturés, ni survolés, pendant 3 tours.",
     htpPuBomb: '<b>Bombe</b> — une mine cachée sur une case. Le prochain pion qui s\'y arrête est renvoyé à sa base.',

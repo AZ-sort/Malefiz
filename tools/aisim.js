@@ -69,6 +69,7 @@ const STATE_EPILOGUE = `
   get currentPlayer(){return currentPlayer}, get gameOver(){return gameOver},
   get pawns(){return pawns}, get barricades(){return barricades},
   get phase(){return phase}, get diceVal(){return diceVal},
+  get diceFaces(){return diceFaces},
   get traps(){return traps}, get playerPowerups(){return playerPowerups},
   get turnCount(){return turnCount}, get activeBoard(){return activeBoard},
   get GOAL(){return GOAL}, get PAWNS_PER_PLAYER(){return PAWNS_PER_PLAYER},
