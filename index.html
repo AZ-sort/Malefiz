@@ -2239,6 +2239,10 @@
         <span class="htp-icon">♟️</span>
         <span data-i18n-html="htpTurnChooseText">Move a pawn already on the board, or <b>deploy a new one</b> from your home base.</span>
       </div>
+      <div class="htp-rule">
+        <span class="htp-icon">6️⃣</span>
+        <span data-i18n-html="htpTurnSixText">Roll a <b>6</b> and you move, then roll again — up to three extra rolls in a turn.</span>
+      </div>
     </div>
 
     <div class="htp-section">
@@ -2950,6 +2954,7 @@ function initGame() {
   anyPawnMoved = false;
   lastDiceVal = 0;
   diceFaces = [];
+  bonusRolls = 0;
 }
 
 // ================================================================
@@ -4772,6 +4777,11 @@ let lastDiceVal = 0;
 // for a Double Roll. Kept alongside diceVal so the UI can show real dice
 // instead of trying to render an impossible single face for a total of 7-12.
 let diceFaces = [];
+// Rolling a 6 lets you move and roll again. bonusRolls counts how many extra
+// rolls the current player has already been granted this turn; the cap is what
+// guarantees a turn always ends.
+let bonusRolls = 0;
+const MAX_BONUS_ROLLS = 3;
 let anyPawnMoved = false; // track if first move happened
 let firstRollDone = false;
 
@@ -4788,8 +4798,11 @@ function rollDice() {
   // Double roll powerup check
   if (applyDoubleRoll()) return;
   let roll = Math.floor(Math.random()*6)+1;
-  // Reroll once if same as last roll (reduces jarring streaks)
-  if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
+  // Reroll once if same as last roll (reduces jarring streaks). Skipped on a
+  // bonus roll: you only earned it by rolling a 6, so lastDiceVal is 6 and this
+  // would bias the follow-up away from 6 — actively suppressing the chained
+  // sixes the rule exists to produce.
+  if (roll === lastDiceVal && bonusRolls === 0) roll = Math.floor(Math.random()*6)+1;
   lastDiceVal = roll;
   diceVal = roll;
   diceFaces = [roll];
@@ -4823,12 +4836,19 @@ function checkNoLegalMove() {
   if (isCPU(currentPlayer) || hasAnyLegalMove(currentPlayer, diceVal)) return;
   const stuckPlayer = currentPlayer;
   const stuckRoll = diceVal;
-  glog(`${pnm(stuckPlayer)} rolled ${stuckRoll} but has no legal move — turn passes.`, true);
+  // Being boxed in on a 6 now costs you the move but not the turn — you roll
+  // again instead of passing. Decided up front so the message matches what is
+  // actually about to happen.
+  const willRollAgain = rollsAgain();
+  glog(willRollAgain
+    ? `${pnm(stuckPlayer)} rolled ${stuckRoll} but has no legal move — rolling again.`
+    : `${pnm(stuckPlayer)} rolled ${stuckRoll} but has no legal move — turn passes.`, true);
   // Small delay so the roll and the message actually register before the
   // turn moves on, and so the rollDice sync wrapper (which fires right after
   // this function returns) has already sent the 'roll' action first.
   setTimeout(() => {
     if (gameOver || phase !== 'pick-pawn' || currentPlayer !== stuckPlayer || diceVal !== stuckRoll) return;
+    if (willRollAgain) { endTurnOrRollAgain(); return; }
     if (mpIsOnline) syncAction('no-move', { diceVal: stuckRoll });
     nextTurn();
   }, 1400);
@@ -4934,6 +4954,42 @@ function animateCapturedPawn(pawn, player, onDone) {
   }, 750);
 }
 
+// Does the player who just moved get another roll?
+//
+// Only a plain single-die 6 qualifies. A Double Roll is two dice and already a
+// big move, so letting a 6 inside it (or a total of 6) chain extra rolls would
+// be both swingy and impossible to state in one line — hence the
+// diceFaces.length === 1 guard.
+function rollsAgain() {
+  return !gameOver
+      && diceVal === 6
+      && diceFaces.length === 1
+      && bonusRolls < MAX_BONUS_ROLLS;
+}
+
+// Called instead of nextTurn() once a move is fully resolved: either the same
+// player rolls again (they rolled a 6), or the turn passes as normal.
+//
+// Deliberately does NOT call trySpawnPowerup() — that ticks temp-barricade and
+// shield expiry and the turn counter, and a bonus roll is the same turn, not a
+// new one. Reuses startPlayerTurn(), which already re-enters doCPU for CPU
+// seats and handles auto-roll, online and offline.
+function endTurnOrRollAgain() {
+  if (!rollsAgain()) { nextTurn(); return; }
+  bonusRolls++;
+  const left = MAX_BONUS_ROLLS - bonusRolls;
+  phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
+  doubleRollActive = false;
+  resetDice();
+  glowTurnSnapshot = '';
+  glog(`${pnm(currentPlayer)} rolled a 6 — move and roll again!${left === 0 ? ' (last extra roll)' : ''}`, true);
+  renderAll();
+  if (mpIsOnline && mpSlot) {
+    syncAction('roll-again', { currentPlayer, bonusRolls, state: serializeGameState() });
+  }
+  startPlayerTurn();
+}
+
 function finishMove(er, ec, bar, movingPawn) {
   anyPawnMoved = true;
   // Check trap FIRST — if triggered, pawn goes home and turn ends
@@ -4963,7 +5019,7 @@ function finishMove(er, ec, bar, movingPawn) {
       setTimeout(() => { cpuPlaceBarricade(); renderAll(); }, 700);
     }
   } else {
-    nextTurn();
+    endTurnOrRollAgain();
     renderAll();
   }
 }
@@ -4980,7 +5036,10 @@ function placeBarricade(er, ec) {
   barricades.push({er, ec});
   soundBarricadePlace();
   glog(`${pnm(currentPlayer)} placed the barricade — that route is blocked now.`);
-  nextTurn(); renderAll();
+  // Not nextTurn(): capturing a barricade on a 6 routes through the
+  // place-barricade phase, so the bonus roll has to come after the placement
+  // rather than being swallowed by it.
+  endTurnOrRollAgain(); renderAll();
 }
 
 // Advance from a slot to the next one in rotation, skipping any slot marked
@@ -5001,6 +5060,7 @@ function nextTurn() {
   if (gameOver) return;
   phase='roll'; diceVal=null; selPawn=null; reachable=[];
   doubleRollActive = false;
+  bonusRolls = 0; // extra rolls never carry across a turn boundary
   resetDice();
   trySpawnPowerup();
   currentPlayer = advanceSlot(currentPlayer);
@@ -5086,8 +5146,9 @@ function doCPU() {
     return;
   }
   let roll = Math.floor(Math.random()*6)+1;
-  // Reroll once if same as last roll (reduces jarring streaks)
-  if (roll === lastDiceVal) roll = Math.floor(Math.random()*6)+1;
+  // Reroll once if same as last roll (reduces jarring streaks). Skipped on a
+  // bonus roll, same reasoning as rollDice().
+  if (roll === lastDiceVal && bonusRolls === 0) roll = Math.floor(Math.random()*6)+1;
   lastDiceVal = roll;
   diceVal = roll;
   diceFaces = [roll];
@@ -5104,7 +5165,8 @@ function doCPU() {
 function cpuPickAndMove() {
   if (gameOver) return;
   const mv = bestMove();
-  if (!mv) { nextTurn(); renderAll(); return; }
+  // Same stuck-on-a-6 rule the human path gets via checkNoLegalMove().
+  if (!mv) { endTurnOrRollAgain(); renderAll(); return; }
   selPawn = mv.pawn; reachable = mv.reach; phase = 'move'; renderAll();
   setTimeout(() => {
     moveTo(mv.target.er, mv.target.ec);
@@ -6535,6 +6597,7 @@ function serializeGameState() {
       boardPowerups: boardPowerups,
       turnCount: turnCount,
       doubleRollActive: doubleRollActive,
+      bonusRolls: bonusRolls,
       powerupsEnabled: powerupsEnabled,
       numPlayers: numPlayers,
       boardId: activeBoard,
@@ -6560,6 +6623,7 @@ function applyGameState(stateStr) {
     // Was serialized but never read back, so a Double Roll held across a
     // reconnect or force-sync was silently lost.
     doubleRollActive = !!s.doubleRollActive;
+    bonusRolls = s.bonusRolls || 0;
     shieldTurns = s.shieldTurns || {};
     playerPowerups = s.playerPowerups || {};
     boardPowerups = s.boardPowerups || [];
@@ -7064,6 +7128,35 @@ function handleRemoteAction(action) {
     }
   } else if (type === 'place-temp-barricade') {
     _origPlaceTempBarricade(data.er, data.ec);
+  } else if (type === 'roll-again') {
+    // The active player rolled a 6: they move and roll again, so the turn did
+    // NOT pass. Without this the opponent would sit waiting for a
+    // next-turn-resolved that is never coming, and any later roll would look
+    // like it came from the wrong player.
+    //
+    // Waits out any in-flight move animation for the same reason applyNTR
+    // does — this arrives immediately behind the 'move' action that caused it.
+    let raFired = false;
+    const applyRollAgain = () => {
+      if (raFired) return;
+      raFired = true;
+      if (data.state) applyGameState(data.state);
+      if (data.currentPlayer) currentPlayer = data.currentPlayer;
+      bonusRolls = data.bonusRolls || 0;
+      phase = 'roll'; diceVal = null; selPawn = null; reachable = [];
+      doubleRollActive = false; animating = false;
+      resetDice();
+      glowTurnSnapshot = '';
+      glog(`${pnm(currentPlayer)} rolled a 6 — moving and rolling again!`, true);
+      renderAll(); updateOnlineTurnUI(); startPlayerTurn();
+    };
+    if (animating) {
+      const wait = setInterval(() => { if (!animating) { clearInterval(wait); applyRollAgain(); } }, 50);
+      setTimeout(() => { clearInterval(wait); applyRollAgain(); }, 2000);
+    } else {
+      applyRollAgain();
+    }
+    return;
   } else if (type === 'next-turn-resolved') {
     let ntrFired = false;
     const applyNTR = () => {
@@ -7357,6 +7450,7 @@ const TRANSLATIONS = {
     htpTurnTitle: '🎲 Taking a Turn',
     htpTurnDiagramText: "Roll, then move <b>exactly</b> that many steps. Turn corners freely — you just can't double back.",
     htpTurnChooseText: 'Move a pawn already on the board, or <b>deploy a new one</b> from your home base.',
+    htpTurnSixText: 'Roll a <b>6</b> and you move, then roll again — up to three extra rolls in a turn.',
     htpBarricadesTitle: '🚧 Barricades',
     htpBarricadesText: "You can't pass through a barricade — go around it, or <b>land on it exactly</b> to clear it and place it anywhere else (not the bottom row or the goal).",
     htpCaptureTitle: '💥 Capturing',
@@ -7392,6 +7486,7 @@ const TRANSLATIONS = {
     htpTurnTitle: '🎲 Ein Zug',
     htpTurnDiagramText: 'Würfle, dann ziehe <b>genau</b> so viele Felder. Du darfst dabei um Ecken ziehen — nur nicht auf demselben Weg zurück.',
     htpTurnChooseText: 'Ziehe eine Figur, die schon auf dem Feld steht, oder <b>setze eine neue ein</b> aus deiner Basis.',
+    htpTurnSixText: 'Bei einer <b>6</b> ziehst du und würfelst noch einmal — bis zu drei Extrawürfe pro Zug.',
     htpBarricadesTitle: '🚧 Barrikaden',
     htpBarricadesText: 'Du kannst nicht durch eine Barrikade ziehen — weiche aus, oder ziehe <b>genau darauf</b>, um sie zu entfernen und woanders neu zu platzieren (nicht in der untersten Reihe oder im Ziel).',
     htpCaptureTitle: '💥 Schlagen',
@@ -7427,6 +7522,7 @@ const TRANSLATIONS = {
     htpTurnTitle: '🎲 Tu turno',
     htpTurnDiagramText: 'Tira el dado y avanza <b>exactamente</b> ese número de casillas. Puedes girar en las esquinas, pero no puedes retroceder por el mismo camino.',
     htpTurnChooseText: 'Mueve una ficha que ya esté en el tablero, o <b>saca una nueva</b> de tu base.',
+    htpTurnSixText: 'Saca un <b>6</b> y mueves, luego vuelves a tirar — hasta tres tiradas extra por turno.',
     htpBarricadesTitle: '🚧 Barricadas',
     htpBarricadesText: 'No puedes atravesar una barricada — rodéala, o <b>cae exactamente sobre ella</b> para retirarla y colocarla en cualquier otro lugar (excepto la fila inferior o la meta).',
     htpCaptureTitle: '💥 Capturas',
@@ -7462,6 +7558,7 @@ const TRANSLATIONS = {
     htpTurnTitle: '🎲 Jouer un tour',
     htpTurnDiagramText: "Lance le dé, puis avance <b>exactement</b> de ce nombre de cases. Tu peux tourner dans les angles, mais pas revenir en arrière sur le même trajet.",
     htpTurnChooseText: "Déplace un pion déjà sur le plateau, ou <b>fais entrer un nouveau</b> depuis ta base.",
+    htpTurnSixText: "Fais un <b>6</b> et tu avances, puis tu relances — jusqu'à trois lancers supplémentaires par tour.",
     htpBarricadesTitle: '🚧 Barricades',
     htpBarricadesText: "Tu ne peux pas traverser une barricade — contourne-la, ou <b>arrête-toi exactement dessus</b> pour la retirer et la replacer ailleurs (sauf la rangée du bas ou le but).",
     htpCaptureTitle: '💥 Captures',
