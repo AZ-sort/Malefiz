@@ -71,19 +71,27 @@ console.log('\n2. Double Roll reaches the CPU\n');
 {
   const h = newGame('classic', 'hard', 5);
   const { ctx, S } = h;
-  let doubled = false;
-  const origGlog = ctx.glog;
-  ctx.glog = function (m) { if (typeof m === 'string' && m.includes('× 2')) doubled = true; };
+  // Assert on real state, not log copy: this check used to string-match the
+  // glog text ('× 2'), which silently broke the moment the wording changed.
+  // A Double Roll is two dice, so diceFaces.length === 2 and the total is the
+  // sum — both observable without reading any user-facing string.
   if (typeof ctx.activateDoubleRoll === 'function') ctx.activateDoubleRoll();
   S.currentPlayer = 1;
   S.phase = 'roll';
   ctx.doCPU();
+  const faces = (S.diceFaces || []).slice();
+  const total = S.diceVal;
   // Let the queued pick/move steps run.
   let guard = 0;
   while (guard < 200 && h.stepTimer()) guard++;
-  ctx.glog = origGlog;
-  check('a CPU turn with doubleRollActive actually doubles', doubled,
-        doubled ? 'rolled n x 2' : 'flag ignored — Double Roll is a no-op for the CPU');
+  const twoDice = faces.length === 2;
+  const sums = twoDice && faces[0] + faces[1] === total;
+  const inRange = twoDice && faces.every(f => f >= 1 && f <= 6);
+  check('a CPU turn with doubleRollActive rolls two dice', twoDice,
+        twoDice ? `faces ${faces.join('+')}`
+                : 'flag ignored — Double Roll is a no-op for the CPU');
+  check('the CPU Double Roll total is the sum of both dice', sums && inRange,
+        `${faces.join(' + ')} = ${total}`);
 }
 
 console.log('\n3. Placement powerups cannot strand the turn\n');
