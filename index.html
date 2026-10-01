@@ -2325,6 +2325,10 @@
         <span data-i18n-html="htpPuShield"><b>Shield</b> — your pawns can't be captured, and can't be passed through, for 3 rounds.</span>
       </div>
       <div class="htp-rule">
+        <span class="htp-icon">🦘</span>
+        <span data-i18n-html="htpPuLeap"><b>Leap</b> — your next move jumps straight over barricades instead of being blocked.</span>
+      </div>
+      <div class="htp-rule">
         <span class="htp-icon">💣</span>
         <span data-i18n-html="htpPuBomb"><b>Bomb</b> — a hidden mine on any cell. The next pawn to land on it is sent home.</span>
       </div>
@@ -2955,6 +2959,7 @@ function initGame() {
   lastDiceVal = 0;
   diceFaces = [];
   bonusRolls = 0;
+  leapActive = false;
 }
 
 // ================================================================
@@ -2968,6 +2973,23 @@ function initGame() {
 
 // Returns all reachable destination cells AND one valid path to each.
 // reachMap: "er,ec" -> path array [{er,ec}, ...] from start to dest
+// Leap: for one move, barricades stop blocking movement THROUGH a cell.
+//
+// Declared here rather than with the other powerup flags because the reach
+// functions below are defined before the powerup section and read it.
+let leapActive = false;
+
+// Barricades block movement through a cell. Leap suspends exactly that, and
+// nothing else — landing rules are untouched, so landing square on a barricade
+// still captures it and a temp barricade still cannot be landed on.
+//
+// Every barricade path-check goes through here on purpose. There are four of
+// them (two reach searches, the entry-deploy path, and buildPath), and
+// buildPath is the one that bites: it backs the move animation and the
+// multiplayer path sync, so patching only the reach functions would offer the
+// move and then fail to animate or sync it.
+function blocksPath(er, ec) { return !leapActive && barAt(er, ec); }
+
 function getReachableWithPaths(startEr, startEc, steps, player) {
   const reachMap = {}; // dest key -> path array
   lastBlockedByBarricade = false;
@@ -2998,7 +3020,7 @@ function getReachableWithPaths(startEr, startEc, steps, player) {
       const ner = er+dr, nec = ec+dc;
       if (ner===per && nec===pec) continue; // no immediate backtrack
       if (!isWalkable(ner,nec)) continue;
-      if (barAt(ner,nec) && rem > 1) { lastBlockedByBarricade = true; continue; } // can't pass through barricade
+      if (blocksPath(ner,nec) && rem > 1) { lastBlockedByBarricade = true; continue; } // can't pass through barricade
       path.push({er:ner, ec:nec});
       dfs(ner, nec, rem-1, er, ec, path);
       path.pop();
@@ -3074,7 +3096,7 @@ function getReachableFromEntry(player, steps) {
       const ner = er+dr, nec = ec+dc;
       if (ner===per && nec===pec) continue;
       if (!isWalkable(ner,nec)) continue;
-      if (barAt(ner,nec) && rem > 1) { lastBlockedByBarricade = true; continue; }
+      if (blocksPath(ner,nec) && rem > 1) { lastBlockedByBarricade = true; continue; }
       path.push({er:ner, ec:nec});
       dfs(ner, nec, rem-1, er, ec, path);
       path.pop();
@@ -3107,7 +3129,7 @@ function getPathFromEntry(player, targetEr, targetEc, steps) {
       const ner = er+dr, nec = ec+dc;
       if (ner===per && nec===pec) continue;
       if (!isWalkable(ner,nec)) continue;
-      if (barAt(ner,nec) && rem > 1) continue;
+      if (blocksPath(ner,nec) && rem > 1) continue;
       path.push({er:ner, ec:nec});
       dfs(ner, nec, rem-1, er, ec, path);
       path.pop();
@@ -3644,6 +3666,7 @@ const POWERUP_TYPES = {
   'tempbar':  { icon: '🚧', name: 'Temp Barricade', desc: 'Place an extra barricade anywhere on the board. It vanishes after 3 turns.' },
   'shield':   { icon: '🛡️', name: 'Shield',         desc: 'Your pawns cannot be captured for 3 turns.' },
   'trap':     { icon: '💣', name: 'Bomb',           desc: 'Place a hidden mine on any path cell. The next pawn to land on it goes home!' },
+  'leap':     { icon: '🦘', name: 'Leap',           desc: 'Your next move jumps straight over barricades instead of being blocked by them.' },
 };
 
 // Board powerups: [{er, ec, type, turnsLeft}]
@@ -3843,6 +3866,7 @@ function applyPowerup(player, pu) {
   else if (pu.type === 'shield')  activateShield();
   else if (pu.type === 'tempbar') activateTempBarricade();
   else if (pu.type === 'trap')    activateTrap();
+  else if (pu.type === 'leap')    activateLeap();
 }
 
 function confirmPowerup() {
@@ -3851,6 +3875,17 @@ function confirmPowerup() {
   const pu = pendingPowerup;
   pendingPowerup = null;
   applyPowerup(currentPlayer, pu);
+}
+
+// ── Leap ────────────────────────────────────────────────────────
+// Spent by the next completed move (cleared in finishMove), or dropped when
+// the turn ends. Deliberately NOT cleared by a bonus roll: if you leap and
+// then roll something you cannot move, the item should not be wasted.
+function activateLeap() {
+  leapActive = true;
+  glowTurnSnapshot = ''; // reachable set changes, force the overlay to rebuild
+  glog(`${pnm(currentPlayer)} activated 🦘 Leap — barricades won't block this move!`, true);
+  renderAll();
 }
 
 // ── Double Roll ─────────────────────────────────────────────────
@@ -4162,7 +4197,7 @@ function buildPath(startEr, startEc, destEr, destEc, steps, player) {
     for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
       const nr=cur.er+dr, nc=cur.ec+dc;
       if (!isWalkable(nr,nc)) continue;
-      if (barAt(nr,nc) && !(nr===destEr&&nc===destEc)) continue;
+      if (blocksPath(nr,nc) && !(nr===destEr&&nc===destEc)) continue;
       queue.push([...path, {er:nr,ec:nc}]);
     }
   }
@@ -4992,6 +5027,7 @@ function endTurnOrRollAgain() {
 
 function finishMove(er, ec, bar, movingPawn) {
   anyPawnMoved = true;
+  leapActive = false; // spent: Leap covers exactly one move
   // Check trap FIRST — if triggered, pawn goes home and turn ends
   if (checkTrap(er, ec, movingPawn)) { nextTurn(); return; }
   // Check powerup collection
@@ -5060,6 +5096,7 @@ function nextTurn() {
   if (gameOver) return;
   phase='roll'; diceVal=null; selPawn=null; reachable=[];
   doubleRollActive = false;
+  leapActive = false;
   bonusRolls = 0; // extra rolls never carry across a turn boundary
   resetDice();
   trySpawnPowerup();
@@ -5579,6 +5616,26 @@ function cpuDoubleRollWins() {
   return false;
 }
 
+// Best goal-distance any pawn could reach this turn, optionally pretending
+// barricades do not block. Mirrors cpuDoubleRollWins(): ask what the item
+// actually unlocks rather than guessing from board shape.
+function cpuBestReachDist(withLeap) {
+  const saved = leapActive;
+  leapActive = !!withLeap;
+  let best = 999;
+  for (const r of [1, 2, 3, 4, 5, 6]) {
+    for (const pw of (pawns[currentPlayer] || [])) {
+      const reach = pw.onBoard ? getReachableCells(pw, r) : getReachableFromEntry(currentPlayer, r);
+      for (const t of reach) best = Math.min(best, distToGoal(t.er, t.ec));
+    }
+  }
+  leapActive = saved;
+  return best;
+}
+
+// How many steps of progress Leap would buy right now.
+function cpuLeapGain() { return cpuBestReachDist(false) - cpuBestReachDist(true); }
+
 function cpuLeadDist() {
   let best = 999;
   for (const pw of (pawns[currentPlayer] || [])) {
@@ -5617,6 +5674,16 @@ function cpuChoosePowerup() {
     for (const pw of (pawns[currentPlayer] || [])) {
       if (pw.onBoard && cellUnderThreat(pw.er, pw.ec, enemies)) return shd;
     }
+  }
+
+  // Leap. Hard checks what it would actually unlock; medium spends it when
+  // boxed in or when holding two items is blocking collection. Keeping the
+  // tiers genuinely different is the PR #63 lesson — identical powerup play
+  // across tiers measured as no separation at all.
+  const lp = has('leap');
+  if (lp) {
+    if (skill === 'sharp') { if (cpuLeapGain() >= 2) return lp; }
+    else if (full || lead > 6) return lp;
   }
 
   // Board control is always worth something.
@@ -6597,6 +6664,7 @@ function serializeGameState() {
       boardPowerups: boardPowerups,
       turnCount: turnCount,
       doubleRollActive: doubleRollActive,
+      leapActive: leapActive,
       bonusRolls: bonusRolls,
       powerupsEnabled: powerupsEnabled,
       numPlayers: numPlayers,
@@ -6623,6 +6691,7 @@ function applyGameState(stateStr) {
     // Was serialized but never read back, so a Double Roll held across a
     // reconnect or force-sync was silently lost.
     doubleRollActive = !!s.doubleRollActive;
+    leapActive = !!s.leapActive;
     bonusRolls = s.bonusRolls || 0;
     shieldTurns = s.shieldTurns || {};
     playerPowerups = s.playerPowerups || {};
@@ -7282,6 +7351,13 @@ function handleRemoteAction(action) {
       playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
       phase = 'place-trap';
       renderAll();
+    } else if (data.puType === 'leap') {
+      // This switch duplicates applyPowerup() rather than calling it, so a new
+      // type added only there does nothing on every other client.
+      playerPowerups[currentPlayer] = (playerPowerups[currentPlayer]||[]).filter(p => p.id !== data.puId);
+      leapActive = true;
+      glowTurnSnapshot = '';
+      renderAll();
     }
   } else if (type === 'target-action') {
     if (data.puType === 'skip') applySkip(data.target);
@@ -7462,6 +7538,7 @@ const TRANSLATIONS = {
     htpPuDoubleRoll: '<b>Double Roll</b> — roll two dice instead of one and move the total.',
     htpPuTempBarricade: '<b>Temp Barricade</b> — an orange barricade that disappears after 3 rounds.',
     htpPuShield: "<b>Shield</b> — your pawns can't be captured, and can't be passed through, for 3 rounds.",
+    htpPuLeap: '<b>Leap</b> — your next move jumps straight over barricades instead of being blocked.',
     htpPuBomb: '<b>Bomb</b> — a hidden mine on any cell. The next pawn to land on it is sent home.',
     htpPuCollect: '<b>Land on a powerup</b> to collect it — hold up to 2 at a time, and use them before you roll.',
     htpGotIt: 'Got it!',
@@ -7498,6 +7575,7 @@ const TRANSLATIONS = {
     htpPuDoubleRoll: '<b>Doppelwurf</b> — würfle mit zwei Würfeln statt einem und zieh die Summe.',
     htpPuTempBarricade: '<b>Temporäre Barrikade</b> — eine orangene Barrikade, die nach 3 Runden verschwindet.',
     htpPuShield: '<b>Schild</b> — deine Figuren können 3 Runden lang nicht geschlagen oder übersprungen werden.',
+    htpPuLeap: '<b>Sprung</b> — dein nächster Zug springt einfach über Barrikaden hinweg.',
     htpPuBomb: '<b>Bombe</b> — eine versteckte Mine auf einem beliebigen Feld. Die nächste Figur, die dort landet, wird nach Hause geschickt.',
     htpPuCollect: '<b>Ziehe auf ein Powerup</b>, um es einzusammeln — du kannst bis zu 2 gleichzeitig halten und sie vor dem Würfeln einsetzen.',
     htpGotIt: 'Verstanden!',
@@ -7534,6 +7612,7 @@ const TRANSLATIONS = {
     htpPuDoubleRoll: '<b>Tirada doble</b> — lanza dos dados en vez de uno y avanza el total.',
     htpPuTempBarricade: '<b>Barricada temporal</b> — una barricada naranja que desaparece tras 3 rondas.',
     htpPuShield: '<b>Escudo</b> — tus fichas no pueden ser capturadas, ni saltadas, durante 3 rondas.',
+    htpPuLeap: '<b>Salto</b> — tu próximo movimiento salta por encima de las barricadas.',
     htpPuBomb: '<b>Bomba</b> — una mina oculta en cualquier casilla. La próxima ficha que caiga ahí vuelve a casa.',
     htpPuCollect: '<b>Cae sobre un potenciador</b> para recogerlo — puedes tener hasta 2 a la vez, y usarlos antes de tirar.',
     htpGotIt: '¡Entendido!',
@@ -7570,6 +7649,7 @@ const TRANSLATIONS = {
     htpPuDoubleRoll: '<b>Double lancer</b> — lance deux dés au lieu dun seul et avance la somme.',
     htpPuTempBarricade: '<b>Barricade temporaire</b> — une barricade orange qui disparaît après 3 tours.',
     htpPuShield: "<b>Bouclier</b> — tes pions ne peuvent pas être capturés, ni survolés, pendant 3 tours.",
+    htpPuLeap: '<b>Saut</b> — ton prochain déplacement passe par-dessus les barricades.',
     htpPuBomb: '<b>Bombe</b> — une mine cachée sur une case. Le prochain pion qui s\'y arrête est renvoyé à sa base.',
     htpPuCollect: "<b>Arrête-toi sur un bonus</b> pour le ramasser — tu peux en garder jusqu'à 2 à la fois, à utiliser avant de lancer le dé.",
     htpGotIt: 'Compris !',

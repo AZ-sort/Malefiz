@@ -70,6 +70,8 @@ const STATE_EPILOGUE = `
   get pawns(){return pawns}, get barricades(){return barricades},
   get phase(){return phase}, get diceVal(){return diceVal},
   get diceFaces(){return diceFaces},
+  get leapActive(){return leapActive}, set leapActive(v){leapActive=v},
+  get tempBarricades(){return tempBarricades},
   get bonusRolls(){return bonusRolls}, set bonusRolls(v){bonusRolls=v},
   get traps(){return traps}, get playerPowerups(){return playerPowerups},
   get turnCount(){return turnCount}, get activeBoard(){return activeBoard},
